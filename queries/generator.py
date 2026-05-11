@@ -1,6 +1,4 @@
 import json
-import random
-import warnings
 import tomllib
 from pathlib import Path
 from rich.console import Console
@@ -50,7 +48,7 @@ class QueryGenerator:
 
             amount = len(queries)
 
-        generated_queries = random.sample(queries, amount)
+        generated_queries = queries[:amount]
 
         with open(file_path, "a", encoding="utf-8") as file:
             for query in generated_queries:

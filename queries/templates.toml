@@ -1,0 +1,34 @@
+[[query_templates]]
+# Example: 'Does the image contain a black car?'
+name = "Template1"
+version = "1.0.0"
+dataset = "cars"
+column = "image"
+query_structure = "Does the image contain a {color} {object}?"
+color = ["black", "white"]
+object = ["car", "ball"]
+
+
+[[query_templates]]
+# Example: 'Is the a true equation?'
+name = "Template2"
+version = "1.0.0"
+description = "Dummy template with number 2"
+dataset = "math"
+column = "equations"
+query_structure = "Is there a {semantics} {statement}?"
+semantics = ["true", "false"]
+statement = ["equation", "inequality"]
+
+
+[[query_templates]]
+# Example: 'Does the image show a red car on the road?'
+name = "Template3"
+version = "1.0.0"
+description = "Image template with three combinatorial arguments"
+dataset = "traffic"
+column = "image"
+query_structure = "Does the image show a {color} {object} on the {location}?"
+color = ["red", "blue", "green"]
+object = ["car", "bus"]
+location = ["road", "sidewalk"]

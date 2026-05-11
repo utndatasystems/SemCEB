@@ -1,0 +1,23 @@
+[general]
+system_prompt = "Evaluate if the following statement. Only answer with True or False."
+query_templates = ["Template1", "Template2", "Template3"]
+queries_per_template = 10
+# 1 to 5
+scale_factor = 1
+
+
+[[algorithms]]
+name = "Extrapolation Sampling"
+version = "1.0.0"
+filename = "extrapolated_sampling.py"
+class = "ExtrapolatedSampling"
+# Maybe cost to usd conversion factor
+
+
+[[algorithms]]
+name = "My Selectivity Estimation Algorithm"
+version = "1.0.0"
+filename = "my_selectivity_estimation_algorithm.py"
+class = "MySelectivityEstimationAlgorithm"
+system_prompt = "My own custom system prompt to overwrite the general system prompt"
+# Mabe cost to usd conversion factor

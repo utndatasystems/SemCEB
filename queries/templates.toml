@@ -1,4 +1,14 @@
 [[query_templates]]
+# Example: 'Does the element equal to PRCP?'
+name = "Template_DummyData"
+version = "1.0.0"
+dataset = "test_dataset"
+column = "ELEMENT"
+query_structure = "Does the element equal to {element_value}?"
+element_value = ["PRCP", "TMIN"]
+
+
+[[query_templates]]
 # Example: 'Does the image contain a black car?'
 name = "Template1"
 version = "1.0.0"

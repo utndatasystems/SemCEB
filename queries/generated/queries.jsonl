@@ -1,18 +1,2 @@
-{"id": 0, "name": "Template1", "version": "1.0.0", "dataset": "cars", "column": "image", "query": "Does the image contain a white car?", "selectivity_ground_truth": 123}
-{"id": 1, "name": "Template1", "version": "1.0.0", "dataset": "cars", "column": "image", "query": "Does the image contain a black ball?", "selectivity_ground_truth": 123}
-{"id": 2, "name": "Template1", "version": "1.0.0", "dataset": "cars", "column": "image", "query": "Does the image contain a black car?", "selectivity_ground_truth": 123}
-{"id": 3, "name": "Template1", "version": "1.0.0", "dataset": "cars", "column": "image", "query": "Does the image contain a white ball?", "selectivity_ground_truth": 123}
-{"id": 4, "name": "Template2", "version": "1.0.0", "dataset": "math", "column": "equations", "query": "Is there a false inequality?", "selectivity_ground_truth": 123}
-{"id": 5, "name": "Template2", "version": "1.0.0", "dataset": "math", "column": "equations", "query": "Is there a true equation?", "selectivity_ground_truth": 123}
-{"id": 6, "name": "Template2", "version": "1.0.0", "dataset": "math", "column": "equations", "query": "Is there a false equation?", "selectivity_ground_truth": 123}
-{"id": 7, "name": "Template2", "version": "1.0.0", "dataset": "math", "column": "equations", "query": "Is there a true inequality?", "selectivity_ground_truth": 123}
-{"id": 8, "name": "Template3", "version": "1.0.0", "dataset": "traffic", "column": "image", "query": "Does the image show a green bus on the sidewalk?", "selectivity_ground_truth": 123}
-{"id": 9, "name": "Template3", "version": "1.0.0", "dataset": "traffic", "column": "image", "query": "Does the image show a blue car on the road?", "selectivity_ground_truth": 123}
-{"id": 10, "name": "Template3", "version": "1.0.0", "dataset": "traffic", "column": "image", "query": "Does the image show a red car on the road?", "selectivity_ground_truth": 123}
-{"id": 11, "name": "Template3", "version": "1.0.0", "dataset": "traffic", "column": "image", "query": "Does the image show a green bus on the road?", "selectivity_ground_truth": 123}
-{"id": 12, "name": "Template3", "version": "1.0.0", "dataset": "traffic", "column": "image", "query": "Does the image show a red bus on the road?", "selectivity_ground_truth": 123}
-{"id": 13, "name": "Template3", "version": "1.0.0", "dataset": "traffic", "column": "image", "query": "Does the image show a blue bus on the road?", "selectivity_ground_truth": 123}
-{"id": 14, "name": "Template3", "version": "1.0.0", "dataset": "traffic", "column": "image", "query": "Does the image show a red car on the sidewalk?", "selectivity_ground_truth": 123}
-{"id": 15, "name": "Template3", "version": "1.0.0", "dataset": "traffic", "column": "image", "query": "Does the image show a green car on the road?", "selectivity_ground_truth": 123}
-{"id": 16, "name": "Template3", "version": "1.0.0", "dataset": "traffic", "column": "image", "query": "Does the image show a blue car on the sidewalk?", "selectivity_ground_truth": 123}
-{"id": 17, "name": "Template3", "version": "1.0.0", "dataset": "traffic", "column": "image", "query": "Does the image show a red bus on the sidewalk?", "selectivity_ground_truth": 123}
+{"id": 0, "name": "Template_DummyData", "version": "1.0.0", "dataset": "test_dataset", "column": "ELEMENT", "query": "Does the element equal to PRCP?"}
+{"id": 1, "name": "Template_DummyData", "version": "1.0.0", "dataset": "test_dataset", "column": "ELEMENT", "query": "Does the element equal to TMIN?"}

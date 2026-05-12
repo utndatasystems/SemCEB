@@ -1,7 +1,10 @@
 [general]
+model = "gpt-4o-mini"
 system_prompt = "Evaluate if the following statement. Only answer with True or False."
-query_templates = ["Template1", "Template2", "Template3"]
-queries_per_template = 10
+query_templates = [
+    "Template_DummyData",
+] #["Template1", "Template2", "Template3"]
+max_queries_per_template = 10
 # 1 to 5
 scale_factor = 1
 
@@ -11,6 +14,8 @@ name = "Extrapolation Sampling"
 version = "1.0.0"
 filename = "extrapolated_sampling.py"
 class = "ExtrapolatedSampling"
+model = "general"
+algorithm_kwargs = { sampling_frac = 0.1 }
 # Maybe cost to usd conversion factor
 
 
@@ -19,5 +24,7 @@ name = "My Selectivity Estimation Algorithm"
 version = "1.0.0"
 filename = "my_selectivity_estimation_algorithm.py"
 class = "MySelectivityEstimationAlgorithm"
+model = "my_desired_lm"
+algorithm_kwargs = { custom_parameter_for_algorithm = 0.1 }
 system_prompt = "My own custom system prompt to overwrite the general system prompt"
-# Mabe cost to usd conversion factor
+# Maybe cost to usd conversion factor

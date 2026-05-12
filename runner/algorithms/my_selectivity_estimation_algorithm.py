@@ -28,7 +28,6 @@ class MySelectivityEstimationAlgorithm(AlgorithmBase):
     def __init__(self, name: str, version: str) -> None:
         super().__init__(name, version)
 
-        # Store state needed between preparation(...) and run(...).
         self.data: pd.DataFrame | None = None
         self.model: Any | None = None
         self.algorithm_kwargs: dict[str, Any] = {}

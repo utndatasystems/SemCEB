@@ -1,5 +1,3 @@
-# queries/template.py
-
 from itertools import product
 from typing import Any
 
@@ -60,7 +58,7 @@ class QueryTemplate:
         if not self.variables:
             return [self.query_structure]
 
-        keys = list(self.variables.keys())
+        keys = sorted(self.variables.keys())
         values = [self.variables[key] for key in keys]
 
         queries = []
@@ -70,4 +68,4 @@ class QueryTemplate:
             query = self.query_structure.format(**replacements)
             queries.append(query)
 
-        return queries
+        return sorted(queries)

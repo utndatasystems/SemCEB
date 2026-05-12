@@ -1,5 +1,5 @@
 [[query_templates]]
-# Example: 'Does the image contain a black car?'
+# Example: 'Does the element equal to PRCP?'
 name = "Template_DummyData"
 version = "1.0.0"
 dataset = "test_dataset"

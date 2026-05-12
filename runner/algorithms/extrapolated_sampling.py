@@ -1,27 +1,105 @@
 import pandas as pd
-from pandas import DataFrame
 
 from runner.algorithms.base import AlgorithmBase
+from runner.models.lotus_backend import LotusBackend
 
 
 class ExtrapolatedSampling(AlgorithmBase):
-    """Algoritm based on extrapolation sampling"""
+    """Algorithm based on extrapolation sampling."""
 
     def __init__(self, name: str, version: str):
         super().__init__(name, version)
+        self.data: pd.DataFrame | None = None
+        self.data_sample: pd.DataFrame | None = None
+        self.model: LotusBackend | None = None
 
-    def preparation(self, data: pd.DataFrame, system_prompt: str) -> None:
-        """Preparation phase of extrapolation sampling algorithm"""
+    def reset_cost(self) -> None:
+        """Reset tracked algorithm costs."""
+        self.cost_usd = 0
+
+        if self.model is not None:
+            self.model.lm.reset_stats()
+
+    def preparation(
+        self,
+        query: dict,
+        data: pd.DataFrame,
+        model: str,
+        system_prompt: str,
+        algorithm_kwargs: dict,
+    ) -> int:
+        """Prepare extrapolation sampling and return the model-based ground truth."""
         self.data = data
-        self.system_prompt = system_prompt
-        ...
 
-    def run(self, query: str) -> int:
-        """Run semantic selectivity algorithm using extrapolation sampling. Returns estimated selectivity (int)"""
-        relevant_data = self.data.get(query, None)
-        ...
+        sampling_frac = algorithm_kwargs.get("sampling_frac", 0.1)
 
-        import random
+        if not 0 < sampling_frac <= 1:
+            raise ValueError("sampling_frac must be in the interval (0, 1].")
 
-        selectivity_estimation = max(0, round(random.gauss(mu=123, sigma=10)))
-        return selectivity_estimation
+        self.data_sample = self.data.sample(frac=sampling_frac, random_state=42)
+
+        if self.data_sample.empty:
+            raise ValueError(
+                "Sample is empty. Increase sampling_frac or provide more data."
+            )
+
+        if (
+            self.model is None
+            or self.model.name != model
+            or self.model.system_prompt != system_prompt
+        ):
+            self.model = LotusBackend(model, system_prompt)
+
+        selectivity_ground_truth = self._obtain_ground_truth(query)
+        return selectivity_ground_truth
+
+    def _validate_query(self, query: dict) -> None:
+        if "query" not in query or "column" not in query:
+            raise ValueError("query must contain 'query' and 'column'.")
+
+        if self.data is not None and query["column"] not in self.data.columns:
+            raise ValueError(
+                f"Column '{query['column']}' does not exist in data."
+            )
+
+    def _format_query(self, query: dict) -> str:
+        """Format LOTUS query string."""
+        self._validate_query(query)
+        return f"{query['query']} {{{query['column']}}}"
+
+    def _obtain_ground_truth(self, query: dict) -> int:
+        """Obtain model-based selectivity ground truth."""
+        if self.data is None:
+            raise RuntimeError("Algorithm has not been prepared yet.")
+
+        if self.model is None:
+            raise RuntimeError("Model has not been initialized.")
+
+        selectivity_ground_truth = self.model.filtering_query(
+            self._format_query(query),
+            self.data,
+        )
+
+        self.reset_cost()
+        return selectivity_ground_truth
+
+    def run(self, query: dict) -> int:
+        """Run extrapolation sampling and return estimated selectivity."""
+        if self.data is None or self.data_sample is None:
+            raise RuntimeError("Algorithm has not been prepared yet.")
+
+        if self.model is None:
+            raise RuntimeError("Model has not been initialized.")
+
+        sample_estimation = self.model.filtering_query(
+            self._format_query(query),
+            self.data_sample,
+        )
+
+        selectivity_estimation = (
+            sample_estimation / self.data_sample.shape[0] * self.data.shape[0]
+        )
+
+        self.add_cost(self.model.lm.stats.virtual_usage.total_cost)
+
+        return max(0, min(round(selectivity_estimation), self.data.shape[0]))

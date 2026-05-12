@@ -11,19 +11,21 @@ from rich.table import Table
 class ResultsPlotter:
     """Plots benchmark run result."""
 
-    def __init__(self):
+    def __init__(self, console: Console):
+        self.console = console
+
         self.raw_results_path = r"results\raw\result.jsonl"
         self.plot_dir = Path(r"results\plots")
         self.table_dir = Path(r"results\tables")
 
-    def plot(self, console: Console) -> None:
+    def plot(self) -> None:
         """Create benchmark run plot."""
 
         results = self._load_results()
         df = self._to_dataframe(results)
 
         if df.empty:
-            console.print(
+            self.console.print(
                 "[bold yellow]Warning:[/bold yellow] No results to plot."
             )
             return
@@ -35,12 +37,12 @@ class ResultsPlotter:
 
         table = self._create_summary_table(summary)
 
-        console.print()
-        console.print(table)
-        console.print()
+        self.console.print()
+        self.console.print(table)
+        self.console.print()
 
-        self._save_summary_table(table, console)
-        self._plot_algorithm_comparison(console, summary)
+        self._save_summary_table(table)
+        self._plot_algorithm_comparison(summary)
 
     def _load_results(self) -> list[dict[str, Any]]:
         """Load raw benchmark results from JSONL."""
@@ -78,12 +80,12 @@ class ResultsPlotter:
                     "query_name": query["name"],
                     "dataset": query["dataset"],
                     "query": query["query"],
-                    "selectivity_ground_truth": query[
-                        "selectivity_ground_truth"
-                    ],
                     "algorithm_name": algorithm["name"],
                     "algorithm_version": algorithm["version"],
                     "cost_usd": algorithm["cost_usd"],
+                    "selectivity_ground_truth": algorithm[
+                        "selectivity_ground_truth"
+                    ],
                     "selectivity_estimation": algorithm[
                         "selectivity_estimation"
                     ],
@@ -146,7 +148,6 @@ class ResultsPlotter:
 
     def _plot_algorithm_comparison(
         self,
-        console: Console,
         summary: pd.DataFrame,
     ) -> None:
         """Create one plot comparing algorithms by q-error and runtime."""
@@ -227,11 +228,11 @@ class ResultsPlotter:
         fig.savefig(output_path, dpi=150)
         plt.close(fig)
 
-        console.print(
+        self.console.print(
             f"[green]✓[/green] Saved algorithm comparison plot to [bold]{output_path}[/bold]"
         )
 
-    def _save_summary_table(self, table: Table, console: Console) -> None:
+    def _save_summary_table(self, table: Table) -> None:
         """Save Rich summary table to text and HTML files."""
 
         table_txt_path = self.table_dir / "algorithm_summary.txt"
@@ -243,7 +244,7 @@ class ResultsPlotter:
             color_system=None,
         )
 
-        console.print(
+        self.console.print(
             f"[green]✓[/green] Saved algorithm comparison table in *.txt to [bold]{table_txt_path}[/bold]"
         )
 
@@ -257,6 +258,6 @@ class ResultsPlotter:
 
         html_console.save_html(str(table_html_path))
 
-        console.print(
+        self.console.print(
             f"[green]✓[/green] Saved algorithm comparison table in *.html to [bold]{table_html_path}[/bold]"
         )

@@ -9,7 +9,10 @@ from queries.template import QueryTemplate
 class QueryGenerator:
     """Generates queries for benchmark"""
 
-    def __init__(self):
+    def __init__(self, file_path: str, console: Console):
+        self.file_path = file_path
+        self.console = console
+
         self.next_id = 0
         self.templates = self._load_templates()
 
@@ -31,15 +34,13 @@ class QueryGenerator:
         self,
         template: QueryTemplate,
         amount: int,
-        file_path: str,
-        console: Console,
     ) -> None:
         """Generates queries from template and stores them in file."""
 
         queries = template.generate_all_queries()
 
         if amount > len(queries):
-            console.print(
+            self.console.print(
                 f"[yellow]Warning:[/yellow] Requested [bold]{amount}[/bold] queries, "
                 f"but template [bold]'{template.name}'[/bold] can only generate "
                 f"[bold]{len(queries)}[/bold] unique queries. "
@@ -50,7 +51,7 @@ class QueryGenerator:
 
         generated_queries = queries[:amount]
 
-        with open(file_path, "a", encoding="utf-8") as file:
+        with open(self.file_path, "a", encoding="utf-8") as file:
             for query in generated_queries:
                 query_data = {
                     "id": self.next_id,
@@ -59,7 +60,6 @@ class QueryGenerator:
                     "dataset": template.dataset,
                     "column": template.column,
                     "query": query,
-                    "selectivity_ground_truth": 123,
                 }
 
                 file.write(json.dumps(query_data) + "\n")

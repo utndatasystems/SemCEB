@@ -19,7 +19,7 @@ class QueryGenerator:
     def _load_templates(self):
         """Loads templates"""
 
-        with open(r"queries\templates.toml", "rb") as file:
+        with open(Path("queries") / "templates.toml", "rb") as file:
             data = tomllib.load(file)
 
         templates = {}

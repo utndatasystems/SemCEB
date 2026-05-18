@@ -7,7 +7,7 @@ class DataLoader:
     """Loads locally stored data."""
 
     def __init__(self):
-        self.folderpath_raw_data = Path(r"data\.raw")
+        self.folderpath_raw_data = Path("data") / ".raw"
 
     def load(self, dataset: str, scale_factor: int) -> pd.DataFrame:
         """Load raw data into pandas dataframe."""

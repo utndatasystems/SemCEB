@@ -14,9 +14,9 @@ class ResultsPlotter:
     def __init__(self, console: Console):
         self.console = console
 
-        self.raw_results_path = r"results\raw\result.jsonl"
-        self.plot_dir = Path(r"results\plots")
-        self.table_dir = Path(r"results\tables")
+        self.raw_results_path = Path("results") / "raw" / "result.jsonl"
+        self.plot_dir = Path("results") / "plots"
+        self.table_dir = Path("results") / "tables"
 
     def plot(self) -> None:
         """Create benchmark run plot."""

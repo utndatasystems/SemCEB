@@ -18,7 +18,8 @@ def generate_queries(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
 
     query_templates = config["general"]["query_templates"]
     max_queries_per_template = config["general"]["max_queries_per_template"]
-    output_file = r"queries\generated\queries.jsonl"
+    output_file = Path("queries") / "generated" / "queries.jsonl"
+    
 
     # Clear file
     with open(output_file, "w"):

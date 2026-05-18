@@ -34,8 +34,8 @@ class BenchmarkRunner:
         self.scale_factor = scale_factor
         self.console = console
 
-        self.result_filepath = r"results\raw\result.jsonl"
-        self.query_filepath = r"queries\generated\queries.jsonl"
+        self.result_filepath = Path("results") / "raw" / "result.jsonl"
+        self.query_filepath = Path("queries") / "generated" / "queries.jsonl"
 
         self.queries = self._load_queries(self.query_filepath)
 

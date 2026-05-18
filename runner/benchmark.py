@@ -25,12 +25,14 @@ class BenchmarkRunner:
         algorithms: list[dict[str, Any]],
         default_model: str,
         default_system_prompt: str,
+        default_using_cache_for_LLM: bool,
         scale_factor: int,
         console: Console,
     ):
         self.algorithms = algorithms
         self.default_model = default_model
         self.default_system_prompt = default_system_prompt
+        self.default_using_cache_for_LLM = default_using_cache_for_LLM
         self.scale_factor = scale_factor
         self.console = console
 
@@ -120,9 +122,12 @@ class BenchmarkRunner:
             system_prompt = algorithm_config.get("system_prompt", None)
             if not system_prompt or system_prompt == "general":
                 system_prompt = self.default_system_prompt
+            
+            using_cache_for_LLM = algorithm_config.get("using_cache_for_LLM", None)
+            if not using_cache_for_LLM or using_cache_for_LLM == "general":
+                using_cache_for_LLM = self.default_using_cache_for_LLM
 
             for query in self.queries:
-                query_text = query["query"]
 
                 progress.update(
                     task,
@@ -143,9 +148,10 @@ class BenchmarkRunner:
                     data,
                     model,
                     system_prompt,
+                    using_cache_for_LLM,
                     algorithm_config.get("algorithm_kwargs", {}),
                 )
-                algorithm.reset_cost()
+                algorithm.reset_cost_stats()
 
                 start = time.perf_counter()
                 selectivity_estimation = algorithm.run(query)
@@ -159,7 +165,7 @@ class BenchmarkRunner:
                     query=query,
                     name=algorithm_config["name"],
                     version=algorithm_config["version"],
-                    cost_usd=algorithm.cost_usd,
+                    cost_stats=algorithm.cost_stats,
                     selectivity_ground_truth=selectivity_ground_truth,
                     selectivity_estimation=selectivity_estimation,
                     q_error=q_error,
@@ -197,7 +203,7 @@ class BenchmarkRunner:
         query: str,
         name: str,
         version: str,
-        cost_usd: float,
+        cost_stats: dict,
         selectivity_ground_truth: int,
         selectivity_estimation: int,
         q_error: float,
@@ -208,7 +214,7 @@ class BenchmarkRunner:
         algorithm_data = {
             "name": name,
             "version": version,
-            "cost_usd": cost_usd,
+            "cost_stats": cost_stats,
             "selectivity_ground_truth": selectivity_ground_truth,
             "selectivity_estimation": selectivity_estimation,
             "q_error": q_error,

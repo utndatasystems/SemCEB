@@ -1,6 +1,7 @@
 [general]
 model = "gpt-4o-mini"
 system_prompt = "Evaluate if the following statement. Only answer with True or False."
+using_cache_for_LLM = true
 query_templates = [
     "Template_DummyData",
 ] #["Template1", "Template2", "Template3"]
@@ -27,4 +28,5 @@ class = "MySelectivityEstimationAlgorithm"
 model = "my_desired_lm"
 algorithm_kwargs = { custom_parameter_for_algorithm = 0.1 }
 system_prompt = "My own custom system prompt to overwrite the general system prompt"
+using_cache_for_LLM = true                                                           # Control caching
 # Maybe cost to usd conversion factor

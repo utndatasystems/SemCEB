@@ -13,9 +13,12 @@ class ExtrapolatedSampling(AlgorithmBase):
         self.data_sample: pd.DataFrame | None = None
         self.model: LotusBackend | None = None
 
-    def reset_cost(self) -> None:
-        """Reset tracked algorithm costs."""
-        self.cost_usd = 0
+    def reset_cost_stats(self) -> None:
+        """Reset tracked algorithm cost."""
+        self.cost_stats = {
+            "virtual": {"usd": 0, "llm_calls": 0, "tokens": 0},
+            "physical": {"usd": 0, "llm_calls": 0, "tokens": 0},
+            }
 
         if self.model is not None:
             self.model.lm.reset_stats()
@@ -24,8 +27,9 @@ class ExtrapolatedSampling(AlgorithmBase):
         self,
         query: dict,
         data: pd.DataFrame,
-        model: str,
+        model_name: str,
         system_prompt: str,
+        using_cache_for_LLM: bool,
         algorithm_kwargs: dict,
     ) -> int:
         """Prepare extrapolation sampling and return the model-based ground truth."""
@@ -45,10 +49,10 @@ class ExtrapolatedSampling(AlgorithmBase):
 
         if (
             self.model is None
-            or self.model.name != model
+            or self.model.name != model_name
             or self.model.system_prompt != system_prompt
         ):
-            self.model = LotusBackend(model, system_prompt)
+            self.model = LotusBackend(model_name=model_name, system_prompt=system_prompt, using_cache=using_cache_for_LLM)
 
         selectivity_ground_truth = self._obtain_ground_truth(query)
         return selectivity_ground_truth
@@ -80,7 +84,7 @@ class ExtrapolatedSampling(AlgorithmBase):
             self.data,
         )
 
-        self.reset_cost()
+        self.reset_cost_stats()
         return selectivity_ground_truth
 
     def run(self, query: dict) -> int:
@@ -100,6 +104,18 @@ class ExtrapolatedSampling(AlgorithmBase):
             sample_estimation / self.data_sample.shape[0] * self.data.shape[0]
         )
 
-        self.add_cost(self.model.lm.stats.virtual_usage.total_cost)
+        virtual_cost_stats = {
+            "usd": self.model.lm.stats.virtual_usage.total_cost,
+            "llm_calls": self.data_sample.shape[0], # Calculation possible because no cascade
+            "tokens": self.model.lm.stats.virtual_usage.total_tokens
+        }
+    
+        physical_cost_stats = {
+            "usd": self.model.lm.stats.physical_usage.total_cost,
+            "llm_calls": self.data_sample.shape[0] - self.model.lm.stats.cache_hits, # Calculation possible because no cascade
+            "tokens": self.model.lm.stats.physical_usage.total_tokens
+        }
+
+        self.add_cost(virtual_cost_stats, physical_cost_stats)
 
         return max(0, min(round(selectivity_estimation), self.data.shape[0]))

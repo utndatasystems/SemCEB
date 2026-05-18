@@ -60,6 +60,7 @@ def run_benchmark(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
         algorithms=config["algorithms"],
         default_model=config["general"]["model"],
         default_system_prompt=config["general"]["system_prompt"],
+        default_using_cache_for_LLM=config["general"]["using_cache_for_LLM"],
         scale_factor=config["general"]["scale_factor"],
         console=console,
     )

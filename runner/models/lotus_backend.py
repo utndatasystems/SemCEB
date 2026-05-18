@@ -8,9 +8,10 @@ from lotus.models.lm import LM
 class LotusBackend:
     """Model wrapper using LOTUS / LiteLLM."""
 
-    def __init__(self, name: str, system_prompt: str):
-        self.name = name
+    def __init__(self, model_name: str, system_prompt: str, using_cache: bool):
+        self.name = model_name
         self.system_prompt = system_prompt
+        self.using_cache = using_cache
 
         cache_config = CacheConfig(
             cache_type=CacheType.IN_MEMORY,
@@ -29,7 +30,7 @@ class LotusBackend:
 
         lotus.settings.configure(
             lm=self.lm,
-            enable_cache=True,
+            enable_cache=self.using_cache,
         )
 
     def filtering_query(self, query: str, df: pd.DataFrame) -> int:

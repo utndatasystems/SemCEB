@@ -36,8 +36,9 @@ class MySelectivityEstimationAlgorithm(AlgorithmBase):
         self,
         query: dict[str, Any],
         data: pd.DataFrame,
-        model: str,
+        model_name: str,
         system_prompt: str,
+        using_cache_for_LLM: bool,
         algorithm_kwargs: dict[str, Any],
     ) -> int:
         """Prepare the algorithm for one benchmark query.
@@ -52,9 +53,11 @@ class MySelectivityEstimationAlgorithm(AlgorithmBase):
 
             data: Dataset loaded by the benchmark runner.
 
-            model: Model name selected by the benchmark configuration.
+            model_name: Model name selected by the benchmark configuration.
 
             system_prompt: System prompt selected by the benchmark configuration.
+
+            using_cache_for_LLM: Enables caching of llm results.
 
             algorithm_kwargs: Algorithm-specific settings from the benchmark
                               config file.

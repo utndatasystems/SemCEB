@@ -18,7 +18,7 @@ class QueryGenerator:
     def _load_templates(self):
         """Loads templates"""
 
-        with open(r"queries\templates.toml", "rb") as file:
+        with open(Path("queries") / "templates.toml", "rb") as file:
             data = tomllib.load(file)
 
         templates = {}
@@ -60,9 +60,8 @@ class QueryGenerator:
                     "version": template.version,
                     "dataset": template.dataset,
                     "column": template.column,
-                    "query": query,
-                    "selectivity_ground_truth": 123,
-                }
+                    "query": query
+                    }
 
                 file.write(json.dumps(query_data) + "\n")
 

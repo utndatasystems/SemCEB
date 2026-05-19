@@ -1,6 +1,6 @@
 [general]
 system_prompt = "Evaluate if the following statement. Only answer with True or False."
-query_templates = ["Template1", "Template2", "Template3"]
+query_templates = ["EducationTechnology", "CustomerSupportBilling"]
 queries_per_template = 10
 # 1 to 5
 scale_factor = 1

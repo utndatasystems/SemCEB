@@ -1,2 +1,8 @@
-{"id": 0, "name": "Template_DummyData", "version": "1.0.0", "dataset": "test_dataset", "column": "ELEMENT", "query": "Does the element equal to PRCP?"}
-{"id": 1, "name": "Template_DummyData", "version": "1.0.0", "dataset": "test_dataset", "column": "ELEMENT", "query": "Does the element equal to TMIN?"}
+{"id": 0, "name": "EducationTechnology", "version": "1.0.0", "dataset": "dataset1", "column": "description", "query": "Is this description about student writing support?"}
+{"id": 1, "name": "EducationTechnology", "version": "1.0.0", "dataset": "dataset1", "column": "description", "query": "Is this description about personalized learning?"}
+{"id": 2, "name": "EducationTechnology", "version": "1.0.0", "dataset": "dataset1", "column": "description", "query": "Is this description about online tutoring?"}
+{"id": 3, "name": "EducationTechnology", "version": "1.0.0", "dataset": "dataset1", "column": "description", "query": "Is this description about education technology?"}
+{"id": 4, "name": "CustomerSupportBilling", "version": "1.0.0", "dataset": "dataset2", "column": "customer_message", "query": "Is this customer message about a billing problem?"}
+{"id": 5, "name": "CustomerSupportBilling", "version": "1.0.0", "dataset": "dataset2", "column": "customer_message", "query": "Is this customer message about a refund request?"}
+{"id": 6, "name": "CustomerSupportBilling", "version": "1.0.0", "dataset": "dataset2", "column": "customer_message", "query": "Is this customer message about a subscription cancellation?"}
+{"id": 7, "name": "CustomerSupportBilling", "version": "1.0.0", "dataset": "dataset2", "column": "customer_message", "query": "Is this customer message about a payment issue?"}

@@ -1,44 +1,29 @@
 [[query_templates]]
-# Example: 'Does the element equal to PRCP?'
-name = "Template_DummyData"
+# Example: 'Is this description about education technology?'
+name = "EducationTechnology"
 version = "1.0.0"
-dataset = "test_dataset"
-column = "ELEMENT"
-query_structure = "Does the element equal to {element_value}?"
-element_value = ["PRCP", "TMIN"]
-
+description = "Semantic filtering template for learning tools, tutoring, and student support"
+dataset = "dataset1"
+column = "description"
+query_structure = "Is this description about {education_topic}?"
+education_topic = [
+    "student writing support",
+    "online tutoring",
+    "personalized learning",
+    "education technology",
+]
 
 [[query_templates]]
-# Example: 'Does the image contain a black car?'
-name = "Template1"
+# Example: 'Is this customer message about a billing problem?'
+name = "CustomerSupportBilling"
 version = "1.0.0"
-dataset = "cars"
-column = "image"
-query_structure = "Does the image contain a {color} {object}?"
-color = ["black", "white"]
-object = ["car", "ball"]
-
-
-[[query_templates]]
-# Example: 'Is the a true equation?'
-name = "Template2"
-version = "1.0.0"
-description = "Dummy template with number 2"
-dataset = "math"
-column = "equations"
-query_structure = "Is there a {semantics} {statement}?"
-semantics = ["true", "false"]
-statement = ["equation", "inequality"]
-
-
-[[query_templates]]
-# Example: 'Does the image show a red car on the road?'
-name = "Template3"
-version = "1.0.0"
-description = "Image template with three combinatorial arguments"
-dataset = "traffic"
-column = "image"
-query_structure = "Does the image show a {color} {object} on the {location}?"
-color = ["red", "blue", "green"]
-object = ["car", "bus"]
-location = ["road", "sidewalk"]
+description = "Semantic filtering template for billing-related customer support messages"
+dataset = "dataset2"
+column = "customer_message"
+query_structure = "Is this customer message about a {issue_type}?"
+issue_type = [
+    "billing problem",
+    "refund request",
+    "subscription cancellation",
+    "payment issue",
+]

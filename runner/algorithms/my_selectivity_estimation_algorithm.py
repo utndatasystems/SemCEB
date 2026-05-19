@@ -1,27 +1,35 @@
+from typing import Any
+
 import pandas as pd
-from pandas import DataFrame
 
-from runner.algorithms.base import AlgorithmBase
+from runner.algorithms.interface import AlgorithmInterface
 
 
-class MySelectivityEstimationAlgorithm(AlgorithmBase):
-    """Design algorithm based on your idea here"""
+class MySelectivityEstimationAlgorithm(AlgorithmInterface):
 
     def __init__(self, name: str, version: str):
-        super().__init__(name, version)
+        self.name = name
+        self.version = version
 
-    def preparation(self, data: pd.DataFrame, system_prompt: str) -> None:
-        """Preparation phase of your algorithm - e.g. computation of embeddings"""
-        self.data = data
-        self.system_prompt = system_prompt
+        self.memory_consumption = -1
+        self.cost_stats = {
+            "usd": -1,
+            "llm_calls": -1,
+            "tokens": -1
+            }
+
+    def get_memory_consumption(self) -> int:
+        return self.memory_consumption
+
+    def get_cost_stats(self) -> dict:
+        return self.cost_stats
+
+    def reset_cost_stats(self) -> None:
         ...
 
-    def run(self, query: str) -> int:
-        """Run semantic selectivity algorithm using your algorithm. Returns estimated selectivity (int)"""
-        relevant_data = self.data.get(query, None)
+    def preparation(self, data: pd.DataFrame, algorithm_kwargs: dict) -> None:
         ...
 
-        import random
-
-        selectivity_estimation = max(0, round(random.gauss(mu=123, sigma=10)))
-        return selectivity_estimation
+    def run(self, query: dict) -> int:
+        ...
+        return 1

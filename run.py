@@ -17,14 +17,18 @@ def generate_queries(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
     """Generate queries for a benchmark run."""
 
     query_templates = config["general"]["query_templates"]
-    queries_per_template = config["general"]["queries_per_template"]
+    max_queries_per_template = config["general"]["max_queries_per_template"]
     output_file = Path("queries") / "generated" / "queries.jsonl"
+    
 
     # Clear file
     with open(output_file, "w"):
         pass
 
-    generator = QueryGenerator()
+    generator = QueryGenerator(
+        file_path=output_file,
+        console=console,
+    )
     with console.status(
         "[bold green]Generating queries...[/bold green]", spinner="dots"
     ):
@@ -41,9 +45,7 @@ def generate_queries(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
 
             generator.generate(
                 template=template,
-                amount=queries_per_template,
-                file_path=output_file,
-                console=console,
+                amount=max_queries_per_template,
             )
 
     console.print(
@@ -56,19 +58,19 @@ def run_benchmark(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
 
     runner = BenchmarkRunner(
         algorithms=config["algorithms"],
-        default_system_prompt=config["general"]["system_prompt"],
-    )
-    runner.run(
-        default_system_prompt=config["general"]["system_prompt"],
-        scale_factor=config["general"]["scale_factor"],
+        default_ground_truth_model_name=config["general"]["ground_truth"]["model_name"],
+        default_ground_truth_system_prompt=config["general"]["ground_truth"]["system_prompt"],
+        scale_factor=config["general"]["data"]["scale_factor"],
+        categories=config["general"]["data"]["categories"],
         console=console,
     )
+    runner.run()
 
 
 def plot_benchmark(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
     """Plot the latest benchmark results."""
-    plotter = ResultsPlotter()
-    plotter.plot(console)
+    plotter = ResultsPlotter(console)
+    plotter.plot()
 
 
 def parse_args(argv: list[str] | None = None) -> tuple[str, dict[str, Any]]:

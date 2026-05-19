@@ -1,23 +1,50 @@
+# Will be removed
 [general]
+max_queries_per_template = 10
+query_templates = [
+    "Template_DummyData",
+] #["Template1", "Template2", "Template3"]
+
+[general.ground_truth]
+model_name = "gpt-4o-mini"
 system_prompt = "Evaluate if the following statement. Only answer with True or False."
-query_templates = ["EducationTechnology", "CustomerSupportBilling"]
-queries_per_template = 10
-# 1 to 5
-scale_factor = 1
+
+[general.data]
+scale_factor = 1                        # 1 to 5
+categories = ["Equality", "Inequality"]
 
 
+# Mandatory
 [[algorithms]]
 name = "Extrapolation Sampling"
 version = "1.0.0"
 filename = "extrapolated_sampling.py"
 class = "ExtrapolatedSampling"
-# Maybe cost to usd conversion factor
+
+# Optional: Overwriting general ground truth configuration
+[algorithms.ground_truth]
+model_name = "gpt-4o-mini"
+system_prompt = "Evaluate if the following statement. Only answer with True or False."
+
+# Optional: Depends on implementation
+[algorithms.algorithm_kwargs]
+model_name = "gpt-4o-mini"
+system_prompt = "Evaluate if the following statement. Only answer with True or False."
+sampling_frac = 0.1
 
 
+# Mandatory
 [[algorithms]]
 name = "My Selectivity Estimation Algorithm"
 version = "1.0.0"
 filename = "my_selectivity_estimation_algorithm.py"
 class = "MySelectivityEstimationAlgorithm"
-system_prompt = "My own custom system prompt to overwrite the general system prompt"
-# Mabe cost to usd conversion factor
+
+# Optional: Overwriting general ground truth configuration
+[algorithms.ground_truth]
+model_name = "gpt-3.5-turbo"
+# system_prompt = ... # e.g. not used
+
+# Optional: Depends on implementation
+[algorthms.algorithm_kwargs]
+my_special_algorithm_argument = 42

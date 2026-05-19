@@ -15,6 +15,7 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
 )
+from data.downloader import DataDownloader
 from data.loader import DataLoader
 from runner.algorithms.interface import AlgorithmInterface
 from runner.llm_backends.lotus_backend import LotusBackend
@@ -44,6 +45,7 @@ class BenchmarkRunner:
 
         self.queries = self._load_queries(self.query_filepath)
 
+        self._handle_cloud_data()
 
     def _load_queries(self, file_path: str) -> list[dict[str, Any]]:
         """Load queries from a JSONL file."""
@@ -60,6 +62,23 @@ class BenchmarkRunner:
                 queries.append(json.loads(line))
 
         return queries
+
+    def _handle_cloud_data(self) -> bool:
+        """Download data if it is not available locally."""
+
+        downloader = DataDownloader()
+        missing_files = downloader.get_missing_files()
+
+        if missing_files:
+            data_ready = downloader.download_missing_files(missing_files)
+
+            if not data_ready:
+                console = Console()
+                console.print(
+                    "[bold red]Benchmark aborted.[/bold red]\n"
+                    "[yellow]Required benchmark data is missing, and the download was skipped.[/yellow]"
+                )
+                raise SystemExit(1)
 
     def _load_algorithm_from_file(
         self, algorithm_config: dict[str, Any]

@@ -58,7 +58,7 @@ def run_benchmark(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
 
     runner = BenchmarkRunner(
         algorithms=config["algorithms"],
-        default_model=config["general"]["model"],
+        default_model_name=config["general"]["model_name"],
         default_system_prompt=config["general"]["system_prompt"],
         default_using_cache_for_LLM=config["general"]["using_cache_for_LLM"],
         scale_factor=config["general"]["scale_factor"],

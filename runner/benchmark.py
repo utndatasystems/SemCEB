@@ -3,6 +3,7 @@ import importlib
 from pathlib import Path
 import json
 import time
+import pandas as pd
 from typing import Any
 from rich.console import Console
 from rich.progress import (
@@ -15,6 +16,7 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 from data.loader import DataLoader
+from runner.models.lotus_backend import LotusBackend
 
 
 class BenchmarkRunner:
@@ -23,14 +25,14 @@ class BenchmarkRunner:
     def __init__(
         self,
         algorithms: list[dict[str, Any]],
-        default_model: str,
+        default_model_name: str,
         default_system_prompt: str,
         default_using_cache_for_LLM: bool,
         scale_factor: int,
         console: Console,
     ):
         self.algorithms = algorithms
-        self.default_model = default_model
+        self.default_model_name = default_model_name
         self.default_system_prompt = default_system_prompt
         self.default_using_cache_for_LLM = default_using_cache_for_LLM
         self.scale_factor = scale_factor
@@ -40,6 +42,8 @@ class BenchmarkRunner:
         self.query_filepath = Path("queries") / "generated" / "queries.jsonl"
 
         self.queries = self._load_queries(self.query_filepath)
+
+        self.lotus_backend = {}
 
     def _load_queries(self, file_path: str) -> list[dict[str, Any]]:
         """Load queries from a JSONL file."""
@@ -115,9 +119,9 @@ class BenchmarkRunner:
         for algorithm_config in self.algorithms:
             algorithm = self._load_algorithm_from_file(algorithm_config)
 
-            model = algorithm_config.get("model", None)
-            if not model or model == "general":
-                model = self.default_model
+            model_name = algorithm_config.get("model", None)
+            if not model_name or model_name == "general":
+                model_name = self.default_model_name
 
             system_prompt = algorithm_config.get("system_prompt", None)
             if not system_prompt or system_prompt == "general":
@@ -143,18 +147,17 @@ class BenchmarkRunner:
                 # TODO - DEBUG - Manually shortend
                 data = data.head(20)
 
-                selectivity_ground_truth = algorithm.preparation(
-                    query,
-                    data,
-                    model,
-                    system_prompt,
-                    using_cache_for_LLM,
-                    algorithm_config.get("algorithm_kwargs", {}),
-                )
+                backend = self._get_LLM_backend(model_name, system_prompt, using_cache_for_LLM)
+
+                selectivity_ground_truth = self._get_selectivity_ground_truth(query, data, backend)
+
+                algorithm_kwargs = algorithm_config.get("algorithm_kwargs", {})
+                algorithm.preparation(data, algorithm_kwargs)
+
                 algorithm.reset_cost_stats()
 
                 start = time.perf_counter()
-                selectivity_estimation = algorithm.run(query)
+                selectivity_estimation = algorithm.run(query, backend)
                 time_ms = (time.perf_counter() - start) * 1000
 
                 q_error = self._calculate_q_error(
@@ -165,6 +168,7 @@ class BenchmarkRunner:
                     query=query,
                     name=algorithm_config["name"],
                     version=algorithm_config["version"],
+                    memory_consumption=algorithm.memory_consumption,
                     cost_stats=algorithm.cost_stats,
                     selectivity_ground_truth=selectivity_ground_truth,
                     selectivity_estimation=selectivity_estimation,
@@ -183,6 +187,21 @@ class BenchmarkRunner:
         self.console.print(
             f"[green]✓[/green] Results written to [bold]{self.result_filepath}[/bold]"
         )
+
+    def _get_LLM_backend(self, model_name: str, system_prompt: str, using_cache_for_LLM) -> LotusBackend:
+        """Get lotus backend matching the demanded configuration."""
+        if model_name not in self.lotus_backend:
+            self.lotus_backend[model_name] = {}
+        if system_prompt not in self.lotus_backend[model_name]:
+            self.lotus_backend[model_name][system_prompt] = {}
+        if using_cache_for_LLM not in self.lotus_backend[model_name][system_prompt]:
+            self.lotus_backend[model_name][system_prompt][using_cache_for_LLM] = LotusBackend(model_name=model_name, system_prompt=system_prompt, using_cache=using_cache_for_LLM)
+        return self.lotus_backend[model_name][system_prompt][using_cache_for_LLM]
+
+    def _get_selectivity_ground_truth(self, query: dict, data: pd.DataFrame, backend: LotusBackend) -> int:
+        """Obtain model-based selectivity ground truth."""
+        selectivity_ground_truth = backend.filtering_query(query, data)
+        return selectivity_ground_truth
 
     def _calculate_q_error(
         self, selectivity_estimation: int, selectivity_ground_truth: int
@@ -203,6 +222,7 @@ class BenchmarkRunner:
         query: str,
         name: str,
         version: str,
+        memory_consumption: int,
         cost_stats: dict,
         selectivity_ground_truth: int,
         selectivity_estimation: int,
@@ -214,6 +234,7 @@ class BenchmarkRunner:
         algorithm_data = {
             "name": name,
             "version": version,
+            "memory_consumption": memory_consumption,
             "cost_stats": cost_stats,
             "selectivity_ground_truth": selectivity_ground_truth,
             "selectivity_estimation": selectivity_estimation,

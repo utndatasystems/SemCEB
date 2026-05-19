@@ -7,6 +7,7 @@ from lotus.models.lm import LM
 
 class LotusBackend:
     """Model wrapper using LOTUS / LiteLLM."""
+    # TODO - define interface to allow other backends than only lotus as well
 
     def __init__(self, model_name: str, system_prompt: str, using_cache: bool):
         self.name = model_name
@@ -35,18 +36,36 @@ class LotusBackend:
 
     def filtering_query(self, query: str, df: pd.DataFrame) -> int:
         """Run a semantic filter query and return the number of matching rows."""
+        query = self._format_query(query, df)
         return df.sem_filter(
             user_instruction=query,
         ).shape[0]
 
-    def get_stats(self) -> dict[str, int | float | str]:
-        """Return virtual model usage stats, excluding cache savings."""
-        usage = self.lm.stats.virtual_usage
+    def _format_query(self, query: dict, df: pd.DataFrame) -> str:
+        """Format LOTUS query string."""
+        self._validate_query(query, df)
+        return f"{query['query']} {{{query['column']}}}"
+    
+    def _validate_query(self, query: dict, df: pd.DataFrame) -> None:
+        if "query" not in query or "column" not in query:
+            raise ValueError("query must contain 'query' and 'column'.")
 
-        return {
-            "model": self.lm.model,
-            "prompt_tokens": usage.prompt_tokens,
-            "completion_tokens": usage.completion_tokens,
-            "total_tokens": usage.total_tokens,
-            "costs": usage.total_cost,
+        if df is not None and query["column"] not in df.columns:
+            raise ValueError(
+                f"Column '{query['column']}' does not exist in data."
+            )
+        
+
+    def get_costs(self, data: pd.DataFrame) -> dict:
+        """Return virtual and physical cost stats."""
+        virtual_cost_stats = {
+            "usd": self.lm.stats.virtual_usage.total_cost,
+            "llm_calls": data.shape[0], # Calculation possible because no cascade
+            "tokens": self.lm.stats.virtual_usage.total_tokens
         }
+        physical_cost_stats = {
+            "usd": self. lm.stats.physical_usage.total_cost,
+            "llm_calls": data.shape[0] - self.lm.stats.cache_hits, # Calculation possible because no cascade
+            "tokens": self.lm.stats.physical_usage.total_tokens
+        }
+        return {"virtual": virtual_cost_stats, "physical": physical_cost_stats}

@@ -1,5 +1,5 @@
 [general]
-model = "gpt-4o-mini"
+model_name = "gpt-4o-mini"
 system_prompt = "Evaluate if the following statement. Only answer with True or False."
 using_cache_for_LLM = true
 query_templates = [

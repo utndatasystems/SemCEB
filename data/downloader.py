@@ -1,6 +1,7 @@
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import urlopen, urlretrieve
+from urllib.error import HTTPError, URLError
 import xml.etree.ElementTree as ET
 
 from rich.console import Console
@@ -21,8 +22,8 @@ class DataDownloader:
 
     def __init__(self):
         # TODO - DEBUG - exchange with actual aws link
-        self.bucket_link = "https://noaa-ghcn-pds.s3.amazonaws.com/csv/by_year/"
-        self.local_data_folderpath = Path(r"data\.raw")
+        self.bucket_link = "https://azimmerer-semantic-selectivity-datasets.s3.eu-central-1.amazonaws.com" # "s3://azimmerer-semantic-selectivity-datasets" # "https://noaa-ghcn-pds.s3.amazonaws.com/csv/by_year/"
+        self.local_data_folderpath = Path("data") / ".raw"
         self.console = Console()
 
     def get_missing_files(self) -> list[dict]:
@@ -133,8 +134,21 @@ class DataDownloader:
         remote_files = []
 
         while list_url:
-            with urlopen(list_url) as response:
-                xml_data = response.read()
+            try:
+                with urlopen(list_url) as response:
+                    xml_data = response.read()
+            except HTTPError as error:
+                print(f"HTTP error while listing bucket: {error.code} {error.reason}")
+                print(f"URL: {list_url}")
+
+                error_body = error.read().decode("utf-8", errors="replace")
+                print(error_body)
+
+                raise
+            except URLError as error:
+                print(f"URL error while listing bucket: {error.reason}")
+                print(f"URL: {list_url}")
+                raise
 
             root = ET.fromstring(xml_data)
 

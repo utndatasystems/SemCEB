@@ -5,16 +5,8 @@ import json
 import time
 import pandas as pd
 from typing import Any
-from rich.console import Console
-from rich.progress import (
-    BarColumn,
-    MofNCompleteColumn,
-    Progress,
-    SpinnerColumn,
-    TaskProgressColumn,
-    TextColumn,
-    TimeElapsedColumn,
-)
+from utils.progress import create_benchmark_progress, suspend_progress
+from utils.console import console
 from data.downloader import DataDownloader
 from data.loader import DataLoader
 from runner.algorithms.interface import AlgorithmInterface
@@ -31,14 +23,12 @@ class BenchmarkRunner:
         default_ground_truth_system_prompt: str,
         scale_factor: int,
         categories: list[str],
-        console: Console,
     ):
         self.algorithms = algorithms
         self.default_ground_truth_model_name = default_ground_truth_model_name
         self.default_ground_truth_system_prompt = default_ground_truth_system_prompt
         self.scale_factor = scale_factor
         self.categories = categories
-        self.console = console
 
         self.result_filepath = Path("results") / "raw" / "result.jsonl"
         self.query_filepath = Path("queries") / "generated" / "queries.jsonl"
@@ -73,7 +63,6 @@ class BenchmarkRunner:
             data_ready = downloader.download_missing_files(missing_files)
 
             if not data_ready:
-                console = Console()
                 console.print(
                     "[bold red]Benchmark aborted.[/bold red]\n"
                     "[yellow]Required benchmark data is missing, and the download was skipped.[/yellow]"
@@ -128,89 +117,83 @@ class BenchmarkRunner:
 
         total_runs = len(self.algorithms) * len(self.queries)
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[bold green]{task.description}"),
-            BarColumn(),
-            MofNCompleteColumn(),
-            TaskProgressColumn(),
-            TimeElapsedColumn(),
-            console=self.console,
-        ) as progress:
+        with create_benchmark_progress() as progress:
             task = progress.add_task(
                 "Running benchmark...",
                 total=total_runs,
             )
 
-        # Clear file
-        with open(self.result_filepath, "w"):
-            pass
+            # Clear file
+            with open(self.result_filepath, "w"):
+                pass
 
-        dataloader = DataLoader()
+            dataloader = DataLoader()
 
-        for algorithm_config in self.algorithms:
-            algorithm = self._load_algorithm_from_file(algorithm_config)
+            for algorithm_config in self.algorithms:
+                algorithm = self._load_algorithm_from_file(algorithm_config)
 
-            # Check if algorithm configuration demands non default ground truth procedure
-            ground_truth_model_name = algorithm_config.get("ground_truth", {}).get("model_name", None)
-            if not ground_truth_model_name:
-                ground_truth_model_name = self.default_ground_truth_model_name
-            ground_truth_system_prompt = algorithm_config.get("ground_truth", {}).get("system_prompt", None)
-            if not ground_truth_system_prompt:
-                ground_truth_system_prompt = self.default_ground_truth_system_prompt
+                # Check if algorithm configuration demands non default ground truth procedure
+                ground_truth_model_name = algorithm_config.get("ground_truth", {}).get("model_name", None)
+                if not ground_truth_model_name:
+                    ground_truth_model_name = self.default_ground_truth_model_name
+                ground_truth_system_prompt = algorithm_config.get("ground_truth", {}).get("system_prompt", None)
+                if not ground_truth_system_prompt:
+                    ground_truth_system_prompt = self.default_ground_truth_system_prompt
 
-            for query_dict in self.queries:
+                for query_dict in self.queries:
 
-                progress.update(
-                    task,
-                    description=(
-                        f"Algorithm: [cyan]{algorithm_config['name']}[/cyan] "
-                        f"| Query ID: [yellow]{query_dict['id']}[/yellow]"
-                    ),
+                    progress.update(
+                        task,
+                        description=(
+                            f"Algorithm: [cyan]{algorithm_config['name']}[/cyan] "
+                            f"| Query ID: [yellow]{query_dict['id']}[/yellow]"
+                        ),
+                    )
+
+                    data = dataloader.load(
+                        dataset=query_dict["dataset"], scale_factor=self.scale_factor
+                    )
+                    # TODO - DEBUG - Manually shortend
+                    data = data.head(20)
+
+                    with suspend_progress(progress):
+                        selectivity_ground_truth = self._get_selectivity_ground_truth(ground_truth_model_name, ground_truth_system_prompt, query_dict, data)
+
+                    algorithm_kwargs = algorithm_config.get("algorithm_kwargs", {})
+                    algorithm.preparation(data, algorithm_kwargs)
+
+                    algorithm.reset_cost_stats()
+
+                    with suspend_progress(progress):
+                        start = time.perf_counter()
+                        selectivity_estimation = algorithm.run(query_dict)
+                        time_ms = (time.perf_counter() - start) * 1000
+
+                    q_error = self._calculate_q_error(
+                        selectivity_estimation, selectivity_ground_truth
+                    )
+
+                    self._save_result(
+                        query_dict=query_dict,
+                        algorithm_name=algorithm_config["name"],
+                        algorithm_version=algorithm_config["version"],
+                        algorithm_memory_consumption=algorithm.get_memory_consumption(),
+                        algorithm_cost_stats=algorithm.get_cost_stats(),
+                        selectivity_ground_truth=selectivity_ground_truth,
+                        selectivity_estimation=selectivity_estimation,
+                        q_error=q_error,
+                        time_ms=time_ms,
+                    )
+
+                    progress.advance(task)
+
+                progress.console.print(
+                    f"[green]✓[/green] Finished algorithm "
+                    f"[bold cyan]{algorithm.name}[/bold cyan] "
+                    f"on [bold]{len(self.queries)}[/bold] queries."
                 )
 
-                data = dataloader.load(
-                    dataset=query_dict["dataset"], scale_factor=self.scale_factor
-                )
-                # TODO - DEBUG - Manually shortend
-                data = data.head(20)
-
-                selectivity_ground_truth = self._get_selectivity_ground_truth(ground_truth_model_name, ground_truth_system_prompt, query_dict, data)
-
-                algorithm_kwargs = algorithm_config.get("algorithm_kwargs", {})
-                algorithm.preparation(data, algorithm_kwargs)
-
-                algorithm.reset_cost_stats()
-
-                start = time.perf_counter()
-                selectivity_estimation = algorithm.run(query_dict)
-                time_ms = (time.perf_counter() - start) * 1000
-
-                q_error = self._calculate_q_error(
-                    selectivity_estimation, selectivity_ground_truth
-                )
-
-                self._save_result(
-                    query_dict=query_dict,
-                    algorithm_name=algorithm_config["name"],
-                    algorithm_version=algorithm_config["version"],
-                    algorithm_memory_consumption=algorithm.get_memory_consumption(),
-                    algorithm_cost_stats=algorithm.get_cost_stats(),
-                    selectivity_ground_truth=selectivity_ground_truth,
-                    selectivity_estimation=selectivity_estimation,
-                    q_error=q_error,
-                    time_ms=time_ms,
-                )
-
-                progress.advance(task)
-
-            progress.console.print(
-                f"[green]✓[/green] Finished algorithm "
-                f"[bold cyan]{algorithm.name}[/bold cyan] "
-                f"on [bold]{len(self.queries)}[/bold] queries."
-            )
-
-        self.console.print(
+        console.print(
             f"[green]✓[/green] Results written to [bold]{self.result_filepath}[/bold]"
         )
 

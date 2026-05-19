@@ -3,17 +3,9 @@ from urllib.parse import urljoin
 from urllib.request import urlopen
 from urllib.error import HTTPError, URLError
 
-from rich.console import Console
-from rich.progress import (
-    BarColumn,
-    DownloadColumn,
-    Progress,
-    SpinnerColumn,
-    TaskProgressColumn,
-    TextColumn,
-    TimeRemainingColumn,
-    TransferSpeedColumn,
-)
+from utils.console import console
+from utils.progress import create_download_progress
+from rich.progress import Progress
 
 
 class DataDownloader:
@@ -79,16 +71,7 @@ class DataDownloader:
             console.print("[yellow]Download skipped.[/yellow]")
             return False
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[bold green]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            DownloadColumn(),
-            TransferSpeedColumn(),
-            TimeRemainingColumn(),
-            console=self.console,
-        ) as progress:
+        with create_download_progress() as progress:
             task = progress.add_task(
                 "Downloading data...",
                 total=total_bytes,

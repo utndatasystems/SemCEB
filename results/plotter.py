@@ -5,18 +5,17 @@ import math
 import io
 
 import matplotlib.pyplot as plt
-from matplotlib.patches import Patch, FancyBboxPatch
+from matplotlib.patches import FancyBboxPatch
 import pandas as pd
 from rich.console import Console
+from utils.console import console
 from rich.table import Table
 
 
 class ResultsPlotter:
     """Plots benchmark run results."""
 
-    def __init__(self, console: Console):
-        self.console = console
-
+    def __init__(self):
         self.raw_results_path = Path("results") / "raw" / "result.jsonl"
         self.plot_dir = Path("results") / "plots"
         self.table_dir = Path("results") / "tables"
@@ -31,7 +30,7 @@ class ResultsPlotter:
         df = self._to_dataframe(results)
 
         if df.empty:
-            self.console.print(
+            console.print(
                 "[bold yellow]Warning:[/bold yellow] No results to plot."
             )
             return
@@ -42,9 +41,9 @@ class ResultsPlotter:
         summary = self._summarize_by_algorithm(df)
         table = self._create_summary_table(summary)
 
-        self.console.print()
-        self.console.print(table)
-        self.console.print()
+        console.print()
+        console.print(table)
+        console.print()
 
         self._save_summary_table(table)
         self._plot_algorithm_comparison(summary)
@@ -84,8 +83,8 @@ class ResultsPlotter:
             query = result["query"]
             algorithm = result["algorithm"]
             cost_stats = algorithm["cost_stats"]
-            virtual_cost = cost_stats["virtual"]
-            physical_cost = cost_stats["physical"]
+            virtual_cost = cost_stats
+            physical_cost = cost_stats
 
             rows.append(
                 {
@@ -318,7 +317,7 @@ class ResultsPlotter:
         fig.savefig(output_path, dpi=150, bbox_inches="tight")
         plt.close(fig)
 
-        self.console.print(
+        console.print(
             f"[green]✓[/green] Saved algorithm comparison plot to [bold]{output_path}[/bold]"
         )
 
@@ -656,7 +655,7 @@ class ResultsPlotter:
         with open(table_txt_path, "w", encoding="utf-8") as file:
             file.write(text_console.export_text())
 
-        self.console.print(
+        console.print(
             f"[green]✓[/green] Saved algorithm comparison table in *.txt to [bold]{table_txt_path}[/bold]"
         )
 
@@ -669,7 +668,7 @@ class ResultsPlotter:
         html_console.print(table)
         html_console.save_html(str(table_html_path))
 
-        self.console.print(
+        console.print(
             f"[green]✓[/green] Saved algorithm comparison table in *.html to [bold]{table_html_path}[/bold]"
         )
 

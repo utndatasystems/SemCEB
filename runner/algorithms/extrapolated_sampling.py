@@ -1,121 +1,117 @@
+import sys
 import pandas as pd
 
-from runner.algorithms.base import AlgorithmBase
-from runner.models.lotus_backend import LotusBackend
+from runner.algorithms.interface import AlgorithmInterface
 
 
-class ExtrapolatedSampling(AlgorithmBase):
+class ExtrapolatedSampling(AlgorithmInterface):
     """Algorithm based on extrapolation sampling."""
 
     def __init__(self, name: str, version: str):
-        super().__init__(name, version)
-        self.data: pd.DataFrame | None = None
-        self.data_sample: pd.DataFrame | None = None
-        self.model: LotusBackend | None = None
+        self.name = name
+        self.version = version
+
+        self.model = None
+        self.reset_cost_stats()
+
+    def get_memory_consumption(self) -> int:
+        """Return tracked memory consumption."""
+        return self.memory_consumption
+
+    def get_cost_stats(self) -> dict:
+        """Return tracked algorithm cost stats."""
+        return self.cost_stats
 
     def reset_cost_stats(self) -> None:
         """Reset tracked algorithm cost."""
         self.cost_stats = {
-            "virtual": {"usd": 0, "llm_calls": 0, "tokens": 0},
-            "physical": {"usd": 0, "llm_calls": 0, "tokens": 0},
+            "usd": 0,
+            "llm_calls": 0,
+            "tokens": 0
             }
 
         if self.model is not None:
-            self.model.lm.reset_stats()
+            self.model.reset_stats()
 
-    def preparation(
-        self,
-        query: dict,
-        data: pd.DataFrame,
-        model_name: str,
-        system_prompt: str,
-        using_cache_for_LLM: bool,
-        algorithm_kwargs: dict,
-    ) -> int:
-        """Prepare extrapolation sampling and return the model-based ground truth."""
-        self.data = data
+    def preparation(self, data: pd.DataFrame, algorithm_kwargs: dict) -> None:
+        """Prepare extrapolation sampling."""
+        
+        # Data set to evaluate
+        self.data_rows = data.shape[0]
 
-        sampling_frac = algorithm_kwargs.get("sampling_frac", 0.1)
 
+        # Algorithm specific arguments
+        sampling_frac = algorithm_kwargs.get("sampling_frac", -1)
         if not 0 < sampling_frac <= 1:
             raise ValueError("sampling_frac must be in the interval (0, 1].")
+        
+        model_name = algorithm_kwargs.get("model_name", None)
+        if not model_name:
+            raise ValueError("model_name must be a valid name of a model.")
 
-        self.data_sample = self.data.sample(frac=sampling_frac, random_state=42)
+        import lotus.settings
+        from lotus.cache import CacheConfig, CacheFactory, CacheType
+        from lotus.models.lm import LM
+        cache_config = CacheConfig(
+            cache_type=CacheType.IN_MEMORY,
+            max_size=1000,
+        )
+        cache = CacheFactory.create_cache(cache_config)
+        self.model = LM(
+            model=model_name,
+            rate_limit=None,
+            max_batch_size=64,
+            cache=cache,
+        )
+        self.model.system_prompt = algorithm_kwargs.get("system_prompt", None)
+        lotus.settings.configure(
+            lm=self.model,
+            enable_cache=True,
+        )        
 
+        self.data_sample = data.sample(frac=sampling_frac, random_state=42)
         if self.data_sample.empty:
             raise ValueError(
                 "Sample is empty. Increase sampling_frac or provide more data."
             )
 
-        if (
-            self.model is None
-            or self.model.name != model_name
-            or self.model.system_prompt != system_prompt
-        ):
-            self.model = LotusBackend(model_name=model_name, system_prompt=system_prompt, using_cache=using_cache_for_LLM)
-
-        selectivity_ground_truth = self._obtain_ground_truth(query)
-        return selectivity_ground_truth
-
-    def _validate_query(self, query: dict) -> None:
-        if "query" not in query or "column" not in query:
-            raise ValueError("query must contain 'query' and 'column'.")
-
-        if self.data is not None and query["column"] not in self.data.columns:
-            raise ValueError(
-                f"Column '{query['column']}' does not exist in data."
-            )
-
-    def _format_query(self, query: dict) -> str:
-        """Format LOTUS query string."""
-        self._validate_query(query)
-        return f"{query['query']} {{{query['column']}}}"
-
-    def _obtain_ground_truth(self, query: dict) -> int:
-        """Obtain model-based selectivity ground truth."""
-        if self.data is None:
-            raise RuntimeError("Algorithm has not been prepared yet.")
-
-        if self.model is None:
-            raise RuntimeError("Model has not been initialized.")
-
-        selectivity_ground_truth = self.model.filtering_query(
-            self._format_query(query),
-            self.data,
+        self.memory_consumption = (
+            sys.getsizeof(self.data_rows)
+            + sys.getsizeof(self.data_sample)
+            + sys.getsizeof(self.model)
         )
 
-        self.reset_cost_stats()
-        return selectivity_ground_truth
-
-    def run(self, query: dict) -> int:
+    def run(self, query_dict: dict) -> int:
         """Run extrapolation sampling and return estimated selectivity."""
-        if self.data is None or self.data_sample is None:
-            raise RuntimeError("Algorithm has not been prepared yet.")
 
-        if self.model is None:
-            raise RuntimeError("Model has not been initialized.")
+        # Evaluate sample
+        sample_estimation = self.data_sample.sem_filter(
+            user_instruction=f"{query_dict['query']} {{{query_dict['column']}}}",
+        ).shape[0]
 
-        sample_estimation = self.model.filtering_query(
-            self._format_query(query),
-            self.data_sample,
-        )
-
+        # Extrapolate to estimate
         selectivity_estimation = (
-            sample_estimation / self.data_sample.shape[0] * self.data.shape[0]
+            sample_estimation / self.data_sample.shape[0] * self.data_rows
         )
 
-        virtual_cost_stats = {
-            "usd": self.model.lm.stats.virtual_usage.total_cost,
-            "llm_calls": self.data_sample.shape[0], # Calculation possible because no cascade
-            "tokens": self.model.lm.stats.virtual_usage.total_tokens
-        }
+        # Track costs
+        llm_cost_stats = self._get_costs(self.data_sample)
+        self._add_cost(llm_cost_stats)
+
+        return max(0, min(round(selectivity_estimation), self.data_rows))
     
-        physical_cost_stats = {
-            "usd": self.model.lm.stats.physical_usage.total_cost,
-            "llm_calls": self.data_sample.shape[0] - self.model.lm.stats.cache_hits, # Calculation possible because no cascade
-            "tokens": self.model.lm.stats.physical_usage.total_tokens
+
+    def _get_costs(self, data: pd.DataFrame) -> dict:
+        """Return virtual (= without caching) cost stats."""
+        return  {
+            "usd": self.model.stats.virtual_usage.total_cost,
+            "llm_calls": data.shape[0], # Calculation possible because no cascade
+            "tokens": self.model.stats.virtual_usage.total_tokens
         }
 
-        self.add_cost(virtual_cost_stats, physical_cost_stats)
 
-        return max(0, min(round(selectivity_estimation), self.data.shape[0]))
+    def _add_cost(self, cost_stats: dict) -> None:
+        """Add cost amount to tracked algorithm cost."""
+        self.cost_stats["usd"] += cost_stats["usd"]
+        self.cost_stats["llm_calls"] += cost_stats["llm_calls"]
+        self.cost_stats["tokens"] += cost_stats["tokens"]

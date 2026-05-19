@@ -63,7 +63,7 @@ class DataDownloader:
             f"[bold yellow]{len(missing_files)} missing files[/bold yellow] "
             f"will be downloaded "
             f"([bold]{download_size}[/bold]).\n"
-            "[bold cyan]Do you want to start downloading now? (confirm with 'y'/'yes')[/bold cyan] "
+            "[bold cyan]Do you want to start downloading now?[/bold cyan] "
             "[y/N]: "
         )
 

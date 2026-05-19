@@ -4,13 +4,12 @@ from pathlib import Path
 
 from collections.abc import Callable
 from typing import Any
-from rich.console import Console
 
 from queries.generator import QueryGenerator
 from runner.benchmark import BenchmarkRunner
 from results.plotter import ResultsPlotter
 
-console = Console()
+from utils.console import console
 
 
 def generate_queries(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
@@ -25,10 +24,7 @@ def generate_queries(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
     with open(output_file, "w"):
         pass
 
-    generator = QueryGenerator(
-        file_path=output_file,
-        console=console,
-    )
+    generator = QueryGenerator(file_path=output_file)
     with console.status(
         "[bold green]Generating queries...[/bold green]", spinner="dots"
     ):
@@ -39,7 +35,7 @@ def generate_queries(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
             except KeyError as error:
                 available_templates = ", ".join(generator.templates.keys())
                 raise ValueError(
-                    f"Query template not found: '{name}'. "
+                    f"Query template not found: '{query_template_name}'. "
                     f"Available templates: {available_templates}"
                 ) from error
 
@@ -62,14 +58,13 @@ def run_benchmark(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
         default_ground_truth_system_prompt=config["general"]["ground_truth"]["system_prompt"],
         scale_factor=config["general"]["data"]["scale_factor"],
         categories=config["general"]["data"]["categories"],
-        console=console,
     )
     runner.run()
 
 
 def plot_benchmark(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
     """Plot the latest benchmark results."""
-    plotter = ResultsPlotter(console)
+    plotter = ResultsPlotter()
     plotter.plot()
 
 

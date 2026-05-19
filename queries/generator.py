@@ -1,17 +1,15 @@
 import json
 import tomllib
 from pathlib import Path
-from rich.console import Console
 
 from queries.template import QueryTemplate
-
+from utils.console import console
 
 class QueryGenerator:
     """Generates queries for benchmark"""
 
-    def __init__(self, file_path: str, console: Console):
+    def __init__(self, file_path: str):
         self.file_path = file_path
-        self.console = console
 
         self.next_id = 0
         self.templates = self._load_templates()
@@ -40,7 +38,7 @@ class QueryGenerator:
         queries = template.generate_all_queries()
 
         if amount > len(queries):
-            self.console.print(
+            console.print(
                 f"[yellow]Warning:[/yellow] Requested [bold]{amount}[/bold] queries, "
                 f"but template [bold]'{template.name}'[/bold] can only generate "
                 f"[bold]{len(queries)}[/bold] unique queries. "

@@ -1,9 +1,7 @@
 # Will be removed
 [general]
 max_queries_per_template = 10
-query_templates = [
-    "Template_DummyData",
-] #["Template1", "Template2", "Template3"]
+query_templates = ["EducationTechnology", "CustomerSupportBilling"]
 
 [general.ground_truth]
 model_name = "gpt-4o-mini"

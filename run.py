@@ -58,10 +58,10 @@ def run_benchmark(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
 
     runner = BenchmarkRunner(
         algorithms=config["algorithms"],
-        default_model_name=config["general"]["model_name"],
-        default_system_prompt=config["general"]["system_prompt"],
-        default_using_cache_for_LLM=config["general"]["using_cache_for_LLM"],
-        scale_factor=config["general"]["scale_factor"],
+        default_ground_truth_model_name=config["general"]["ground_truth"]["model_name"],
+        default_ground_truth_system_prompt=config["general"]["ground_truth"]["system_prompt"],
+        scale_factor=config["general"]["data"]["scale_factor"],
+        categories=config["general"]["data"]["categories"],
         console=console,
     )
     runner.run()

@@ -1,8 +1,0 @@
-{"id": 0, "name": "EducationTechnology", "version": "1.0.0", "dataset": "dataset1", "column": "description", "query": "Is this description about education technology?"}
-{"id": 1, "name": "EducationTechnology", "version": "1.0.0", "dataset": "dataset1", "column": "description", "query": "Is this description about online tutoring?"}
-{"id": 2, "name": "EducationTechnology", "version": "1.0.0", "dataset": "dataset1", "column": "description", "query": "Is this description about personalized learning?"}
-{"id": 3, "name": "EducationTechnology", "version": "1.0.0", "dataset": "dataset1", "column": "description", "query": "Is this description about student writing support?"}
-{"id": 4, "name": "CustomerSupportBilling", "version": "1.0.0", "dataset": "dataset2", "column": "customer_message", "query": "Is this customer message about a billing problem?"}
-{"id": 5, "name": "CustomerSupportBilling", "version": "1.0.0", "dataset": "dataset2", "column": "customer_message", "query": "Is this customer message about a payment issue?"}
-{"id": 6, "name": "CustomerSupportBilling", "version": "1.0.0", "dataset": "dataset2", "column": "customer_message", "query": "Is this customer message about a refund request?"}
-{"id": 7, "name": "CustomerSupportBilling", "version": "1.0.0", "dataset": "dataset2", "column": "customer_message", "query": "Is this customer message about a subscription cancellation?"}

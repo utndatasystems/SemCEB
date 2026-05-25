@@ -5,7 +5,6 @@ from pathlib import Path
 from collections.abc import Callable
 from typing import Any
 
-from queries.generator import QueryGenerator
 from runner.benchmark import BenchmarkRunner
 from results.plotter import ResultsPlotter
 
@@ -80,11 +79,11 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, dict[str, Any]]:
         argv = sys.argv[1:]
 
     if not argv:
-        raise ValueError("Missing mode. Expected one of: generate, run, plot")
+        mode = "run" # default
+    else: 
+        mode = argv[0]
 
-    mode = argv[0]
-    valid_modes = {"generate", "run", "plot"}
-
+    valid_modes = {"run", "plot"}
     if mode not in valid_modes:
         raise ValueError(
             f"Invalid mode '{mode}'. Expected one of: {', '.join(valid_modes)}"
@@ -142,7 +141,6 @@ def main() -> None:
     config = load_config("config.toml")
 
     commands: dict[str, Callable[[dict[str, Any]], None]] = {
-        "generate": generate_queries,
         "run": run_benchmark,
         "plot": plot_benchmark,
     }

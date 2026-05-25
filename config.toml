@@ -1,15 +1,11 @@
 # Will be removed
-[general]
-max_queries_per_template = 10
-query_templates = ["EducationTechnology", "CustomerSupportBilling"]
-
 [general.ground_truth]
 model_name = "gpt-4o-mini"
 system_prompt = "Evaluate if the following statement. Only answer with True or False."
 
 [general.data]
 scale_factor = 1                        # 1 to 5
-categories = ["Equality", "Inequality"]
+categories = ["equality", "inequality"]
 
 
 # Mandatory

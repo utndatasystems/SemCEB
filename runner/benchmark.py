@@ -31,7 +31,7 @@ class BenchmarkRunner:
         self.categories = categories
 
         self.result_filepath = Path("results") / "raw" / "result.jsonl"
-        self.query_filepath = Path("queries") / "generated" / "queries.jsonl"
+        self.query_filepath = Path("queries") / "queries.jsonl"
 
         self.queries = self._load_queries(self.query_filepath)
 
@@ -49,7 +49,9 @@ class BenchmarkRunner:
                 if not line:
                     continue
 
-                queries.append(json.loads(line))
+                query_data = json.loads(line)
+                if query_data["category"] in self.categories:
+                    queries.append(query_data)
 
         return queries
 

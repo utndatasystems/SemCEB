@@ -1,30 +1,162 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<style>
-.r1 {font-style: italic}
-.r2 {font-weight: bold}
-.r3 {color: #008080; text-decoration-color: #008080}
-body {
-    color: #000000;
-    background-color: #ffffff;
-}
-</style>
-</head>
-<body>
-    <pre style="font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"><code style="font-family:inherit"><span class="r1">                                                                            Algorithm benchmark summary                                                                             </span>
-┏━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓
-┃<span class="r2">               </span>┃<span class="r2">         </span>┃<span class="r2">             </span>┃<span class="r2">               </span>┃<span class="r2">               </span>┃<span class="r2">             </span>┃<span class="r2">             </span>┃<span class="r2">             </span>┃<span class="r2">  Virtual cost </span>┃<span class="r2"> Physical cost </span>┃<span class="r2">    Virtual LLM </span>┃<span class="r2">  Physical LLM </span>┃
-┃<span class="r2"> Algorithm     </span>┃<span class="r2"> Queries </span>┃<span class="r2"> Avg q-error </span>┃<span class="r2">   Min q-error </span>┃<span class="r2">   Max q-error </span>┃<span class="r2"> Avg time ms </span>┃<span class="r2"> Min time ms </span>┃<span class="r2"> Max time ms </span>┃<span class="r2">           USD </span>┃<span class="r2">           USD </span>┃<span class="r2">          calls </span>┃<span class="r2">         calls </span>┃
-┡━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩
-│<span class="r3"> My            </span>│       8 │      1.3750 │        1.0000 │        2.0000 │        0.00 │        0.00 │        0.02 │   -8.00000000 │   -8.00000000 │             -8 │            -8 │
-│<span class="r3"> Selectivity   </span>│         │             │               │               │             │             │             │               │               │                │               │
-│<span class="r3"> Estimation    </span>│         │             │               │               │             │             │             │               │               │                │               │
-│<span class="r3"> Algorithm     </span>│         │             │               │               │             │             │             │               │               │                │               │
-│<span class="r3"> Extrapolation </span>│       8 │         n/a │ 179769313486… │ 179769313486… │      920.57 │      467.13 │     2095.50 │    0.00013035 │    0.00013035 │              8 │             8 │
-│<span class="r3"> Sampling      </span>│         │             │               │               │             │             │             │               │               │                │               │
-└───────────────┴─────────┴─────────────┴───────────────┴───────────────┴─────────────┴─────────────┴─────────────┴───────────────┴───────────────┴────────────────┴───────────────┘
-</code></pre>
-</body>
-</html>
+
+        <html>
+        <head>
+        <meta charset="utf-8">
+        <style>
+        @page {
+            size: A3 landscape;
+            margin: 10mm;
+        }
+
+        body {
+            font-family: "DejaVu Serif", serif;
+            color: #222222;
+            margin: 20px;
+        }
+
+        h1 {
+            font-size: 18px;
+            margin-bottom: 14px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            table-layout: auto;
+            font-size: 10px;
+        }
+
+        th {
+            background: #f2f2f2;
+            border: 1px solid #bbbbbb;
+            padding: 5px 6px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        td {
+            border: 1px solid #d0d0d0;
+            padding: 5px 6px;
+            white-space: nowrap;
+            text-align: right;
+        }
+
+        td:first-child,
+        th:first-child {
+            text-align: left;
+            max-width: 220px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        </style>
+        </head>
+        <body>
+        <h1>Algorithm benchmark summary</h1>
+        <table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>Algorithm</th>
+      <th>Queries</th>
+      <th>Avg q-error</th>
+      <th>Min q-error</th>
+      <th>Max q-error</th>
+      <th>Avg time ms</th>
+      <th>Min time ms</th>
+      <th>Max time ms</th>
+      <th>Total cost USD</th>
+      <th>Total LLM calls</th>
+      <th>Total tokens</th>
+      <th>Total memory</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Full Semantic Filter</td>
+      <td>8</td>
+      <td>1.00375</td>
+      <td>1.00</td>
+      <td>1.02</td>
+      <td>1457.0000</td>
+      <td>1395.4</td>
+      <td>1510.8</td>
+      <td>0.000644</td>
+      <td>38.0</td>
+      <td>3306.0</td>
+      <td>4171.0</td>
+    </tr>
+    <tr>
+      <td>Cached Sampling</td>
+      <td>8</td>
+      <td>1.14500</td>
+      <td>1.00</td>
+      <td>1.25</td>
+      <td>508.4625</td>
+      <td>475.4</td>
+      <td>540.7</td>
+      <td>0.000354</td>
+      <td>22.0</td>
+      <td>1853.0</td>
+      <td>2072.0</td>
+    </tr>
+    <tr>
+      <td>My Selectivity Estimation Algorithm</td>
+      <td>8</td>
+      <td>1.31250</td>
+      <td>1.00</td>
+      <td>1.80</td>
+      <td>17.0750</td>
+      <td>13.1</td>
+      <td>21.7</td>
+      <td>0.000036</td>
+      <td>8.0</td>
+      <td>340.0</td>
+      <td>945.0</td>
+    </tr>
+    <tr>
+      <td>Stratified Sampling</td>
+      <td>8</td>
+      <td>1.37375</td>
+      <td>1.28</td>
+      <td>1.50</td>
+      <td>892.3625</td>
+      <td>842.3</td>
+      <td>940.1</td>
+      <td>0.000412</td>
+      <td>26.0</td>
+      <td>2244.0</td>
+      <td>3132.0</td>
+    </tr>
+    <tr>
+      <td>Histogram Estimator</td>
+      <td>8</td>
+      <td>2.20000</td>
+      <td>1.80</td>
+      <td>2.70</td>
+      <td>81.2500</td>
+      <td>69.0</td>
+      <td>94.0</td>
+      <td>0.000022</td>
+      <td>0.0</td>
+      <td>144.0</td>
+      <td>1272.0</td>
+    </tr>
+    <tr>
+      <td>Extrapolation Sampling</td>
+      <td>8</td>
+      <td>5.27500</td>
+      <td>3.90</td>
+      <td>7.20</td>
+      <td>632.5000</td>
+      <td>430.0</td>
+      <td>950.0</td>
+      <td>0.000133</td>
+      <td>10.0</td>
+      <td>825.0</td>
+      <td>2922.0</td>
+    </tr>
+  </tbody>
+</table>
+        </body>
+        </html>
+        

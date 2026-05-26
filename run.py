@@ -1,51 +1,27 @@
 import sys
 import tomllib
 from pathlib import Path
-
 from collections.abc import Callable
 from typing import Any
+import logging
 
 from runner.benchmark import BenchmarkRunner
 from results.plotter import ResultsPlotter
-
 from utils.console import console
 
 
-def generate_queries(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
-    """Generate queries for a benchmark run."""
-
-    query_templates = config["general"]["query_templates"]
-    max_queries_per_template = config["general"]["max_queries_per_template"]
-    output_file = Path("queries") / "generated" / "queries.jsonl"
-    
-
-    # Clear file
-    with open(output_file, "w"):
-        pass
-
-    generator = QueryGenerator(file_path=output_file)
-    with console.status(
-        "[bold green]Generating queries...[/bold green]", spinner="dots"
-    ):
-
-        for query_template_name in query_templates:
-            try:
-                template = generator.templates[query_template_name]
-            except KeyError as error:
-                available_templates = ", ".join(generator.templates.keys())
-                raise ValueError(
-                    f"Query template not found: '{query_template_name}'. "
-                    f"Available templates: {available_templates}"
-                ) from error
-
-            generator.generate(
-                template=template,
-                amount=max_queries_per_template,
-            )
-
-    console.print(
-        f"[green]✓[/green] Generated queries written to [bold]{output_file}[/bold]"
-    )
+def configure_logging() -> None:
+    logging.basicConfig(level=logging.WARNING, force=True)
+    for logger_name in [
+        "weasyprint",
+        "fontTools",
+        "fontTools.subset",
+        "fontTools.ttLib",
+        "fontTools.ttLib.ttFont",
+        "PIL",
+        "matplotlib",
+    ]:
+        logging.getLogger(logger_name).setLevel(logging.WARNING)
 
 
 def run_benchmark(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
@@ -72,7 +48,7 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, dict[str, Any]]:
     Parse CLI arguments.
 
     Returns:
-        mode: one of "generate", "run", "plot"
+        mode: one of "run", "plot"
         kwargs: everything else as a dictionary
     """
     if argv is None:
@@ -133,6 +109,8 @@ def load_config(self, file_path: str = "config.toml") -> dict[str, Any]:
 
 
 def main() -> None:
+    configure_logging()
+
     mode, kwargs = parse_args()
     console.print()
     console.rule(f"[bold cyan]Active mode: {mode}[/bold cyan]")

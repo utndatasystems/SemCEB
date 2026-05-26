@@ -2,15 +2,14 @@ from pathlib import Path
 from typing import Any
 import json
 import math
-
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 import pandas as pd
 from rich.console import Console
 from utils.console import console
 from rich.table import Table
-
 import seaborn as sns
+from weasyprint import HTML
 
 
 class ResultsPlotter:
@@ -563,7 +562,6 @@ class ResultsPlotter:
             width=180,
             color_system=None,
         )
-        text_console.print(table)
 
         with open(table_txt_path, "w", encoding="utf-8") as file:
             file.write(text_console.export_text())
@@ -662,8 +660,6 @@ class ResultsPlotter:
         )
 
         try:
-            from weasyprint import HTML
-
             HTML(string=html).write_pdf(str(table_pdf_path))
 
             console.print(
@@ -672,7 +668,6 @@ class ResultsPlotter:
         except ImportError:
             console.print(
                 "[yellow]Warning:[/yellow] Could not save algorithm summary PDF because WeasyPrint is not installed. "
-                "Install it with: pip install weasyprint"
             )
 
     def _format_float(self, value: Any, decimals: int) -> str:
@@ -1112,8 +1107,6 @@ class ResultsPlotter:
         pdf_path = self.table_dir / "per_query_benchmark_report.pdf"
 
         try:
-            from weasyprint import HTML
-
             HTML(filename=str(html_path)).write_pdf(str(pdf_path))
 
             console.print(
@@ -1122,7 +1115,6 @@ class ResultsPlotter:
         except ImportError:
             console.print(
                 "[yellow]Warning:[/yellow] Could not save PDF because WeasyPrint is not installed. "
-                "Install it with: pip install weasyprint"
             )
 
     def _format_metric_cell_html(

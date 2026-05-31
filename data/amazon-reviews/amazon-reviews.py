@@ -490,7 +490,7 @@ def create_raw_5core_filtered_tables(
 
     con.execute(
         """
-        CREATE OR REPLACE TABLE products AS
+        CREATE OR REPLACE TABLE products_filtered AS
         SELECT p.*
         FROM products p
         INNER JOIN (
@@ -508,6 +508,11 @@ def export_tables(
 ) -> None:
     ensure_parent(output_dir / "dummy")
     stale_paths = [
+        output_dir / "interactions_5core.parquet",
+        output_dir / "products_filtered.parquet",
+        output_dir / "products.parquet",
+        output_dir / "reviews.parquet",
+        output_dir / "reviews_5core_filtered.parquet",
         output_dir / "reviews_enriched.parquet",
         output_dir / "reviews_5core_filtered_enriched.parquet",
         output_dir / "reviews_5core_filtered_unique.parquet",
@@ -517,17 +522,16 @@ def export_tables(
         if stale_path.exists():
             stale_path.unlink()
 
-    products_path_sql = sql_string_literal(str(output_dir / "products.parquet"))
-    con.execute(f"COPY products TO {products_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)")
-
     if mode == MODE_RAW:
+        products_path_sql = sql_string_literal(str(output_dir / "products.parquet"))
         reviews_path_sql = sql_string_literal(str(output_dir / "reviews.parquet"))
+        con.execute(f"COPY products TO {products_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)")
         con.execute(f"COPY reviews TO {reviews_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)")
     else:
-        interactions_path_sql = sql_string_literal(str(output_dir / "interactions_5core.parquet"))
+        products_filtered_path_sql = sql_string_literal(str(output_dir / "products_filtered.parquet"))
         filtered_path_sql = sql_string_literal(str(output_dir / "reviews_5core_filtered.parquet"))
         con.execute(
-            f"COPY interactions_5core TO {interactions_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)",
+            f"COPY products_filtered TO {products_filtered_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)",
         )
         con.execute(
             f"COPY reviews_5core_filtered TO {filtered_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)",
@@ -572,7 +576,7 @@ def write_summary_json(
                 (
                     SELECT SUM(CASE WHEN p.parent_asin IS NOT NULL THEN 1 ELSE 0 END)
                     FROM reviews_5core_filtered r
-                    LEFT JOIN products p USING (parent_asin)
+                    LEFT JOIN products_filtered p USING (parent_asin)
                 ) AS reviews_with_metadata
             """
         ).fetchone()
@@ -638,6 +642,11 @@ def run_setup(
         category=category,
         mode=mode,
     )
+
+    if mode == MODE_RAW_5CORE:
+        con.execute("DROP TABLE IF EXISTS interactions_5core")
+        con.execute("DROP TABLE IF EXISTS reviews")
+        con.execute("DROP TABLE IF EXISTS products")
 
     con.close()
 

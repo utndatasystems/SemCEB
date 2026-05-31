@@ -3,7 +3,7 @@
 
 This script supports an iterative workflow:
 1) analyze category footprints (raw + metadata vs 5-core)
-2) set up a chosen category locally with enriched tables
+2) set up a chosen category locally with compact DuckDB/parquet tables
 
 Examples:
   python data/amazon-reviews/amazon-reviews.py --analyze-only
@@ -366,23 +366,52 @@ def create_products_table(
         """
         CREATE OR REPLACE TABLE products AS
         SELECT
-            json_extract_string(j, '$.parent_asin') AS parent_asin,
-            json_extract_string(j, '$.main_category') AS main_category,
-            json_extract_string(j, '$.title') AS product_title,
-            try_cast(json_extract(j, '$.average_rating') AS DOUBLE) AS average_rating,
-            try_cast(json_extract(j, '$.rating_number') AS BIGINT) AS rating_number,
-            json_extract_string(j, '$.price') AS price,
-            json_extract_string(j, '$.store') AS store,
-            json_extract(j, '$.categories') AS categories_json,
-            json_extract(j, '$.features') AS features_json,
-            json_extract(j, '$.description') AS description_json,
-            json_extract(j, '$.details') AS details_json,
-            json_extract(j, '$.images') AS images_json,
-            json_extract(j, '$.videos') AS videos_json,
-            json_extract_string(j, '$.bought_together') AS bought_together,
-            json_extract_string(j, '$.subtitle') AS subtitle,
-            json_extract_string(j, '$.author') AS author
-        FROM read_json_objects(?) AS t(j)
+            parent_asin,
+            main_category,
+            product_title,
+            average_rating,
+            rating_number,
+            price,
+            store,
+            categories_json,
+            features_json,
+            description_json,
+            details_json,
+            images_json,
+            videos_json,
+            bought_together,
+            subtitle,
+            author
+        FROM (
+            SELECT
+                json_extract_string(j, '$.parent_asin') AS parent_asin,
+                json_extract_string(j, '$.main_category') AS main_category,
+                json_extract_string(j, '$.title') AS product_title,
+                try_cast(json_extract(j, '$.average_rating') AS DOUBLE) AS average_rating,
+                try_cast(json_extract(j, '$.rating_number') AS BIGINT) AS rating_number,
+                json_extract_string(j, '$.price') AS price,
+                json_extract_string(j, '$.store') AS store,
+                json_extract(j, '$.categories') AS categories_json,
+                json_extract(j, '$.features') AS features_json,
+                json_extract(j, '$.description') AS description_json,
+                json_extract(j, '$.details') AS details_json,
+                json_extract(j, '$.images') AS images_json,
+                json_extract(j, '$.videos') AS videos_json,
+                json_extract_string(j, '$.bought_together') AS bought_together,
+                json_extract_string(j, '$.subtitle') AS subtitle,
+                json_extract_string(j, '$.author') AS author
+            FROM read_json_objects(?) AS t(j)
+        ) p
+        WHERE product_title IS NOT NULL
+          AND features_json IS NOT NULL
+          AND description_json IS NOT NULL
+          AND details_json IS NOT NULL
+          AND images_json IS NOT NULL
+          AND lower(CAST(features_json AS VARCHAR)) <> 'null'
+          AND lower(CAST(description_json AS VARCHAR)) <> 'null'
+          AND lower(CAST(details_json AS VARCHAR)) <> 'null'
+          AND lower(CAST(images_json AS VARCHAR)) <> 'null'
+          AND coalesce(json_array_length(images_json), 0) > 0
         """,
         [str(meta_jsonl_path)],
     )
@@ -396,41 +425,34 @@ def create_raw_review_tables(
         """
         CREATE OR REPLACE TABLE reviews AS
         SELECT
-            json_extract_string(j, '$.user_id') AS user_id,
-            json_extract_string(j, '$.asin') AS asin,
-            json_extract_string(j, '$.parent_asin') AS parent_asin,
-            try_cast(json_extract(j, '$.rating') AS DOUBLE) AS rating,
-            json_extract_string(j, '$.title') AS review_title,
-            json_extract_string(j, '$.text') AS review_text,
-            try_cast(json_extract(j, '$.timestamp') AS BIGINT) AS timestamp_ms,
-            try_cast(json_extract(j, '$.helpful_vote') AS BIGINT) AS helpful_vote,
-            try_cast(json_extract(j, '$.verified_purchase') AS BOOLEAN) AS verified_purchase,
-            json_extract(j, '$.images') AS images_json
-        FROM read_json_objects(?) AS t(j)
+            user_id,
+            asin,
+            parent_asin,
+            rating,
+            review_title,
+            review_text,
+            timestamp_ms,
+            helpful_vote,
+            verified_purchase,
+            images_json
+        FROM (
+            SELECT
+                json_extract_string(j, '$.user_id') AS user_id,
+                json_extract_string(j, '$.asin') AS asin,
+                json_extract_string(j, '$.parent_asin') AS parent_asin,
+                try_cast(json_extract(j, '$.rating') AS DOUBLE) AS rating,
+                json_extract_string(j, '$.title') AS review_title,
+                json_extract_string(j, '$.text') AS review_text,
+                try_cast(json_extract(j, '$.timestamp') AS BIGINT) AS timestamp_ms,
+                try_cast(json_extract(j, '$.helpful_vote') AS BIGINT) AS helpful_vote,
+                try_cast(json_extract(j, '$.verified_purchase') AS BOOLEAN) AS verified_purchase,
+                json_extract(j, '$.images') AS images_json
+            FROM read_json_objects(?) AS t(j)
+        ) r
+        WHERE NULLIF(trim(review_title), '') IS NOT NULL
+          AND NULLIF(trim(review_text), '') IS NOT NULL
         """,
         [str(review_jsonl_path)],
-    )
-
-    con.execute(
-        """
-        CREATE OR REPLACE TABLE reviews_enriched AS
-        SELECT
-            r.*,
-            p.main_category AS product_main_category,
-            p.product_title,
-            p.average_rating AS product_average_rating,
-            p.rating_number AS product_rating_number,
-            p.price AS product_price,
-            p.store AS product_store,
-            p.categories_json AS product_categories_json,
-            p.features_json AS product_features_json,
-            p.description_json AS product_description_json,
-            p.details_json AS product_details_json,
-            p.images_json AS product_images_json,
-            p.videos_json AS product_videos_json
-        FROM reviews r
-        LEFT JOIN products p USING (parent_asin)
-        """
     )
 
 
@@ -468,23 +490,13 @@ def create_raw_5core_filtered_tables(
 
     con.execute(
         """
-        CREATE OR REPLACE TABLE reviews_5core_filtered_enriched AS
-        SELECT
-            r.*,
-            p.main_category AS product_main_category,
-            p.product_title,
-            p.average_rating AS product_average_rating,
-            p.rating_number AS product_rating_number,
-            p.price AS product_price,
-            p.store AS product_store,
-            p.categories_json AS product_categories_json,
-            p.features_json AS product_features_json,
-            p.description_json AS product_description_json,
-            p.details_json AS product_details_json,
-            p.images_json AS product_images_json,
-            p.videos_json AS product_videos_json
-        FROM reviews_5core_filtered r
-        LEFT JOIN products p USING (parent_asin)
+        CREATE OR REPLACE TABLE products AS
+        SELECT p.*
+        FROM products p
+        INNER JOIN (
+            SELECT DISTINCT parent_asin
+            FROM reviews_5core_filtered
+        ) keep USING (parent_asin)
         """
     )
 
@@ -495,37 +507,30 @@ def export_tables(
     mode: str,
 ) -> None:
     ensure_parent(output_dir / "dummy")
+    stale_paths = [
+        output_dir / "reviews_enriched.parquet",
+        output_dir / "reviews_5core_filtered_enriched.parquet",
+        output_dir / "reviews_5core_filtered_unique.parquet",
+        output_dir / "reviews_5core_filtered_unique_enriched.parquet",
+    ]
+    for stale_path in stale_paths:
+        if stale_path.exists():
+            stale_path.unlink()
 
     products_path_sql = sql_string_literal(str(output_dir / "products.parquet"))
     con.execute(f"COPY products TO {products_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)")
 
     if mode == MODE_RAW:
         reviews_path_sql = sql_string_literal(str(output_dir / "reviews.parquet"))
-        reviews_enriched_path_sql = sql_string_literal(str(output_dir / "reviews_enriched.parquet"))
         con.execute(f"COPY reviews TO {reviews_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)")
-        con.execute(
-            f"COPY reviews_enriched TO {reviews_enriched_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)",
-        )
     else:
         interactions_path_sql = sql_string_literal(str(output_dir / "interactions_5core.parquet"))
         filtered_path_sql = sql_string_literal(str(output_dir / "reviews_5core_filtered.parquet"))
-        filtered_enriched_path_sql = sql_string_literal(str(output_dir / "reviews_5core_filtered_enriched.parquet"))
-        stale_unique_paths = [
-            output_dir / "reviews_5core_filtered_unique.parquet",
-            output_dir / "reviews_5core_filtered_unique_enriched.parquet",
-        ]
-        for stale_path in stale_unique_paths:
-            if stale_path.exists():
-                stale_path.unlink()
-
         con.execute(
             f"COPY interactions_5core TO {interactions_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)",
         )
         con.execute(
             f"COPY reviews_5core_filtered TO {filtered_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)",
-        )
-        con.execute(
-            f"COPY reviews_5core_filtered_enriched TO {filtered_enriched_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)",
         )
 
 
@@ -540,10 +545,11 @@ def write_summary_json(
             """
             SELECT
                 COUNT(*) AS review_rows,
-                COUNT(DISTINCT user_id) AS users,
-                COUNT(DISTINCT parent_asin) AS reviewed_products,
-                SUM(CASE WHEN product_title IS NOT NULL THEN 1 ELSE 0 END) AS reviews_with_metadata
-            FROM reviews_enriched
+                COUNT(DISTINCT r.user_id) AS users,
+                COUNT(DISTINCT r.parent_asin) AS reviewed_products,
+                SUM(CASE WHEN p.parent_asin IS NOT NULL THEN 1 ELSE 0 END) AS reviews_with_metadata
+            FROM reviews r
+            LEFT JOIN products p USING (parent_asin)
             """
         ).fetchone()
         payload = {
@@ -564,8 +570,9 @@ def write_summary_json(
                 (SELECT COUNT(DISTINCT user_id) FROM reviews_5core_filtered) AS users,
                 (SELECT COUNT(DISTINCT parent_asin) FROM reviews_5core_filtered) AS reviewed_products,
                 (
-                    SELECT SUM(CASE WHEN product_title IS NOT NULL THEN 1 ELSE 0 END)
-                    FROM reviews_5core_filtered_enriched
+                    SELECT SUM(CASE WHEN p.parent_asin IS NOT NULL THEN 1 ELSE 0 END)
+                    FROM reviews_5core_filtered r
+                    LEFT JOIN products p USING (parent_asin)
                 ) AS reviews_with_metadata
             """
         ).fetchone()

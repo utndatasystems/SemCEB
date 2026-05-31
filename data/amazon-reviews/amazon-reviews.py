@@ -29,6 +29,7 @@ DATASET_ID = "McAuley-Lab/Amazon-Reviews-2023"
 HF_DATASET_BASE = f"https://huggingface.co/datasets/{DATASET_ID}/"
 HF_RESOLVE_BASE = urljoin(HF_DATASET_BASE, "resolve/main/")
 HF_TREE_API = f"https://huggingface.co/api/datasets/{DATASET_ID}/tree/main?recursive=1"
+SCRIPT_DIR = Path(__file__).resolve().parent
 
 MODE_RAW = "raw"
 MODE_RAW_5CORE = "raw_5core"
@@ -67,8 +68,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--base-dir",
-        default="data/amazon-reviews",
-        help="Base directory for raw downloads, cache, and processed output.",
+        default=".",
+        help=(
+            "Base directory for raw downloads, cache, and processed output. "
+            "Relative paths are resolved from this script's directory."
+        ),
     )
     parser.add_argument(
         "--top-n",
@@ -655,7 +659,11 @@ def run_setup(
 
 def main() -> int:
     args = parse_args()
-    base_dir = Path(args.base_dir)
+    base_dir_arg = Path(args.base_dir)
+    if base_dir_arg.is_absolute():
+        base_dir = base_dir_arg
+    else:
+        base_dir = (SCRIPT_DIR / base_dir_arg).resolve()
 
     tree_cache = base_dir / "cache" / "hf_tree_main.json"
     fetch_tree_json(tree_cache, force_refresh=args.force_refresh_tree)

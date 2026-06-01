@@ -414,6 +414,9 @@ def create_products_table(
           AND lower(CAST(description_json AS VARCHAR)) <> 'null'
           AND lower(CAST(details_json AS VARCHAR)) <> 'null'
           AND lower(CAST(images_json AS VARCHAR)) <> 'null'
+          AND coalesce(json_array_length(features_json), 0) > 0
+          AND coalesce(json_array_length(description_json), 0) > 0
+          AND coalesce(json_array_length(details_json), 0) > 0
           AND coalesce(json_array_length(images_json), 0) > 0
         """,
         [str(meta_jsonl_path)],

@@ -14,6 +14,9 @@ This installs the dependencies defined in `pyproject.toml` and makes the `semant
 
 The editable install means that local code changes are picked up immediately. This is useful when modifying the provided algorithm template in `runner/algorithms/my_selectivity_estimation_algorithm.py`.
 
+**Note:**  
+For custom queries, models other than the currently configured OpenAI models in `config.toml`, or new LLM-based algorithms, create a local `.env` file from `.env.example` and add the required API keys or credentials.
+
 ## Modes
 
 ### `run`

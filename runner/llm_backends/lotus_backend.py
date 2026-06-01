@@ -10,13 +10,14 @@ from lotus.models.lm import LM
 class LotusBackend():
     """Model wrapper using LOTUS for ground-truth selectivity."""
 
-    def __init__(self, model_name: str, system_prompt: str):
+    def __init__(self, model_name: str, system_prompt: str, scale_factor: int):
 
         self.cache_path = Path("queries") / "ground_truth_cache.json"
         self.cache = self._load_cache()
 
         self.name = model_name
         self.system_prompt = system_prompt
+        self.scale_factor = scale_factor
         self.lm = LM(
             model=self.name,
             rate_limit=None,
@@ -46,6 +47,7 @@ class LotusBackend():
             "system_prompt": self.system_prompt,
             "query_type": query_type,
             "datasets": ", ".join(datasets),
+            "scale_factor": self.scale_factor,
             "columns": ", ".join(columns),
             "query": query_str,
         }

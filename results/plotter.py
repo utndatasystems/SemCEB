@@ -58,7 +58,7 @@ class ResultsPlotter:
         console.print(table)
         console.print()
 
-        self._save_summary_table(table, summary)
+        self._save_summary_table(summary)
         self._plot_algorithm_comparison(df)
         self._save_per_query_report(df)
 
@@ -551,24 +551,8 @@ class ResultsPlotter:
             bottom=False,
         )
 
-    def _save_summary_table(self, table: Table, summary: pd.DataFrame) -> None:
+    def _save_summary_table(self, summary: pd.DataFrame) -> None:
         """Save Rich summary table to text and HTML files."""
-
-        table_txt_path = self.table_dir / "algorithm_summary.txt"
-        table_html_path = self.table_dir / "algorithm_summary.html"
-
-        text_console = Console(
-            record=True,
-            width=180,
-            color_system=None,
-        )
-
-        with open(table_txt_path, "w", encoding="utf-8") as file:
-            file.write(text_console.export_text())
-
-        console.print(
-            f"[green]✓[/green] Saved algorithm comparison table in *.txt to [bold]{table_txt_path}[/bold]"
-        )
 
         table_html_path = self.table_dir / "algorithm_summary.html"
         table_pdf_path = self.table_dir / "algorithm_summary.pdf"

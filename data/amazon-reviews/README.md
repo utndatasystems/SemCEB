@@ -27,3 +27,55 @@ In the end, two tables are created:
  - `products_filtered`: ~50k rows
  - `reviews_5core_filtered`: ~1.8m rows
 
+
+## Schema
+
+`products_filtered`:
+
+```
+┌──────────────────┬─────────────┬─────────┬─────────┬─────────┬─────────┐
+│   column_name    │ column_type │  null   │   key   │ default │  extra  │
+│     varchar      │   varchar   │ varchar │ varchar │ varchar │ varchar │
+├──────────────────┼─────────────┼─────────┼─────────┼─────────┼─────────┤
+│ parent_asin      │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
+│ main_category    │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
+│ product_title    │ VARCHAR     │ NO      │ NULL    │ NULL    │ NULL    │
+│ average_rating   │ DOUBLE      │ YES     │ NULL    │ NULL    │ NULL    │
+│ rating_number    │ BIGINT      │ YES     │ NULL    │ NULL    │ NULL    │
+│ price            │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
+│ store            │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
+│ categories_json  │ JSON        │ YES     │ NULL    │ NULL    │ NULL    │
+│ features_json    │ JSON        │ NO      │ NULL    │ NULL    │ NULL    │
+│ description_json │ JSON        │ NO      │ NULL    │ NULL    │ NULL    │
+│ details_json     │ JSON        │ NO      │ NULL    │ NULL    │ NULL    │
+│ images_json      │ JSON        │ NO      │ NULL    │ NULL    │ NULL    │
+│ videos_json      │ JSON        │ YES     │ NULL    │ NULL    │ NULL    │
+│ bought_together  │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
+│ subtitle         │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
+│ author           │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
+├──────────────────┴─────────────┴─────────┴─────────┴─────────┴─────────┤
+│ 16 rows                                                      6 columns │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+`reviews_5core_filtered`:
+
+```
+┌───────────────────┬─────────────┬─────────┬─────────┬─────────┬─────────┐
+│    column_name    │ column_type │  null   │   key   │ default │  extra  │
+│      varchar      │   varchar   │ varchar │ varchar │ varchar │ varchar │
+├───────────────────┼─────────────┼─────────┼─────────┼─────────┼─────────┤
+│ user_id           │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
+│ asin              │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
+│ parent_asin       │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
+│ rating            │ DOUBLE      │ YES     │ NULL    │ NULL    │ NULL    │
+│ review_title      │ VARCHAR     │ NO      │ NULL    │ NULL    │ NULL    │
+│ review_text       │ VARCHAR     │ NO      │ NULL    │ NULL    │ NULL    │
+│ timestamp_ms      │ BIGINT      │ YES     │ NULL    │ NULL    │ NULL    │
+│ helpful_vote      │ BIGINT      │ YES     │ NULL    │ NULL    │ NULL    │
+│ verified_purchase │ BOOLEAN     │ YES     │ NULL    │ NULL    │ NULL    │
+│ images_json       │ JSON        │ YES     │ NULL    │ NULL    │ NULL    │
+├───────────────────┴─────────────┴─────────┴─────────┴─────────┴─────────┤
+│ 10 rows                                                       6 columns │
+└─────────────────────────────────────────────────────────────────────────┘
+```

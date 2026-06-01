@@ -367,7 +367,7 @@ def create_products_table(
 ) -> None:
     con.execute(
         """
-        CREATE OR REPLACE TABLE products AS
+        CREATE OR REPLACE TEMP TABLE products_stage AS
         SELECT
             parent_asin,
             main_category,
@@ -420,6 +420,30 @@ def create_products_table(
         """,
         [str(meta_jsonl_path)],
     )
+    con.execute(
+        """
+        CREATE OR REPLACE TABLE products (
+            parent_asin VARCHAR,
+            main_category VARCHAR,
+            product_title VARCHAR NOT NULL,
+            average_rating DOUBLE,
+            rating_number BIGINT,
+            price VARCHAR,
+            store VARCHAR,
+            categories_json JSON,
+            features_json JSON NOT NULL,
+            description_json JSON NOT NULL,
+            details_json JSON NOT NULL,
+            images_json JSON NOT NULL,
+            videos_json JSON,
+            bought_together VARCHAR,
+            subtitle VARCHAR,
+            author VARCHAR
+        )
+        """
+    )
+    con.execute("INSERT INTO products BY NAME SELECT * FROM products_stage")
+    con.execute("DROP TABLE IF EXISTS products_stage")
 
 
 def create_raw_review_tables(
@@ -428,7 +452,7 @@ def create_raw_review_tables(
 ) -> None:
     con.execute(
         """
-        CREATE OR REPLACE TABLE reviews AS
+        CREATE OR REPLACE TEMP TABLE reviews_stage AS
         SELECT
             user_id,
             asin,
@@ -459,6 +483,24 @@ def create_raw_review_tables(
         """,
         [str(review_jsonl_path)],
     )
+    con.execute(
+        """
+        CREATE OR REPLACE TABLE reviews (
+            user_id VARCHAR,
+            asin VARCHAR,
+            parent_asin VARCHAR,
+            rating DOUBLE,
+            review_title VARCHAR NOT NULL,
+            review_text VARCHAR NOT NULL,
+            timestamp_ms BIGINT,
+            helpful_vote BIGINT,
+            verified_purchase BOOLEAN,
+            images_json JSON
+        )
+        """
+    )
+    con.execute("INSERT INTO reviews BY NAME SELECT * FROM reviews_stage")
+    con.execute("DROP TABLE IF EXISTS reviews_stage")
 
 
 def create_raw_5core_filtered_tables(
@@ -482,7 +524,24 @@ def create_raw_5core_filtered_tables(
 
     con.execute(
         """
-        CREATE OR REPLACE TABLE reviews_5core_filtered AS
+        CREATE OR REPLACE TABLE reviews_5core_filtered (
+            user_id VARCHAR,
+            asin VARCHAR,
+            parent_asin VARCHAR,
+            rating DOUBLE,
+            review_title VARCHAR NOT NULL,
+            review_text VARCHAR NOT NULL,
+            timestamp_ms BIGINT,
+            helpful_vote BIGINT,
+            verified_purchase BOOLEAN,
+            images_json JSON
+        )
+        """
+    )
+
+    con.execute(
+        """
+        INSERT INTO reviews_5core_filtered BY NAME
         SELECT r.*
         FROM reviews r
         INNER JOIN interactions_5core i
@@ -495,7 +554,30 @@ def create_raw_5core_filtered_tables(
 
     con.execute(
         """
-        CREATE OR REPLACE TABLE products_filtered AS
+        CREATE OR REPLACE TABLE products_filtered (
+            parent_asin VARCHAR,
+            main_category VARCHAR,
+            product_title VARCHAR NOT NULL,
+            average_rating DOUBLE,
+            rating_number BIGINT,
+            price VARCHAR,
+            store VARCHAR,
+            categories_json JSON,
+            features_json JSON NOT NULL,
+            description_json JSON NOT NULL,
+            details_json JSON NOT NULL,
+            images_json JSON NOT NULL,
+            videos_json JSON,
+            bought_together VARCHAR,
+            subtitle VARCHAR,
+            author VARCHAR
+        )
+        """
+    )
+
+    con.execute(
+        """
+        INSERT INTO products_filtered BY NAME
         SELECT p.*
         FROM products p
         INNER JOIN (

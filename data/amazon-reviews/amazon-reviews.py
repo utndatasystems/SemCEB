@@ -39,7 +39,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--category",
         default=None,
-        help="Category name (e.g., All_Beauty). Required unless --analyze-only is used.",
+        help="Category name (e.g., Arts_Crafts_and_Sewing). Required unless --analyze-only is used.",
     )
     parser.add_argument(
         "--mode",

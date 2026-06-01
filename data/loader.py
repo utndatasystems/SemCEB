@@ -21,8 +21,7 @@ class DataLoader:
             5 = 5%
         """
 
-        path = self.folderpath_raw_data / f"{dataset}.csv"
-        df = pd.read_csv(path)
+        df = self._load_dataset(dataset)
 
         scale_factors = {
             1: 1.00,
@@ -48,6 +47,21 @@ class DataLoader:
             .sort_index()
             .reset_index(drop=True)
         )
+
+    def _load_dataset(self, dataset: str) -> pd.DataFrame:
+        csv_path = self.folderpath_raw_data / f"{dataset}.csv"
+        parquet_path = self.folderpath_raw_data / f"{dataset}.parquet"
+
+        if csv_path.exists():
+            return pd.read_csv(csv_path)
+
+        if parquet_path.exists():
+            return pd.read_parquet(parquet_path)
+
+        raise FileNotFoundError(
+            f"Could not find dataset '{dataset}' as CSV or Parquet in "
+            f"{self.folderpath_raw_data}."
+        )    
 
     def load(self, datasets: list[str], scale_factor: int) -> dict[str, pd.DataFrame]:
         """Load datasets into pandas dataframe."""

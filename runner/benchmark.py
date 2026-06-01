@@ -59,17 +59,23 @@ class BenchmarkRunner:
         """Download data if it is not available locally."""
 
         downloader = DataDownloader()
-        missing_files = downloader.get_missing_files()
 
-        if missing_files:
-            data_ready = downloader.download_missing_files(missing_files)
-
-            if not data_ready:
-                console.print(
+        files_complete = downloader.ensure_files_available()
+        if not files_complete:
+            console.print(
+                "[bold red]Benchmark aborted.[/bold red]\n"
+                "[yellow]Required benchmark data is missing, and the download was skipped.[/yellow]"
+            )
+            raise SystemExit(1)
+            
+        images_complete = downloader.ensure_images_available()
+        if not images_complete:
+            console.print(
                     "[bold red]Benchmark aborted.[/bold red]\n"
-                    "[yellow]Required benchmark data is missing, and the download was skipped.[/yellow]"
+                    "[yellow]Required benchmark image data is missing, and the download or extraction was skipped.[/yellow]"
                 )
-                raise SystemExit(1)
+            raise SystemExit(1)
+
 
     def _load_algorithm_from_file(
         self, algorithm_config: dict[str, Any]
@@ -137,7 +143,7 @@ class BenchmarkRunner:
             }
             data_dfs = DataLoader().load(datasets=datasets, scale_factor=self.scale_factor)
             # TODO - DEBUG - Manually shortend
-            data_dfs = {k: df.head(20) for k, df in data_dfs.items()}
+            data_dfs = {k: df.head(10) for k, df in data_dfs.items()}
 
             for algorithm_config in self.algorithms:
                 algorithm = self._load_algorithm_from_file(algorithm_config)
@@ -154,7 +160,7 @@ class BenchmarkRunner:
                 algorithm.preparation(data_dfs, algorithm_kwargs)
 
                 for query_dict in self.queries:
-
+                    
                     progress.update(
                         task,
                         description=(
@@ -203,7 +209,7 @@ class BenchmarkRunner:
 
     def _get_selectivity_ground_truth(self, model_name: str, system_prompt: str, query_dict: dict, data_dfs: dict[str, pd.DataFrame]) -> int:
         """Obtain model-based selectivity ground truth."""
-        backend = LotusBackend(model_name=model_name, system_prompt=system_prompt)
+        backend = LotusBackend(model_name=model_name, system_prompt=system_prompt, scale_factor=self.scale_factor)
 
         if len(query_dict["datasets"]) == 1:
             # Filtering

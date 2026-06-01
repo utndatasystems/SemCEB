@@ -24,6 +24,6 @@ Therefore, we apply the following transformations:
  - `5core` filtering is applied: both `products` and `reviews` are filtered such that only products/reviews are contained that appear in the `5core` interactions dataset.
 
 In the end, two tables are created:
- - `products_filtered`: 89,915 rows
- - `reviews_5core_filtered`: 1,797,417 rows
+ - `products_filtered`: ~50k rows
+ - `reviews_5core_filtered`: ~1.8m rows
 

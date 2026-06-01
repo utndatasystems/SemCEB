@@ -7,8 +7,7 @@ This script supports an iterative workflow:
 
 Examples:
   python data/amazon-reviews/amazon-reviews.py --analyze-only
-  python data/amazon-reviews/amazon-reviews.py --category All_Beauty --mode raw
-  python data/amazon-reviews/amazon-reviews.py --category All_Beauty --mode raw_5core
+  python data/amazon-reviews/amazon-reviews.py --category Arts_Crafts_and_Sewing --mode raw_5core
 """
 
 from __future__ import annotations

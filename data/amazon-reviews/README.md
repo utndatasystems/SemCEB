@@ -28,6 +28,16 @@ In the end, two tables are created:
  - `reviews_5core_filtered`: ~1.8m rows
 
 
+## Setup
+
+To generate the dataset, run the following command:
+
+```
+python amazon-reviews.py --category Arts_Crafts_and_Sewing --mode raw_5core
+```
+
+
+
 ## Schema
 
 `products_filtered`:

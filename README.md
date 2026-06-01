@@ -58,7 +58,6 @@ semantic-selectivity plot  # alternative: python run.py plot
 Uses:
 
 ```text
-config.toml
 results/raw/result.jsonl
 ```
 

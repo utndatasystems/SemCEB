@@ -3,8 +3,13 @@ model_name = "gpt-4o-mini"
 system_prompt = "Evaluate if the following statement. Only answer with True or False."
 
 [general.data]
-scale_factor = 1                        # 1 to 5
-categories = ["equality", "inequality"]
+scale_factor = 1 # 1 to 5
+categories = [
+    "Simple Base-Table Predicate",
+    "Complex Base-Table Predicate",
+    "Simple Join",
+    "Complex Join",
+] # ["equality", "inequality"]
 
 
 # Mandatory

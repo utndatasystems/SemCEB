@@ -268,10 +268,10 @@
 <body>
 <h1>Per-query benchmark report</h1>
 <section class='query-block'>
-<h2>Query ID: 0</h2>
+<h2>Query ID: 100</h2>
 <div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> equality</span><span><strong>Dataset:</strong> dataset1</span><span><strong>Column:</strong> description</span></div>
-<div class='query-meta-query'><strong>Query:</strong> Is this description about education technology?</div>
+<div class='query-meta-topline'><span><strong>Category:</strong> Simple Base-Table Predicate</span><span><strong>Datasets:</strong> products_filtered</span><span><strong>Columns:</strong> product_title</span></div>
+<div class='query-meta-query'><strong>Query:</strong> Is this product a sewing or crafting item?</div>
 </div>
 <table>
 <thead>
@@ -288,446 +288,30 @@
 <tbody>
 <tr>
 <td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>5.80</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>720.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:49.6%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:19.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>100</span><span class='bar-track'><span class='bar-fill' style='display:block; width:23.8%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:20.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>392</span><span class='bar-track'><span class='bar-fill' style='display:block; width:75.4%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='My Selectivity Estimation Algorithm'>My Selectivity Estimation Algorithm</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.40</span><span class='bar-track'><span class='bar-fill' style='display:block; width:24.1%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>18.50</span><span class='bar-track'><span class='bar-fill' style='display:block; width:1.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:5.5%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>42</span><span class='bar-track'><span class='bar-fill' style='display:block; width:10.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:20.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>118</span><span class='bar-track'><span class='bar-fill' style='display:block; width:22.7%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#cfcfcf;'></span><span class='algorithm-name' title='Full Semantic Filter'>Full Semantic Filter</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:17.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1450.30</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>420</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>5</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>520</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#b3b3b3;'></span><span class='algorithm-name' title='Cached Sampling'>Cached Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.14</span><span class='bar-track'><span class='bar-fill' style='display:block; width:19.7%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>510.50</span><span class='bar-track'><span class='bar-fill' style='display:block; width:35.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:56.1%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>240</span><span class='bar-track'><span class='bar-fill' style='display:block; width:57.1%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>3</span><span class='bar-track'><span class='bar-fill' style='display:block; width:60.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>260</span><span class='bar-track'><span class='bar-fill' style='display:block; width:50.0%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#8c8c8c;'></span><span class='algorithm-name' title='Stratified Sampling'>Stratified Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.35</span><span class='bar-track'><span class='bar-fill' style='display:block; width:23.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>910.20</span><span class='bar-track'><span class='bar-fill' style='display:block; width:62.8%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:63.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>285</span><span class='bar-track'><span class='bar-fill' style='display:block; width:67.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>3</span><span class='bar-track'><span class='bar-fill' style='display:block; width:60.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>390</span><span class='bar-track'><span class='bar-fill' style='display:block; width:75.0%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#666666;'></span><span class='algorithm-name' title='Histogram Estimator'>Histogram Estimator</span></td>
-<td><div class='metric-cell'><span class='metric-value'>2.40</span><span class='bar-track'><span class='bar-fill' style='display:block; width:41.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>85.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:5.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:3.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>18</span><span class='bar-track'><span class='bar-fill' style='display:block; width:4.3%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>1.25</span><span class='bar-track'><span class='bar-fill' style='display:block; width:31.2%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>4.58</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>0</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>156</span><span class='bar-track'><span class='bar-fill' style='display:block; width:30.0%;'></span></span></div></td>
-</tr>
-</tbody>
-</table>
-</section>
-<section class='query-block'>
-<h2>Query ID: 1</h2>
-<div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> equality</span><span><strong>Dataset:</strong> dataset1</span><span><strong>Column:</strong> description</span></div>
-<div class='query-meta-query'><strong>Query:</strong> Is this description about online tutoring?</div>
-</div>
-<table>
-<thead>
-<tr>
-<th class='algorithm-header'>Algorithm</th>
-<th>Q-error</th>
-<th>Runtime ms</th>
-<th>Cost USD</th>
-<th>Tokens</th>
-<th>LLM calls</th>
-<th>Memory bytes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>4.90</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>610.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:40.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:21.6%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>105</span><span class='bar-track'><span class='bar-fill' style='display:block; width:25.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:20.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>388</span><span class='bar-track'><span class='bar-fill' style='display:block; width:72.5%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='My Selectivity Estimation Algorithm'>My Selectivity Estimation Algorithm</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.10</span><span class='bar-track'><span class='bar-fill' style='display:block; width:22.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>14.20</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:5.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>39</span><span class='bar-track'><span class='bar-fill' style='display:block; width:9.6%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:20.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>122</span><span class='bar-track'><span class='bar-fill' style='display:block; width:22.8%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#cfcfcf;'></span><span class='algorithm-name' title='Full Semantic Filter'>Full Semantic Filter</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:20.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1510.80</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>405</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>5</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>535</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#b3b3b3;'></span><span class='algorithm-name' title='Cached Sampling'>Cached Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.25</span><span class='bar-track'><span class='bar-fill' style='display:block; width:25.5%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>540.70</span><span class='bar-track'><span class='bar-fill' style='display:block; width:35.8%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:55.7%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>230</span><span class='bar-track'><span class='bar-fill' style='display:block; width:56.8%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>3</span><span class='bar-track'><span class='bar-fill' style='display:block; width:60.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>272</span><span class='bar-track'><span class='bar-fill' style='display:block; width:50.8%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#8c8c8c;'></span><span class='algorithm-name' title='Stratified Sampling'>Stratified Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.42</span><span class='bar-track'><span class='bar-fill' style='display:block; width:29.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>875.50</span><span class='bar-track'><span class='bar-fill' style='display:block; width:57.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:63.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>272</span><span class='bar-track'><span class='bar-fill' style='display:block; width:67.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>3</span><span class='bar-track'><span class='bar-fill' style='display:block; width:60.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>402</span><span class='bar-track'><span class='bar-fill' style='display:block; width:75.1%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#666666;'></span><span class='algorithm-name' title='Histogram Estimator'>Histogram Estimator</span></td>
-<td><div class='metric-cell'><span class='metric-value'>2.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:40.8%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>78.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:5.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:3.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>16</span><span class='bar-track'><span class='bar-fill' style='display:block; width:4.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>162</span><span class='bar-track'><span class='bar-fill' style='display:block; width:30.3%;'></span></span></div></td>
-</tr>
-</tbody>
-</table>
-</section>
-<section class='query-block'>
-<h2>Query ID: 2</h2>
-<div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> equality</span><span><strong>Dataset:</strong> dataset1</span><span><strong>Column:</strong> description</span></div>
-<div class='query-meta-query'><strong>Query:</strong> Is this description about personalized learning?</div>
-</div>
-<table>
-<thead>
-<tr>
-<th class='algorithm-header'>Algorithm</th>
-<th>Q-error</th>
-<th>Runtime ms</th>
-<th>Cost USD</th>
-<th>Tokens</th>
-<th>LLM calls</th>
-<th>Memory bytes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>7.20</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>950.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:64.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:18.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>112</span><span class='bar-track'><span class='bar-fill' style='display:block; width:26.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>2</span><span class='bar-track'><span class='bar-fill' style='display:block; width:40.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>405</span><span class='bar-track'><span class='bar-fill' style='display:block; width:76.7%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='My Selectivity Estimation Algorithm'>My Selectivity Estimation Algorithm</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.80</span><span class='bar-track'><span class='bar-fill' style='display:block; width:25.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>21.70</span><span class='bar-track'><span class='bar-fill' style='display:block; width:1.5%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:6.1%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>47</span><span class='bar-track'><span class='bar-fill' style='display:block; width:10.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:20.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>125</span><span class='bar-track'><span class='bar-fill' style='display:block; width:23.7%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#cfcfcf;'></span><span class='algorithm-name' title='Full Semantic Filter'>Full Semantic Filter</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:13.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1485.10</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>430</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>5</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>528</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#b3b3b3;'></span><span class='algorithm-name' title='Cached Sampling'>Cached Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.17</span><span class='bar-track'><span class='bar-fill' style='display:block; width:16.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>495.20</span><span class='bar-track'><span class='bar-fill' style='display:block; width:33.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:56.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>245</span><span class='bar-track'><span class='bar-fill' style='display:block; width:57.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>3</span><span class='bar-track'><span class='bar-fill' style='display:block; width:60.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>255</span><span class='bar-track'><span class='bar-fill' style='display:block; width:48.3%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#8c8c8c;'></span><span class='algorithm-name' title='Stratified Sampling'>Stratified Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.28</span><span class='bar-track'><span class='bar-fill' style='display:block; width:17.8%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>940.10</span><span class='bar-track'><span class='bar-fill' style='display:block; width:63.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:65.5%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>298</span><span class='bar-track'><span class='bar-fill' style='display:block; width:69.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>4</span><span class='bar-track'><span class='bar-fill' style='display:block; width:80.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>395</span><span class='bar-track'><span class='bar-fill' style='display:block; width:74.8%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#666666;'></span><span class='algorithm-name' title='Histogram Estimator'>Histogram Estimator</span></td>
-<td><div class='metric-cell'><span class='metric-value'>2.70</span><span class='bar-track'><span class='bar-fill' style='display:block; width:37.5%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>94.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:6.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:3.7%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>21</span><span class='bar-track'><span class='bar-fill' style='display:block; width:4.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>168</span><span class='bar-track'><span class='bar-fill' style='display:block; width:31.8%;'></span></span></div></td>
-</tr>
-</tbody>
-</table>
-</section>
-<section class='query-block'>
-<h2>Query ID: 3</h2>
-<div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> equality</span><span><strong>Dataset:</strong> dataset1</span><span><strong>Column:</strong> description</span></div>
-<div class='query-meta-query'><strong>Query:</strong> Is this description about student writing support?</div>
-</div>
-<table>
-<thead>
-<tr>
-<th class='algorithm-header'>Algorithm</th>
-<th>Q-error</th>
-<th>Runtime ms</th>
-<th>Cost USD</th>
-<th>Tokens</th>
-<th>LLM calls</th>
-<th>Memory bytes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>6.10</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>540.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:36.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:22.7%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>101</span><span class='bar-track'><span class='bar-fill' style='display:block; width:24.6%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:20.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>397</span><span class='bar-track'><span class='bar-fill' style='display:block; width:74.8%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='My Selectivity Estimation Algorithm'>My Selectivity Estimation Algorithm</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.20</span><span class='bar-track'><span class='bar-fill' style='display:block; width:19.7%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>16.40</span><span class='bar-track'><span class='bar-fill' style='display:block; width:1.1%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:5.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>44</span><span class='bar-track'><span class='bar-fill' style='display:block; width:10.7%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:20.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>119</span><span class='bar-track'><span class='bar-fill' style='display:block; width:22.4%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#cfcfcf;'></span><span class='algorithm-name' title='Full Semantic Filter'>Full Semantic Filter</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:16.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1462.60</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>410</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>5</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>531</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#b3b3b3;'></span><span class='algorithm-name' title='Cached Sampling'>Cached Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:16.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>525.90</span><span class='bar-track'><span class='bar-fill' style='display:block; width:36.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:56.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>235</span><span class='bar-track'><span class='bar-fill' style='display:block; width:57.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>3</span><span class='bar-track'><span class='bar-fill' style='display:block; width:60.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>268</span><span class='bar-track'><span class='bar-fill' style='display:block; width:50.5%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#8c8c8c;'></span><span class='algorithm-name' title='Stratified Sampling'>Stratified Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.50</span><span class='bar-track'><span class='bar-fill' style='display:block; width:24.6%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>898.70</span><span class='bar-track'><span class='bar-fill' style='display:block; width:61.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:66.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>290</span><span class='bar-track'><span class='bar-fill' style='display:block; width:70.7%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>3</span><span class='bar-track'><span class='bar-fill' style='display:block; width:60.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>407</span><span class='bar-track'><span class='bar-fill' style='display:block; width:76.6%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#666666;'></span><span class='algorithm-name' title='Histogram Estimator'>Histogram Estimator</span></td>
-<td><div class='metric-cell'><span class='metric-value'>2.20</span><span class='bar-track'><span class='bar-fill' style='display:block; width:36.1%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>82.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:5.6%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:3.6%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>19</span><span class='bar-track'><span class='bar-fill' style='display:block; width:4.6%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>159</span><span class='bar-track'><span class='bar-fill' style='display:block; width:29.9%;'></span></span></div></td>
-</tr>
-</tbody>
-</table>
-</section>
-<section class='query-block'>
-<h2>Query ID: 4</h2>
-<div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> equality</span><span><strong>Dataset:</strong> dataset2</span><span><strong>Column:</strong> customer_message</span></div>
-<div class='query-meta-query'><strong>Query:</strong> Is this customer message about a billing problem?</div>
-</div>
-<table>
-<thead>
-<tr>
-<th class='algorithm-header'>Algorithm</th>
-<th>Q-error</th>
-<th>Runtime ms</th>
-<th>Cost USD</th>
-<th>Tokens</th>
-<th>LLM calls</th>
-<th>Memory bytes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>4.40</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>690.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:49.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:20.8%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>99</span><span class='bar-track'><span class='bar-fill' style='display:block; width:24.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:25.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>333</span><span class='bar-track'><span class='bar-fill' style='display:block; width:65.9%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='My Selectivity Estimation Algorithm'>My Selectivity Estimation Algorithm</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.60</span><span class='bar-track'><span class='bar-fill' style='display:block; width:36.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>19.80</span><span class='bar-track'><span class='bar-fill' style='display:block; width:1.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:5.7%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>41</span><span class='bar-track'><span class='bar-fill' style='display:block; width:10.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:25.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>111</span><span class='bar-track'><span class='bar-fill' style='display:block; width:22.0%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#cfcfcf;'></span><span class='algorithm-name' title='Full Semantic Filter'>Full Semantic Filter</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.02</span><span class='bar-track'><span class='bar-fill' style='display:block; width:23.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1395.40</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>398</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>4</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>505</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#b3b3b3;'></span><span class='algorithm-name' title='Cached Sampling'>Cached Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.18</span><span class='bar-track'><span class='bar-fill' style='display:block; width:26.8%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>475.40</span><span class='bar-track'><span class='bar-fill' style='display:block; width:34.1%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:53.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>218</span><span class='bar-track'><span class='bar-fill' style='display:block; width:54.8%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>2</span><span class='bar-track'><span class='bar-fill' style='display:block; width:50.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>248</span><span class='bar-track'><span class='bar-fill' style='display:block; width:49.1%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#8c8c8c;'></span><span class='algorithm-name' title='Stratified Sampling'>Stratified Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.31</span><span class='bar-track'><span class='bar-fill' style='display:block; width:29.8%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>842.30</span><span class='bar-track'><span class='bar-fill' style='display:block; width:60.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:62.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>260</span><span class='bar-track'><span class='bar-fill' style='display:block; width:65.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>3</span><span class='bar-track'><span class='bar-fill' style='display:block; width:75.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>372</span><span class='bar-track'><span class='bar-fill' style='display:block; width:73.7%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#666666;'></span><span class='algorithm-name' title='Histogram Estimator'>Histogram Estimator</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.90</span><span class='bar-track'><span class='bar-fill' style='display:block; width:43.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>74.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:5.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:3.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>15</span><span class='bar-track'><span class='bar-fill' style='display:block; width:3.8%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>151</span><span class='bar-track'><span class='bar-fill' style='display:block; width:29.9%;'></span></span></div></td>
-</tr>
-</tbody>
-</table>
-</section>
-<section class='query-block'>
-<h2>Query ID: 5</h2>
-<div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> equality</span><span><strong>Dataset:</strong> dataset2</span><span><strong>Column:</strong> customer_message</span></div>
-<div class='query-meta-query'><strong>Query:</strong> Is this customer message about a payment issue?</div>
-</div>
-<table>
-<thead>
-<tr>
-<th class='algorithm-header'>Algorithm</th>
-<th>Q-error</th>
-<th>Runtime ms</th>
-<th>Cost USD</th>
-<th>Tokens</th>
-<th>LLM calls</th>
-<th>Memory bytes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>3.90</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>430.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:30.1%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:20.7%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>108</span><span class='bar-track'><span class='bar-fill' style='display:block; width:26.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>2</span><span class='bar-track'><span class='bar-fill' style='display:block; width:40.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>341</span><span class='bar-track'><span class='bar-fill' style='display:block; width:66.6%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='My Selectivity Estimation Algorithm'>My Selectivity Estimation Algorithm</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:25.6%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>13.10</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:6.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>46</span><span class='bar-track'><span class='bar-fill' style='display:block; width:11.1%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:20.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>116</span><span class='bar-track'><span class='bar-fill' style='display:block; width:22.7%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#cfcfcf;'></span><span class='algorithm-name' title='Full Semantic Filter'>Full Semantic Filter</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:25.6%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1430.90</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>416</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>5</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>512</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 </tr>
 <tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#b3b3b3;'></span><span class='algorithm-name' title='Cached Sampling'>Cached Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.12</span><span class='bar-track'><span class='bar-fill' style='display:block; width:28.7%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>498.60</span><span class='bar-track'><span class='bar-fill' style='display:block; width:34.8%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:53.1%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>226</span><span class='bar-track'><span class='bar-fill' style='display:block; width:54.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>3</span><span class='bar-track'><span class='bar-fill' style='display:block; width:60.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>252</span><span class='bar-track'><span class='bar-fill' style='display:block; width:49.2%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#8c8c8c;'></span><span class='algorithm-name' title='Stratified Sampling'>Stratified Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.38</span><span class='bar-track'><span class='bar-fill' style='display:block; width:35.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>861.90</span><span class='bar-track'><span class='bar-fill' style='display:block; width:60.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:60.5%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>268</span><span class='bar-track'><span class='bar-fill' style='display:block; width:64.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>3</span><span class='bar-track'><span class='bar-fill' style='display:block; width:60.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>381</span><span class='bar-track'><span class='bar-fill' style='display:block; width:74.4%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#666666;'></span><span class='algorithm-name' title='Histogram Estimator'>Histogram Estimator</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.80</span><span class='bar-track'><span class='bar-fill' style='display:block; width:46.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>69.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:4.8%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:3.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>17</span><span class='bar-track'><span class='bar-fill' style='display:block; width:4.1%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>154</span><span class='bar-track'><span class='bar-fill' style='display:block; width:30.1%;'></span></span></div></td>
+<td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='My Selectivity Estimation Algorithm'>My Selectivity Estimation Algorithm</span></td>
+<td><div class='metric-cell'><span class='metric-value'>4.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>0.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.1%;'></span></span></div></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
 </tr>
 </tbody>
 </table>
 </section>
 <section class='query-block'>
-<h2>Query ID: 6</h2>
+<h2>Query ID: 101</h2>
 <div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> equality</span><span><strong>Dataset:</strong> dataset2</span><span><strong>Column:</strong> customer_message</span></div>
-<div class='query-meta-query'><strong>Query:</strong> Is this customer message about a refund request?</div>
+<div class='query-meta-topline'><span><strong>Category:</strong> Complex Base-Table Predicate</span><span><strong>Datasets:</strong> reviews_5core_filtered</span><span><strong>Columns:</strong> review_title, review_text</span></div>
+<div class='query-meta-query'><strong>Query:</strong> Does this review describe a customer who liked the product quality but had problems with delivery or packaging?</div>
 </div>
 <table>
 <thead>
@@ -744,66 +328,30 @@
 <tbody>
 <tr>
 <td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>5.20</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>620.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:41.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:18.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>103</span><span class='bar-track'><span class='bar-fill' style='display:block; width:24.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:20.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>337</span><span class='bar-track'><span class='bar-fill' style='display:block; width:64.6%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>1.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>2.84</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>0</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>416</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 </tr>
 <tr>
 <td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='My Selectivity Estimation Algorithm'>My Selectivity Estimation Algorithm</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.30</span><span class='bar-track'><span class='bar-fill' style='display:block; width:25.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>15.60</span><span class='bar-track'><span class='bar-fill' style='display:block; width:1.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:4.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>38</span><span class='bar-track'><span class='bar-fill' style='display:block; width:8.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:20.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>114</span><span class='bar-track'><span class='bar-fill' style='display:block; width:21.8%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#cfcfcf;'></span><span class='algorithm-name' title='Full Semantic Filter'>Full Semantic Filter</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.01</span><span class='bar-track'><span class='bar-fill' style='display:block; width:19.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1502.20</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>425</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>5</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>522</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#b3b3b3;'></span><span class='algorithm-name' title='Cached Sampling'>Cached Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.21</span><span class='bar-track'><span class='bar-fill' style='display:block; width:23.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>532.30</span><span class='bar-track'><span class='bar-fill' style='display:block; width:35.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:55.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>238</span><span class='bar-track'><span class='bar-fill' style='display:block; width:56.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>3</span><span class='bar-track'><span class='bar-fill' style='display:block; width:60.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>266</span><span class='bar-track'><span class='bar-fill' style='display:block; width:51.0%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#8c8c8c;'></span><span class='algorithm-name' title='Stratified Sampling'>Stratified Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.46</span><span class='bar-track'><span class='bar-fill' style='display:block; width:28.1%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>925.80</span><span class='bar-track'><span class='bar-fill' style='display:block; width:61.6%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:65.1%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>295</span><span class='bar-track'><span class='bar-fill' style='display:block; width:69.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>4</span><span class='bar-track'><span class='bar-fill' style='display:block; width:80.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>399</span><span class='bar-track'><span class='bar-fill' style='display:block; width:76.4%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#666666;'></span><span class='algorithm-name' title='Histogram Estimator'>Histogram Estimator</span></td>
-<td><div class='metric-cell'><span class='metric-value'>2.50</span><span class='bar-track'><span class='bar-fill' style='display:block; width:48.1%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>88.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:5.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:3.6%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>20</span><span class='bar-track'><span class='bar-fill' style='display:block; width:4.7%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>165</span><span class='bar-track'><span class='bar-fill' style='display:block; width:31.6%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>0.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.1%;'></span></span></div></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
 </tr>
 </tbody>
 </table>
 </section>
 <section class='query-block'>
-<h2>Query ID: 7</h2>
+<h2>Query ID: 102</h2>
 <div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> equality</span><span><strong>Dataset:</strong> dataset2</span><span><strong>Column:</strong> customer_message</span></div>
-<div class='query-meta-query'><strong>Query:</strong> Is this customer message about a subscription cancellation?</div>
+<div class='query-meta-topline'><span><strong>Category:</strong> Simple Join</span><span><strong>Datasets:</strong> products_filtered, reviews_5core_filtered</span><span><strong>Columns:</strong> product_title, review_text</span></div>
+<div class='query-meta-query'><strong>Query:</strong> Is this review about this product?</div>
 </div>
 <table>
 <thead>
@@ -820,57 +368,61 @@
 <tbody>
 <tr>
 <td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>4.70</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>500.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:35.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:22.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>97</span><span class='bar-track'><span class='bar-fill' style='display:block; width:24.1%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:25.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>329</span><span class='bar-track'><span class='bar-fill' style='display:block; width:63.5%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>7.81</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>0</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>416</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 </tr>
 <tr>
 <td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='My Selectivity Estimation Algorithm'>My Selectivity Estimation Algorithm</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.10</span><span class='bar-track'><span class='bar-fill' style='display:block; width:23.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>17.30</span><span class='bar-track'><span class='bar-fill' style='display:block; width:1.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:5.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>43</span><span class='bar-track'><span class='bar-fill' style='display:block; width:10.7%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:25.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>120</span><span class='bar-track'><span class='bar-fill' style='display:block; width:23.2%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>12.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>0.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
 </tr>
+</tbody>
+</table>
+</section>
+<section class='query-block'>
+<h2>Query ID: 103</h2>
+<div class='query-meta'>
+<div class='query-meta-topline'><span><strong>Category:</strong> Complex Join</span><span><strong>Datasets:</strong> products_filtered, reviews_5core_filtered</span><span><strong>Columns:</strong> description_json, review_text</span></div>
+<div class='query-meta-query'><strong>Query:</strong> Does this review mention a use case, feature, or problem that is directly related to this product description?</div>
+</div>
+<table>
+<thead>
 <tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#cfcfcf;'></span><span class='algorithm-name' title='Full Semantic Filter'>Full Semantic Filter</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:21.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1418.70</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>402</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>4</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>518</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<th class='algorithm-header'>Algorithm</th>
+<th>Q-error</th>
+<th>Runtime ms</th>
+<th>Cost USD</th>
+<th>Tokens</th>
+<th>LLM calls</th>
+<th>Memory bytes</th>
 </tr>
+</thead>
+<tbody>
 <tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#b3b3b3;'></span><span class='algorithm-name' title='Cached Sampling'>Cached Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.09</span><span class='bar-track'><span class='bar-fill' style='display:block; width:23.2%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>489.10</span><span class='bar-track'><span class='bar-fill' style='display:block; width:34.5%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:53.8%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>221</span><span class='bar-track'><span class='bar-fill' style='display:block; width:55.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>2</span><span class='bar-track'><span class='bar-fill' style='display:block; width:50.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>251</span><span class='bar-track'><span class='bar-fill' style='display:block; width:48.5%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#8c8c8c;'></span><span class='algorithm-name' title='Stratified Sampling'>Stratified Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.29</span><span class='bar-track'><span class='bar-fill' style='display:block; width:27.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>884.40</span><span class='bar-track'><span class='bar-fill' style='display:block; width:62.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:65.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>276</span><span class='bar-track'><span class='bar-fill' style='display:block; width:68.7%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>3</span><span class='bar-track'><span class='bar-fill' style='display:block; width:75.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>386</span><span class='bar-track'><span class='bar-fill' style='display:block; width:74.5%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#666666;'></span><span class='algorithm-name' title='Histogram Estimator'>Histogram Estimator</span></td>
-<td><div class='metric-cell'><span class='metric-value'>2.10</span><span class='bar-track'><span class='bar-fill' style='display:block; width:44.7%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>80.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:5.6%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:3.6%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>18</span><span class='bar-track'><span class='bar-fill' style='display:block; width:4.5%;'></span></span></div></td>
+<td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
+<td><div class='metric-cell'><span class='metric-value'>2.90</span><span class='bar-track'><span class='bar-fill' style='display:block; width:17.1%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>6.65</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>0</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>157</span><span class='bar-track'><span class='bar-fill' style='display:block; width:30.3%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>416</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+</tr>
+<tr>
+<td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='My Selectivity Estimation Algorithm'>My Selectivity Estimation Algorithm</span></td>
+<td><div class='metric-cell'><span class='metric-value'>17.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>0.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
 </tr>
 </tbody>
 </table>

@@ -129,7 +129,15 @@ class BenchmarkRunner:
             with open(self.result_filepath, "w"):
                 pass
 
-            dataloader = DataLoader()
+            # Load the required datasets
+            datasets = {
+                dataset
+                for query_dict in self.queries
+                for dataset in query_dict.get("datasets", [])
+            }
+            data_dfs = DataLoader().load(datasets=datasets, scale_factor=self.scale_factor)
+            # TODO - DEBUG - Manually shortend
+            data_dfs = {k: df.head(20) for k, df in data_dfs.items()}
 
             for algorithm_config in self.algorithms:
                 algorithm = self._load_algorithm_from_file(algorithm_config)
@@ -142,6 +150,9 @@ class BenchmarkRunner:
                 if not ground_truth_system_prompt:
                     ground_truth_system_prompt = self.default_ground_truth_system_prompt
 
+                algorithm_kwargs = algorithm_config.get("algorithm_kwargs", {})
+                algorithm.preparation(data_dfs, algorithm_kwargs)
+
                 for query_dict in self.queries:
 
                     progress.update(
@@ -152,17 +163,8 @@ class BenchmarkRunner:
                         ),
                     )
 
-                    data = dataloader.load(
-                        dataset=query_dict["dataset"], scale_factor=self.scale_factor
-                    )
-                    # TODO - DEBUG - Manually shortend
-                    data = data.head(20)
-
                     with suspend_progress(progress):
-                        selectivity_ground_truth = self._get_selectivity_ground_truth(ground_truth_model_name, ground_truth_system_prompt, query_dict, data)
-
-                    algorithm_kwargs = algorithm_config.get("algorithm_kwargs", {})
-                    algorithm.preparation(data, algorithm_kwargs)
+                        selectivity_ground_truth = self._get_selectivity_ground_truth(ground_truth_model_name, ground_truth_system_prompt, query_dict, data_dfs)
 
                     algorithm.reset_cost_stats()
 
@@ -199,10 +201,22 @@ class BenchmarkRunner:
             f"[green]✓[/green] Results written to [bold]{self.result_filepath}[/bold]"
         )
 
-    def _get_selectivity_ground_truth(self, model_name: str, system_prompt: str, query_dict: dict, data: pd.DataFrame) -> int:
+    def _get_selectivity_ground_truth(self, model_name: str, system_prompt: str, query_dict: dict, data_dfs: dict[str, pd.DataFrame]) -> int:
         """Obtain model-based selectivity ground truth."""
         backend = LotusBackend(model_name=model_name, system_prompt=system_prompt)
-        selectivity_ground_truth = backend.filtering_query(query_dict, data)
+
+        if len(query_dict["datasets"]) == 1:
+            # Filtering
+            name = query_dict["datasets"][0]
+            data = data_dfs[name]
+            selectivity_ground_truth = backend.filtering_query(query_dict, data)
+        elif len(query_dict["datasets"]) > 1:
+            # Joining
+            name_left, name_right = query_dict["datasets"]
+            data_left = data_dfs[name_left]
+            data_right = data_dfs[name_right]
+            selectivity_ground_truth = backend.joining_query(query_dict, data_left, data_right)
+
         return selectivity_ground_truth
 
     def _calculate_q_error(

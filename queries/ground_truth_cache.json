@@ -1,0 +1,56 @@
+{
+  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='dataset1' | columns='description, title' | query='Is this description about education technology? {description} {title}'": {
+    "selectivity": 2
+  },
+  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='dataset1, dataset2' | columns='description, customer_message' | query='Is this description about online tutoring? {description:left} {customer_message:right}'": {
+    "selectivity": 10
+  },
+  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='dataset1' | columns='description' | query='Is this description about personalized learning? {description}'": {
+    "selectivity": 1
+  },
+  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='dataset1' | columns='description' | query='Is this description about student writing support? {description}'": {
+    "selectivity": 1
+  },
+  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='dataset2' | columns='customer_message' | query='Is this customer message about a billing problem? {customer_message}'": {
+    "selectivity": 1
+  },
+  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='dataset2' | columns='customer_message' | query='Is this customer message about a payment issue? {customer_message}'": {
+    "selectivity": 1
+  },
+  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='dataset2' | columns='customer_message' | query='Is this customer message about a refund request? {customer_message}'": {
+    "selectivity": 1
+  },
+  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='dataset2' | columns='customer_message' | query='Is this customer message about a subscription cancellation? {customer_message}'": {
+    "selectivity": 1
+  },
+  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='dataset1' | columns='description' | query='Is this description not about education technology? {description}'": {
+    "selectivity": 8
+  },
+  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='dataset1' | columns='description, title' | query='Is this description about education technology? {description} {title}'": {
+    "selectivity": 2
+  },
+  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='dataset1, dataset2' | columns='description, customer_message' | query='Is this description about online tutoring? {description:left} {customer_message:right}'": {
+    "selectivity": 6
+  },
+  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='dataset1' | columns='description' | query='Is this description about personalized learning? {description}'": {
+    "selectivity": 2
+  },
+  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='dataset1' | columns='description' | query='Is this description about student writing support? {description}'": {
+    "selectivity": 1
+  },
+  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='dataset2' | columns='customer_message' | query='Is this customer message about a billing problem? {customer_message}'": {
+    "selectivity": 2
+  },
+  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='dataset2' | columns='customer_message' | query='Is this customer message about a payment issue? {customer_message}'": {
+    "selectivity": 1
+  },
+  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='dataset2' | columns='customer_message' | query='Is this customer message about a refund request? {customer_message}'": {
+    "selectivity": 1
+  },
+  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='dataset2' | columns='customer_message' | query='Is this customer message about a subscription cancellation? {customer_message}'": {
+    "selectivity": 1
+  },
+  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='dataset1' | columns='description' | query='Is this description not about education technology? {description}'": {
+    "selectivity": 2
+  }
+}

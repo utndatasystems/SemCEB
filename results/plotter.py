@@ -103,9 +103,9 @@ class ResultsPlotter:
                     "query_id": query["id"],
                     "query_name": query.get("name", ""),
                     "query_category": query.get("category", ""),
-                    "dataset": query["dataset"],
-                    "column": query["column"],
-                    "query": query["query"],
+                    "datasets": query["datasets"],
+                    "columns": query["columns"],
+                    "filter": query["filter"],
                     "algorithm_name": algorithm["name"],
                     "algorithm_version": algorithm["version"],
                     "memory_consumption": algorithm["memory_consumption"],
@@ -1002,15 +1002,15 @@ class ResultsPlotter:
         for query_id, query_df in report_df.groupby("query_id", sort=True):
             query_df = query_df.set_index("algorithm_name").reindex(algorithms).reset_index()
             
-            query_meta = query_df.dropna(subset=["query"]).iloc[0]
+            query_meta = query_df.dropna(subset=["filter"]).iloc[0]
             query_category = str(query_meta.get("query_category", ""))
-            query_dataset = str(query_meta.get("dataset", ""))
-            query_column = str(query_meta.get("column", ""))
-            query_text = str(query_meta.get("query", ""))
+            query_datasets = [str(s) for s in query_meta.get("datasets", "")]
+            query_columns = [str(s) for s in query_meta.get("columns", "")]
+            query_text = str(query_meta.get("filter", ""))
 
             query_text = ""
-            if "query" in query_df.columns:
-                non_empty_queries = query_df["query"].dropna()
+            if "filter" in query_df.columns:
+                non_empty_queries = query_df["filter"].dropna()
                 if not non_empty_queries.empty:
                     query_text = str(non_empty_queries.iloc[0])
 
@@ -1018,11 +1018,19 @@ class ResultsPlotter:
             html_parts.append(f"<h2>Query ID: {query_id}</h2>")
 
             html_parts.append("<div class='query-meta'>")
+            datasets_html = ", ".join(
+                self._escape_html(dataset)
+                for dataset in query_datasets
+            )
+            columns_html = ", ".join(
+                self._escape_html(column)
+                for column in query_columns
+            )
             html_parts.append(
                 "<div class='query-meta-topline'>"
                 f"<span><strong>Category:</strong> {self._escape_html(query_category)}</span>"
-                f"<span><strong>Dataset:</strong> {self._escape_html(query_dataset)}</span>"
-                f"<span><strong>Column:</strong> {self._escape_html(query_column)}</span>"
+                f"<span><strong>Datasets:</strong> {datasets_html}</span>"
+                f"<span><strong>Columns:</strong> {columns_html}</span>"
                 "</div>"
             )
             html_parts.append(

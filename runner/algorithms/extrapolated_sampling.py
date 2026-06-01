@@ -33,12 +33,20 @@ class ExtrapolatedSampling(AlgorithmInterface):
         if self.model is not None:
             self.model.reset_stats()
 
-    def preparation(self, data: pd.DataFrame, algorithm_kwargs: dict) -> None:
-        """Prepare extrapolation sampling."""
+    def preparation(self, data_dfs: dict[str, pd.DataFrame], algorithm_kwargs: dict) -> None:
+        """Prepare the algorithm before execution.
+
+        This method should collect and store all information required for
+        selectivity estimation.
+
+        During execution, the algorithm will only receive the dataset name(s)
+        and column name(s) needed to perform the selectivity estimate.
+        """
         
         # Data set to evaluate
-        self.data_rows = data.shape[0]
-
+        self.data_rows = {}
+        for name, df in data_dfs.items():
+            self.data_rows[name] = df.shape[0]
 
         # Algorithm specific arguments
         sampling_frac = algorithm_kwargs.get("sampling_frac", -1)
@@ -69,11 +77,13 @@ class ExtrapolatedSampling(AlgorithmInterface):
             enable_cache=True,
         )        
 
-        self.data_sample = data.sample(frac=sampling_frac, random_state=42)
-        if self.data_sample.empty:
-            raise ValueError(
-                "Sample is empty. Increase sampling_frac or provide more data."
-            )
+        self.data_sample = {}
+        for name, df in data_dfs.items():
+            self.data_sample[name] = df.sample(frac=sampling_frac, random_state=42)
+            if self.data_sample[name].empty:
+                raise ValueError(
+                    f"Sample of dataframe '{name}' is empty. Increase sampling_frac or provide more data."
+                )
 
         self.memory_consumption = (
             sys.getsizeof(self.data_rows)
@@ -84,22 +94,57 @@ class ExtrapolatedSampling(AlgorithmInterface):
     def run(self, query_dict: dict) -> int:
         """Run extrapolation sampling and return estimated selectivity."""
 
-        # Evaluate sample
-        sample_estimation = self.data_sample.sem_filter(
-            user_instruction=f"{query_dict['query']} {{{query_dict['column']}}}",
-        ).shape[0]
+        # Filtering
+        if len(query_dict["datasets"]) == 1:
 
-        # Extrapolate to estimate
-        selectivity_estimation = (
-            sample_estimation / self.data_sample.shape[0] * self.data_rows
-        )
+            # Evaluate sample
+            name = query_dict["datasets"][0]
+            sample_estimation = self.data_sample[name].sem_filter(
+                user_instruction=f"{query_dict['filter']} {' '.join(f'{{{col}}}' for col in query_dict['columns'])}",
+            ).shape[0]
 
-        # Track costs
-        llm_cost_stats = self._get_costs(self.data_sample)
-        self._add_cost(llm_cost_stats)
+            # Extrapolate to estimate
+            selectivity_estimation = (
+                sample_estimation / self.data_sample[name].shape[0] * self.data_rows[name]
+            )
 
-        return max(0, min(round(selectivity_estimation), self.data_rows))
-    
+            # Track costs
+            llm_cost_stats = self._get_costs(self.data_sample[name])
+            self._add_cost(llm_cost_stats)
+            
+            selectivity_estimation = max(0, min(round(selectivity_estimation), self.data_rows[name]))
+
+        # Joining
+        elif len(query_dict["datasets"]) > 1:
+
+            # Evaluate sample
+            name_left, name_right = query_dict["datasets"]
+            data_left = self.data_sample[name_left]
+            data_right = self.data_sample[name_right]
+            
+            column_left, column_right = query_dict["columns"]
+            query_str = f"{query_dict['filter']} {{{column_left}:left}} {{{column_right}:right}}"
+
+            sample_estimation = data_left.sem_join(
+                data_right,
+                query_str,
+            ).shape[0]
+
+            # Extrapolate to estimate
+            selectivity_estimation = (
+                0.5 * sample_estimation / self.data_sample[name_left].shape[0] * self.data_rows[name_left] 
+                + 0.5 * sample_estimation / self.data_sample[name_right].shape[0] * self.data_rows[name_right] 
+            )
+
+            # Track costs
+            llm_cost_stats_left = self._get_costs(self.data_sample[name_left])
+            llm_cost_stats_right = self._get_costs(self.data_sample[name_right]) # to get llm calls
+            llm_cost_stats = llm_cost_stats_left
+            llm_cost_stats["llm_calls"] *= llm_cost_stats_right["llm_calls"]
+            self._add_cost(llm_cost_stats)
+
+        return selectivity_estimation
+
 
     def _get_costs(self, data: pd.DataFrame) -> dict:
         """Return virtual (= without caching) cost stats."""

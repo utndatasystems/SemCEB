@@ -22,8 +22,15 @@ class AlgorithmInterface(ABC):
         pass
 
     @abstractmethod
-    def preparation(self, data: pd.DataFrame, algorithm_kwargs: dict) -> None:
-        """Prepare the algorithm before running."""
+    def preparation(self, data_dfs: dict[str, pd.DataFrame], algorithm_kwargs: dict) -> None:
+        """Prepare the algorithm before execution.
+
+        This method should collect and store all information required for
+        selectivity estimation.
+
+        During execution, the algorithm will only receive the dataset name(s)
+        and column name(s) needed to perform the selectivity estimate.
+        """
         pass
 
     @abstractmethod

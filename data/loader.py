@@ -10,7 +10,7 @@ class DataLoader:
     def __init__(self):
         self.folderpath_raw_data = Path("data") / ".raw"
 
-    def load(self, dataset: str, scale_factor: int) -> pd.DataFrame:
+    def _load(self, dataset: str, scale_factor: int) -> pd.DataFrame:
         """Load raw data into pandas dataframe.
 
         scale_factor:
@@ -48,3 +48,10 @@ class DataLoader:
             .sort_index()
             .reset_index(drop=True)
         )
+
+    def load(self, datasets: list[str], scale_factor: int) -> dict[str, pd.DataFrame]:
+        """Load datasets into pandas dataframe."""
+        dataset_df = {}
+        for dataset in datasets:
+            dataset_df[dataset] = self._load(dataset=dataset, scale_factor=scale_factor)
+        return dataset_df

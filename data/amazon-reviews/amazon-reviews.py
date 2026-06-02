@@ -18,7 +18,7 @@ import shutil
 import sys
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 from urllib.request import urlopen
 
 import duckdb
@@ -121,6 +121,114 @@ def download_file(url: str, dest: Path, force: bool = False) -> None:
 
     tmp_dest.replace(dest)
     print(f"[ok] downloaded {dest} ({human_bytes(dest.stat().st_size)})")
+
+
+def _image_path_from_url(url: str, images_dir: Path) -> Path | None:
+    parsed = urlsplit(url)
+    filename = Path(parsed.path).name
+    if not filename:
+        return None
+
+    # Mirror URL host/path to avoid filename collisions across different URLs.
+    host = parsed.netloc or "unknown_host"
+    rel_dir = Path(parsed.path.lstrip("/")).parent
+    return images_dir / host / rel_dir / filename
+
+
+def collect_distinct_product_image_urls(
+    con: duckdb.DuckDBPyConnection,
+) -> tuple[bool, list[str]]:
+    table_exists = con.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = 'main'
+              AND table_name = 'products_filtered'
+        )
+        """
+    ).fetchone()[0]
+
+    if not table_exists:
+        return False, []
+
+    con.execute(
+        """
+        CREATE OR REPLACE TEMP TABLE product_image_urls AS
+        SELECT DISTINCT image_url
+        FROM (
+            SELECT NULLIF(trim(json_extract_string(e.value, '$.hi_res')), '') AS image_url
+            FROM products_filtered p
+            CROSS JOIN json_each(p.images_json) AS e
+            WHERE json_extract_string(e.value, '$.variant') = 'MAIN'
+        )
+        WHERE image_url IS NOT NULL
+        """
+    )
+    return True, [
+        row[0]
+        for row in con.execute(
+            "SELECT image_url FROM product_image_urls ORDER BY image_url"
+        ).fetchall()
+    ]
+
+
+def download_images_from_products_filtered(
+    con: duckdb.DuckDBPyConnection,
+    images_dir: Path,
+) -> None:
+    table_exists, urls = collect_distinct_product_image_urls(con)
+    if not table_exists:
+        print("[info] skipping image download: products_filtered table not found.")
+        return
+    if not urls:
+        print("[info] skipping image download: no image URLs found in products_filtered.")
+        return
+
+    pending = 0
+    for url in urls:
+        image_path = _image_path_from_url(url, images_dir)
+        if image_path is not None and not image_path.exists():
+            pending += 1
+
+    print(
+        f"[info] {pending} images will be downloaded "
+        f"from {len(urls)} distinct MAIN hi_res URLs"
+    )
+
+    downloaded = 0
+    skipped = 0
+    failed = 0
+    ignored = 0
+
+    for url in urls:
+        image_path = _image_path_from_url(url, images_dir)
+        if image_path is None:
+            ignored += 1
+            continue
+
+        if image_path.exists():
+            skipped += 1
+            continue
+
+        tmp_path = image_path.with_suffix(image_path.suffix + ".part")
+        ensure_parent(tmp_path)
+        try:
+            with urlopen(url, timeout=20) as response:
+                with tmp_path.open("wb") as out_file:
+                    shutil.copyfileobj(response, out_file)
+            tmp_path.replace(image_path)
+            downloaded += 1
+        except Exception:
+            failed += 1
+            if tmp_path.exists():
+                tmp_path.unlink()
+
+    print(
+        "[ok] images sync complete: "
+        f"{downloaded} downloaded, {skipped} already present, {failed} failed, "
+        f"{ignored} ignored, {len(urls)} total URLs"
+    )
 
 
 def load_tree_table(con: duckdb.DuckDBPyConnection, tree_json_path: Path) -> None:
@@ -381,6 +489,7 @@ def create_products_table(
             description_json,
             details_json,
             images_json,
+            main_image_local,
             videos_json,
             bought_together,
             subtitle,
@@ -399,6 +508,20 @@ def create_products_table(
                 json_extract(j, '$.description') AS description_json,
                 json_extract(j, '$.details') AS details_json,
                 json_extract(j, '$.images') AS images_json,
+                (
+                    SELECT NULLIF(
+                        regexp_extract(
+                            json_extract_string(e.value, '$.hi_res'),
+                            '([^/?#]+)(?:[?#].*)?$',
+                            1
+                        ),
+                        ''
+                    )
+                    FROM json_each(json_extract(j, '$.images')) AS e
+                    WHERE json_extract_string(e.value, '$.variant') = 'MAIN'
+                      AND NULLIF(trim(json_extract_string(e.value, '$.hi_res')), '') IS NOT NULL
+                    LIMIT 1
+                ) AS main_image_local,
                 json_extract(j, '$.videos') AS videos_json,
                 json_extract_string(j, '$.bought_together') AS bought_together,
                 json_extract_string(j, '$.subtitle') AS subtitle,
@@ -435,6 +558,7 @@ def create_products_table(
             description_json JSON NOT NULL,
             details_json JSON NOT NULL,
             images_json JSON NOT NULL,
+            main_image_local VARCHAR,
             videos_json JSON,
             bought_together VARCHAR,
             subtitle VARCHAR,
@@ -567,6 +691,7 @@ def create_raw_5core_filtered_tables(
             description_json JSON NOT NULL,
             details_json JSON NOT NULL,
             images_json JSON NOT NULL,
+            main_image_local VARCHAR,
             videos_json JSON,
             bought_together VARCHAR,
             subtitle VARCHAR,
@@ -731,6 +856,7 @@ def run_setup(
     )
 
     if mode == MODE_RAW_5CORE:
+        download_images_from_products_filtered(con, run_dir / "images")
         con.execute("DROP TABLE IF EXISTS interactions_5core")
         con.execute("DROP TABLE IF EXISTS reviews")
         con.execute("DROP TABLE IF EXISTS products")

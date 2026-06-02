@@ -649,36 +649,6 @@ def create_raw_5core_filtered_tables(
 
     con.execute(
         """
-        CREATE OR REPLACE TABLE reviews_5core_filtered (
-            user_id VARCHAR,
-            asin VARCHAR,
-            parent_asin VARCHAR,
-            rating DOUBLE,
-            review_title VARCHAR NOT NULL,
-            review_text VARCHAR NOT NULL,
-            timestamp_ms BIGINT,
-            helpful_vote BIGINT,
-            verified_purchase BOOLEAN,
-            images_json JSON
-        )
-        """
-    )
-
-    con.execute(
-        """
-        INSERT INTO reviews_5core_filtered BY NAME
-        SELECT r.*
-        FROM reviews r
-        INNER JOIN interactions_5core i
-            ON r.user_id = i.user_id
-           AND r.parent_asin = i.parent_asin
-           AND r.rating = i.rating
-           AND r.timestamp_ms = i.timestamp_ms
-        """
-    )
-
-    con.execute(
-        """
         CREATE OR REPLACE TABLE products_filtered (
             parent_asin VARCHAR,
             main_category VARCHAR,
@@ -708,8 +678,40 @@ def create_raw_5core_filtered_tables(
         FROM products p
         INNER JOIN (
             SELECT DISTINCT parent_asin
-            FROM reviews_5core_filtered
+            FROM interactions_5core
         ) keep USING (parent_asin)
+        """
+    )
+
+    con.execute(
+        """
+        CREATE OR REPLACE TABLE reviews_5core_filtered (
+            user_id VARCHAR,
+            asin VARCHAR,
+            parent_asin VARCHAR,
+            rating DOUBLE,
+            review_title VARCHAR NOT NULL,
+            review_text VARCHAR NOT NULL,
+            timestamp_ms BIGINT,
+            helpful_vote BIGINT,
+            verified_purchase BOOLEAN,
+            images_json JSON
+        )
+        """
+    )
+
+    con.execute(
+        """
+        INSERT INTO reviews_5core_filtered BY NAME
+        SELECT r.*
+        FROM reviews r
+        INNER JOIN interactions_5core i
+            ON r.user_id = i.user_id
+           AND r.parent_asin = i.parent_asin
+           AND r.rating = i.rating
+           AND r.timestamp_ms = i.timestamp_ms
+        INNER JOIN products_filtered p
+            ON p.parent_asin = r.parent_asin
         """
     )
 

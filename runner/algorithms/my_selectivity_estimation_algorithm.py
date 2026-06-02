@@ -19,11 +19,17 @@ class MySelectivityEstimationAlgorithm(AlgorithmInterface):
             }
 
     def get_memory_consumption(self) -> int:
-        """Return tracked memory consumption."""
+        """
+        Return the memory storage footprint of metadata structures used by the cardinality estimation algorithm in bytes.
+
+        For example, if the algorithm holds a sample of the data, this method should return the size of that sample in bytes.
+        """
         return self.memory_consumption
 
     def get_cost_stats(self) -> dict:
-        """Return tracked algorithm cost stats."""
+        """
+        Return the accumulated cost statistics for cardinality estimation.
+        """
         return self.cost_stats
 
     def reset_cost_stats(self) -> None:
@@ -33,8 +39,8 @@ class MySelectivityEstimationAlgorithm(AlgorithmInterface):
     def preparation(self, data_dfs: dict[str, pd.DataFrame], algorithm_kwargs: dict) -> None:
         """Prepare the algorithm before execution.
 
-        This method should collect and store all information required for
-        selectivity estimation.
+        This method should collect and store all information required for selectivity estimation.
+        Specifially, implementations are expected to take ownership of the provided dataframes.
 
         During execution, the algorithm will only receive the dataset name(s)
         and column name(s) needed to perform the selectivity estimate.
@@ -42,6 +48,6 @@ class MySelectivityEstimationAlgorithm(AlgorithmInterface):
         ...
 
     def run(self, query: dict) -> int:
-        """Run the algorithm and return the estimated result."""
+        """Run the algorithm and return the estimated output cardinality for the given query."""
         ...
         return 1

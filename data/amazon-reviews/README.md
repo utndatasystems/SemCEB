@@ -37,6 +37,21 @@ To generate the dataset, run the following command:
 python amazon-reviews.py --category Arts_Crafts_and_Sewing --mode raw_5core
 ```
 
+To compute image embeddings for `products_filtered`, run:
+
+```
+python compute_embeddings.py --run-dir processed/Arts_Crafts_and_Sewing__raw_5core
+```
+
+This uses `google/siglip2-base-patch16-224` for images and `Qwen/Qwen3-Embedding-0.6B`
+for the textual product columns, auto-selects the available device, and writes:
+
+```
+products_filtered_with_embeddings.parquet
+```
+
+The original `products_filtered.parquet` remains untouched.
+
 
 
 ## Schema

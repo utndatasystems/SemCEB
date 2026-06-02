@@ -2,6 +2,7 @@ import sys
 import pandas as pd
 
 from runner.algorithms.interface import AlgorithmInterface
+import lotus.settings
 
 
 class ExtrapolatedSampling(AlgorithmInterface):
@@ -32,6 +33,8 @@ class ExtrapolatedSampling(AlgorithmInterface):
 
         if self.model is not None:
             self.model.reset_stats()
+            # Prepare lotus for next run to determine costs
+            lotus.settings.configure(lm=self.model)
 
     def preparation(self, data_dfs: dict[str, pd.DataFrame], algorithm_kwargs: dict) -> None:
         """Prepare the algorithm before execution.
@@ -100,7 +103,7 @@ class ExtrapolatedSampling(AlgorithmInterface):
             # Evaluate sample
             name = query_dict["datasets"][0]
             sample_estimation = self.data_sample[name].sem_filter(
-                user_instruction=f"{query_dict['filter']} {' '.join(f'{{{col}}}' for col in query_dict['columns'])}",
+                user_instruction=query_dict['filter'],
             ).shape[0]
 
             # Extrapolate to estimate
@@ -122,8 +125,66 @@ class ExtrapolatedSampling(AlgorithmInterface):
             data_left = self.data_sample[name_left]
             data_right = self.data_sample[name_right]
             
-            column_left, column_right = query_dict["columns"]
-            query_str = f"{query_dict['filter']} {{{column_left}:left}} {{{column_right}:right}}"
+            left_dataset, right_dataset = query_dict["datasets"]
+
+            dataset_side = {
+                left_dataset: "left",
+                right_dataset: "right",
+            }
+
+            query_parts = []
+            current_text = []
+            current_column = None
+
+            for char in query_dict["filter"]:
+                if char == "{":
+                    if current_column is not None:
+                        raise ValueError("Nested '{' is not allowed.")
+
+                    if current_text:
+                        query_parts.append("".join(current_text))
+                        current_text = []
+
+                    current_column = []
+
+                elif char == "}":
+                    if current_column is None:
+                        raise ValueError("Found '}' without matching '{'.")
+
+                    column_reference = "".join(current_column).strip()
+
+                    if "." not in column_reference:
+                        raise ValueError(
+                            f"Invalid column reference '{column_reference}'. "
+                            "Expected format: '<dataset>.<column>'."
+                        )
+
+                    dataset_name, column_name = column_reference.split(".", maxsplit=1)
+
+                    if dataset_name not in dataset_side:
+                        raise ValueError(
+                            f"Unknown dataset '{dataset_name}'. "
+                            f"Expected one of: {query_dict['datasets']}."
+                        )
+
+                    side = dataset_side[dataset_name]
+                    query_parts.append(f"{{{column_name}:{side}}}")
+
+                    current_column = None
+
+                else:
+                    if current_column is not None:
+                        current_column.append(char)
+                    else:
+                        current_text.append(char)
+
+            if current_column is not None:
+                raise ValueError("Found '{' without matching '}'.")
+
+            if current_text:
+                query_parts.append("".join(current_text))
+
+            query_str = "".join(query_parts)
 
             sample_estimation = data_left.sem_join(
                 data_right,

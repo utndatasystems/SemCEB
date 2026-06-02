@@ -2,6 +2,7 @@ import sys
 import importlib
 from pathlib import Path
 import json
+from enum import Enum
 import time
 import pandas as pd
 from typing import Any
@@ -11,6 +12,7 @@ from data.downloader import DataDownloader
 from data.loader import DataLoader
 from runner.algorithms.interface import AlgorithmInterface
 from runner.llm_backends.lotus_backend import LotusBackend
+from queries.template_parser import QueryTemplateParser
 
 
 class BenchmarkRunner:
@@ -161,6 +163,8 @@ class BenchmarkRunner:
 
                 for query_dict in self.queries:
                     
+                    query_dict["filter_parsed"] = QueryTemplateParser.parse(query_dict["filter"])
+
                     progress.update(
                         task,
                         description=(
@@ -266,4 +270,13 @@ class BenchmarkRunner:
         result = {"query": query_dict, "algorithm": algorithm_data}
 
         with open(self.result_filepath, "a", encoding="utf-8") as file:
-            file.write(json.dumps(result) + "\n")
+            file.write(json.dumps(result, default=self.json_default) + "\n")
+
+    def json_default(self, obj):
+        if hasattr(obj, "to_dict"):
+            return obj.to_dict()
+
+        if isinstance(obj, Enum):
+            return obj.value
+
+        raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")

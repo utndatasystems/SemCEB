@@ -18,14 +18,15 @@ Therefore, we apply the following transformations:
    - `description_json`
    - `details_json`
    - `images_json`
+ - Lastly, every product is associated with multiple images. For this dataset, we download only the `hi_res` version of the `"variant":"MAIN"` image such that we end up with exactly one image per product. The image file name is stored in the newly created `main_image_local` column. Further, products without such an image are removed such that every product is guaranteed to have one image.
  - The `reviews` table is filtered such that:
    - `review_title` is neither NULL nor empty.
    - `review_text` is neither NULL nor empty.
  - `5core` filtering is applied: both `products` and `reviews` are filtered such that only products/reviews are contained that appear in the `5core` interactions dataset.
 
 In the end, two tables are created:
- - `products_filtered`: ~50k rows
- - `reviews_5core_filtered`: ~1.8m rows
+ - `products_filtered`: ~45k rows
+ - `reviews_5core_filtered`: ~940k rows
 
 
 ## Setup

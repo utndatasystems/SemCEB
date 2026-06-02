@@ -104,7 +104,6 @@ class ResultsPlotter:
                     "query_name": query.get("name", ""),
                     "query_category": query.get("category", ""),
                     "datasets": query["datasets"],
-                    "columns": query["columns"],
                     "filter": query["filter"],
                     "algorithm_name": algorithm["name"],
                     "algorithm_version": algorithm["version"],
@@ -1006,15 +1005,10 @@ class ResultsPlotter:
                 self._escape_html(dataset)
                 for dataset in query_datasets
             )
-            columns_html = ", ".join(
-                self._escape_html(column)
-                for column in query_columns
-            )
             html_parts.append(
                 "<div class='query-meta-topline'>"
                 f"<span><strong>Category:</strong> {self._escape_html(query_category)}</span>"
                 f"<span><strong>Datasets:</strong> {datasets_html}</span>"
-                f"<span><strong>Columns:</strong> {columns_html}</span>"
                 "</div>"
             )
             html_parts.append(

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import lotus.settings
 from lotus.models.lm import LM
+from queries.template_parser import QueryTemplatePartType
 
 
 class LotusBackend():
@@ -48,7 +49,6 @@ class LotusBackend():
             "query_type": query_type,
             "datasets": ", ".join(datasets),
             "scale_factor": self.scale_factor,
-            "columns": ", ".join(columns),
             "query": query_str,
         }
 
@@ -122,16 +122,22 @@ class LotusBackend():
     def _format_filtering_query(self, query_dict: dict, df: pd.DataFrame) -> str:
         """Format LOTUS query string for filtering."""
         self._validate_filtering_query(query_dict, df)
-        return f"{query_dict['filter']} {' '.join(f'{{{col}}}' for col in query_dict['columns'])}"
+        return query_dict["filter"] # 'query_dict["filter_parsed"].raw' would be equivalent
     
     def _validate_filtering_query(self, query_dict: dict, df: pd.DataFrame) -> None:
-        if "filter" not in query_dict or "columns" not in query_dict or "datasets" not in query_dict:
-            raise ValueError("query must contain 'filter', 'columns', and 'datasets'.")
+
+        if "filter_parsed" not in query_dict or "datasets" not in query_dict:
+            raise ValueError("query must contain 'filter_parsed' and 'datasets'.")
 
         if len(query_dict["datasets"]) != 1:
             raise ValueError("Filtering query must contain exactly one dataset.")
 
-        for column in query_dict["columns"]:
+        columns = [part.value for part in query_dict["filter_parsed"].parts if part.type == QueryTemplatePartType.COLUMN]
+        
+        if not columns:
+            raise ValueError("Filtering query requires at least one column.")
+
+        for column in columns:
             if column not in df.columns:
                 raise ValueError(f"Column '{column}' does not exist in data.")
 
@@ -157,11 +163,54 @@ class LotusBackend():
         self._set_cached_selectivity(cache_key, selectivity)
         return selectivity
     
-    def _format_joining_query(self, query_dict: dict, data_left_df: pd.DataFrame, data_right_df: pd.DataFrame) -> str:
-        """Format LOTUS query string for joining."""
+    def _format_joining_query(
+        self,
+        query_dict: dict,
+        data_left_df: pd.DataFrame,
+        data_right_df: pd.DataFrame,
+    ) -> str:
+        """Format LOTUS query string for joining.
+
+        Currently supports exactly two datasets.
+        """
+
         self._validate_joining_query(query_dict, data_left_df, data_right_df)
-        column_left, column_right = query_dict["columns"]
-        return f"{query_dict['filter']} {{{column_left}:left}} {{{column_right}:right}}"
+
+        columns_by_dataset = self._get_columns_by_dataset(query_dict)
+
+        if len(columns_by_dataset) != 2:
+            raise ValueError("Joining query must contain exactly two datasets.")
+
+        dataset_side = {
+            columns_by_dataset[0][0]: "left",
+            columns_by_dataset[1][0]: "right",
+        }
+
+        query_parts: list[str] = []
+
+        for part in query_dict["filter_parsed"].parts:
+            if part.type == QueryTemplatePartType.TEXT:
+                query_parts.append(part.value)
+            elif part.type == QueryTemplatePartType.COLUMN:
+                query_parts.append(
+                    self._format_lotus_join_column(part.value, dataset_side)
+                )
+            else:
+                raise ValueError(f"Unknown query template part type: {part.type}")
+
+        return "".join(query_parts)
+    
+
+    def _format_lotus_join_column(self, column_ref: str, dataset_side: dict[str, str]) -> str:
+        dataset_name, column_name = column_ref.split(".", maxsplit=1)
+
+        if dataset_name not in dataset_side:
+            raise ValueError(
+                f"Unknown dataset '{dataset_name}' in column reference '{column_ref}'. "
+                f"Expected one of: {list(dataset_side.keys())}."
+            )
+
+        return f"{{{column_name}:{dataset_side[dataset_name]}}}"
 
     def _validate_joining_query(
         self,
@@ -169,22 +218,96 @@ class LotusBackend():
         data_left_df: pd.DataFrame,
         data_right_df: pd.DataFrame,
     ) -> None:
-        if "filter" not in query_dict or "columns" not in query_dict or "datasets" not in query_dict:
-            raise ValueError("query must contain 'filter', 'columns', and 'datasets'.")
+        if "filter_parsed" not in query_dict or "datasets" not in query_dict:
+            raise ValueError("query must contain 'filter_parsed' and 'datasets'.")
 
         if len(query_dict["datasets"]) != 2:
             raise ValueError("Joining query must contain exactly two datasets.")
 
-        if len(query_dict["columns"]) != 2:
-            raise TypeError(
-                f"Key column should yield two columns for a joining query, "
-                f"not '{len(query_dict['columns'])}'."
-            )
+        left_dataset, right_dataset = query_dict["datasets"]
 
-        column_left, column_right = query_dict["columns"]
+        dataframes_by_dataset = {
+            left_dataset: data_left_df,
+            right_dataset: data_right_df,
+        }
 
-        if column_left not in data_left_df.columns:
-            raise ValueError(f"Column '{column_left}' does not exist in the left dataframe.")
+        columns_by_dataset = self._get_columns_by_dataset(query_dict)
 
-        if column_right not in data_right_df.columns:
-            raise ValueError(f"Column '{column_right}' does not exist in the right dataframe.")
+        for dataset_name, columns in columns_by_dataset:
+            if not columns:
+                raise ValueError(
+                    f"Dataset '{dataset_name}' is not used in the query. "
+                    "A joining query must use at least one column from each dataset."
+                )
+
+        for dataset_name, columns in columns_by_dataset:
+            df = dataframes_by_dataset[dataset_name]
+
+            for column in columns:
+                if column not in df.columns:
+                    raise ValueError(
+                        f"Column '{column}' does not exist in dataset "
+                        f"'{dataset_name}'. Available columns are: {list(df.columns)}."
+                    )
+
+    def _get_columns_by_dataset(self, query_dict: dict) -> list[tuple[str, list[str]]]:
+        """Return column references grouped by dataset name.
+
+        The returned list follows the order of query_dict["datasets"].
+
+        Example:
+            query_dict["datasets"] = ["products", "reviews"]
+
+            {reviews.review_text} and {products.title}
+
+        becomes:
+            [
+                ("products", ["title"]),
+                ("reviews", ["review_text"]),
+            ]
+        """
+
+        if "filter_parsed" not in query_dict or "datasets" not in query_dict:
+            raise ValueError("query must contain 'filter_parsed' and 'datasets'.")
+
+        columns_by_dataset: dict[str, list[str]] = {
+            dataset_name: []
+            for dataset_name in query_dict["datasets"]
+        }
+
+        for part in query_dict["filter_parsed"].parts:
+            if part.type != QueryTemplatePartType.COLUMN:
+                continue
+
+            if "." not in part.value:
+                raise ValueError(
+                    f"Invalid column reference '{part.value}'. "
+                    "Expected format: '<dataset>.<column>'."
+                )
+
+            dataset_name, column_name = part.value.split(".", maxsplit=1)
+
+            if not dataset_name:
+                raise ValueError(
+                    f"Invalid column reference '{part.value}'. "
+                    "Dataset name must not be empty."
+                )
+
+            if not column_name:
+                raise ValueError(
+                    f"Invalid column reference '{part.value}'. "
+                    "Column name must not be empty."
+                )
+
+            if dataset_name not in columns_by_dataset:
+                raise ValueError(
+                    f"Unknown dataset '{dataset_name}' in column reference "
+                    f"'{part.value}'. Expected one of: {query_dict['datasets']}."
+                )
+
+            columns_by_dataset[dataset_name].append(column_name)
+
+        return [
+            (dataset_name, columns_by_dataset[dataset_name])
+            for dataset_name in query_dict["datasets"]
+        ]

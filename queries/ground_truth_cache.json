@@ -1,26 +1,32 @@
 {
-  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='products_filtered' | scale_factor='1' | columns='product_title' | query='Is this product a sewing or crafting item? {product_title}'": {
-    "selectivity": 8
+  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='products_filtered' | scale_factor='1' | query='Is this product a sewing or crafting item? {product_title}'": {
+    "selectivity": 9
   },
-  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='reviews_5core_filtered' | scale_factor='1' | columns='review_title, review_text' | query='Does this review describe a customer who liked the product quality but had problems with delivery or packaging? {review_title} {review_text}'": {
+  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='reviews_5core_filtered' | scale_factor='1' | query='Does this review describe a customer who liked the product quality but had problems with delivery or packaging? {review_title} {review_text}'": {
     "selectivity": 0
   },
-  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='products_filtered, reviews_5core_filtered' | scale_factor='1' | columns='product_title, review_text' | query='Is this review about this product? {product_title:left} {review_text:right}'": {
-    "selectivity": 44
+  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='products_filtered, reviews_5core_filtered' | scale_factor='1' | query='Is this review '{review_title:right}' '{review_text:right}' about this product '{product_title:left}'? '{description_json:left}''": {
+    "selectivity": 30
   },
-  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='products_filtered, reviews_5core_filtered' | scale_factor='1' | columns='description_json, review_text' | query='Does this review mention a use case, feature, or problem that is directly related to this product description? {description_json:left} {review_text:right}'": {
-    "selectivity": 29
+  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='products_filtered, reviews_5core_filtered' | scale_factor='1' | query='Does this review '{review_text:right}' mention a use case, feature, or problem that is directly related to this product description '{description_json:left}'?'": {
+    "selectivity": 28
   },
-  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='products_filtered' | scale_factor='1' | columns='product_title' | query='Is this product a sewing or crafting item? {product_title}'": {
-    "selectivity": 4
+  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='products_filtered' | scale_factor='1' | query='Is this product a sewing or crafting item? {product_title}'": {
+    "selectivity": 7
   },
-  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='reviews_5core_filtered' | scale_factor='1' | columns='review_title, review_text' | query='Does this review describe a customer who liked the product quality but had problems with delivery or packaging? {review_title} {review_text}'": {
+  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='reviews_5core_filtered' | scale_factor='1' | query='Does this review describe a customer who liked the product quality but had problems with delivery or packaging? {review_title} {review_text}'": {
     "selectivity": 0
   },
-  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='products_filtered, reviews_5core_filtered' | scale_factor='1' | columns='product_title, review_text' | query='Is this review about this product? {product_title:left} {review_text:right}'": {
-    "selectivity": 12
+  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='products_filtered, reviews_5core_filtered' | scale_factor='1' | query='Is this review '{review_title:right}' '{review_text:right}' about this product '{product_title:left}'? '{description_json:left}''": {
+    "selectivity": 19
   },
-  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='products_filtered, reviews_5core_filtered' | scale_factor='1' | columns='description_json, review_text' | query='Does this review mention a use case, feature, or problem that is directly related to this product description? {description_json:left} {review_text:right}'": {
-    "selectivity": 17
+  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='products_filtered, reviews_5core_filtered' | scale_factor='1' | query='Does this review '{review_text:right}' mention a use case, feature, or problem that is directly related to this product description '{description_json:left}'?'": {
+    "selectivity": 30
+  },
+  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='products_filtered, reviews_5core_filtered' | scale_factor='1' | query='Is this review about the same product? Review title: '{review_title:right}'. Review text: '{review_text:right}'. Product title: '{product_title:left}'. Product description: '{description_json:left}'.'": {
+    "selectivity": 30
+  },
+  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='products_filtered, reviews_5core_filtered' | scale_factor='1' | query='Is this review about the same product? Review title: '{review_title:right}'. Review text: '{review_text:right}'. Product title: '{product_title:left}'. Product description: '{description_json:left}'.'": {
+    "selectivity": 35
   }
 }

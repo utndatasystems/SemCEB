@@ -540,6 +540,7 @@ def create_products_table(
           AND NOT (json_type(features_json) = 'ARRAY' AND json_array_length(features_json) = 0)
           AND NOT (json_type(description_json) = 'ARRAY' AND json_array_length(description_json) = 0)
           AND NOT (json_type(images_json) = 'ARRAY' AND json_array_length(images_json) = 0)
+          AND main_image_local IS NOT NULL
         """,
         [str(meta_jsonl_path)],
     )

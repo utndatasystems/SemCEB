@@ -26,7 +26,7 @@ Therefore, we apply the following transformations:
 
 In the end, two tables are created:
  - `products_filtered`: ~45k rows
- - `reviews_5core_filtered`: ~940k rows
+ - `reviews_filtered`: ~940k rows
 
 
 ## Setup
@@ -60,16 +60,17 @@ python amazon-reviews.py --category Arts_Crafts_and_Sewing --mode raw_5core
 │ description_json │ JSON        │ NO      │ NULL    │ NULL    │ NULL    │
 │ details_json     │ JSON        │ NO      │ NULL    │ NULL    │ NULL    │
 │ images_json      │ JSON        │ NO      │ NULL    │ NULL    │ NULL    │
+│ main_image_local │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
 │ videos_json      │ JSON        │ YES     │ NULL    │ NULL    │ NULL    │
 │ bought_together  │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
 │ subtitle         │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
 │ author           │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
 ├──────────────────┴─────────────┴─────────┴─────────┴─────────┴─────────┤
-│ 16 rows                                                      6 columns │
+│ 17 rows                                                      6 columns │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-`reviews_5core_filtered`:
+`reviews_filtered`:
 
 ```
 ┌───────────────────┬─────────────┬─────────┬─────────┬─────────┬─────────┐

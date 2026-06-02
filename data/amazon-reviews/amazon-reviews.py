@@ -685,7 +685,7 @@ def create_raw_5core_filtered_tables(
 
     con.execute(
         """
-        CREATE OR REPLACE TABLE reviews_5core_filtered (
+        CREATE OR REPLACE TABLE reviews_filtered (
             user_id VARCHAR,
             asin VARCHAR,
             parent_asin VARCHAR,
@@ -702,7 +702,7 @@ def create_raw_5core_filtered_tables(
 
     con.execute(
         """
-        INSERT INTO reviews_5core_filtered BY NAME
+        INSERT INTO reviews_filtered BY NAME
         SELECT r.*
         FROM reviews r
         INNER JOIN interactions_5core i
@@ -727,9 +727,13 @@ def export_tables(
         output_dir / "products_filtered.parquet",
         output_dir / "products.parquet",
         output_dir / "reviews.parquet",
+        output_dir / "reviews_filtered.parquet",
         output_dir / "reviews_5core_filtered.parquet",
         output_dir / "reviews_enriched.parquet",
+        output_dir / "reviews_filtered_enriched.parquet",
         output_dir / "reviews_5core_filtered_enriched.parquet",
+        output_dir / "reviews_filtered_unique.parquet",
+        output_dir / "reviews_filtered_unique_enriched.parquet",
         output_dir / "reviews_5core_filtered_unique.parquet",
         output_dir / "reviews_5core_filtered_unique_enriched.parquet",
     ]
@@ -744,12 +748,12 @@ def export_tables(
         con.execute(f"COPY reviews TO {reviews_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)")
     else:
         products_filtered_path_sql = sql_string_literal(str(output_dir / "products_filtered.parquet"))
-        filtered_path_sql = sql_string_literal(str(output_dir / "reviews_5core_filtered.parquet"))
+        filtered_path_sql = sql_string_literal(str(output_dir / "reviews_filtered.parquet"))
         con.execute(
             f"COPY products_filtered TO {products_filtered_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)",
         )
         con.execute(
-            f"COPY reviews_5core_filtered TO {filtered_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)",
+            f"COPY reviews_filtered TO {filtered_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)",
         )
 
 
@@ -785,12 +789,12 @@ def write_summary_json(
             SELECT
                 (SELECT COUNT(*) FROM interactions_5core) AS interaction_rows_5core,
                 (SELECT COUNT(*) FROM reviews) AS raw_review_rows,
-                (SELECT COUNT(*) FROM reviews_5core_filtered) AS filtered_review_rows,
-                (SELECT COUNT(DISTINCT user_id) FROM reviews_5core_filtered) AS users,
-                (SELECT COUNT(DISTINCT parent_asin) FROM reviews_5core_filtered) AS reviewed_products,
+                (SELECT COUNT(*) FROM reviews_filtered) AS filtered_review_rows,
+                (SELECT COUNT(DISTINCT user_id) FROM reviews_filtered) AS users,
+                (SELECT COUNT(DISTINCT parent_asin) FROM reviews_filtered) AS reviewed_products,
                 (
                     SELECT SUM(CASE WHEN p.parent_asin IS NOT NULL THEN 1 ELSE 0 END)
-                    FROM reviews_5core_filtered r
+                    FROM reviews_filtered r
                     LEFT JOIN products_filtered p USING (parent_asin)
                 ) AS reviews_with_metadata
             """
@@ -859,10 +863,10 @@ def run_setup(
     )
 
     if mode == MODE_RAW_5CORE:
-        download_images_from_products_filtered(con, run_dir / "images")
         con.execute("DROP TABLE IF EXISTS interactions_5core")
         con.execute("DROP TABLE IF EXISTS reviews")
         con.execute("DROP TABLE IF EXISTS products")
+        download_images_from_products_filtered(con, run_dir / "images")
 
     con.close()
 

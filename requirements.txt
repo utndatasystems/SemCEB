@@ -1,3 +1,4 @@
+# do we still need requirements.txt now that we have pyproject.toml?
 aiohappyeyeballs==2.6.1
 aiohttp==3.13.4
 aiosignal==1.4.0

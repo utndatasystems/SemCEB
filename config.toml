@@ -1,6 +1,6 @@
 [general.ground_truth]
 model_name = "gpt-4o-mini"
-system_prompt = "Evaluate if the following statement. Only answer with True or False."
+system_prompt = "Evaluate if the following statement is true or false. Only answer with True or False."
 
 [general.data]
 scale_factor = 1 # 1 to 5
@@ -26,6 +26,7 @@ system_prompt = "Evaluate if the following statement. Only answer with True or F
 
 # Optional: Depends on implementation
 [algorithms.algorithm_kwargs]
+# why do we need the model and system prompt here again? can we merge it with the previous one?
 model_name = "gpt-4o-mini"
 system_prompt = "Evaluate if the following statement. Only answer with True or False."
 sampling_frac = 0.1

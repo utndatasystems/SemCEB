@@ -8,12 +8,18 @@ class AlgorithmInterface(ABC):
 
     @abstractmethod
     def get_memory_consumption(self) -> int:
-        """Return tracked memory consumption."""
+        """
+        Return the memory storage footprint of metadata structures used by the cardinality estimation algorithm in bytes.
+
+        For example, if the algorithm holds a sample of the data, this method should return the size of that sample in bytes.
+        """
         pass
 
     @abstractmethod
     def get_cost_stats(self) -> dict:
-        """Return tracked algorithm cost stats."""
+        """
+        Return the accumulated cost statistics for cardinality estimation.
+        """
         pass
 
     @abstractmethod
@@ -27,6 +33,7 @@ class AlgorithmInterface(ABC):
 
         This method should collect and store all information required for
         selectivity estimation.
+        Specifially, implementations are expected to take owenership of the provided dataframes.
 
         During execution, the algorithm will only receive the dataset name(s)
         and column name(s) needed to perform the selectivity estimate.
@@ -34,6 +41,6 @@ class AlgorithmInterface(ABC):
         pass
 
     @abstractmethod
-    def run(self, query: dict) -> int:
-        """Run the algorithm and return the estimated result."""
+    def run(self, query: dict) -> int: # Please create a new type for `query` with the corresponding fields. Otherwise, it's just a `dict` blackbox.
+        """Run the algorithm and return the estimated output cardinality for the given query."""
         pass

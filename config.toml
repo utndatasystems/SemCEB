@@ -3,7 +3,9 @@ model_name = "gpt-4o-mini"
 system_prompt = "Evaluate if the following statement. Only answer with True or False."
 
 [general.data]
-scale_factor = 1 # 1 to 5
+# scale_factor: 1=5%, 2=10%, 3=25%, 4=50%, 5=100%
+# Rows are shuffled deterministically.
+scale_factor = 1
 categories = [
     "Simple Base-Table Predicate",
     "Complex Base-Table Predicate",

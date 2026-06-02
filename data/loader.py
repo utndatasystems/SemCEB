@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pandas as pd
-from data.downloader import DataDownloader
 
 
 class DataLoader:
@@ -14,21 +13,21 @@ class DataLoader:
         """Load raw data into pandas dataframe.
 
         scale_factor:
-            1 = original dataset
-            2 = 50%
-            3 = 25%
-            4 = 10%
-            5 = 5%
+            1 = 5% of rows, shuffled
+            2 = 10% of rows, shuffled
+            3 = 25% of rows, shuffled
+            4 = 50% of rows, shuffled
+            5 = 100% of rows, shuffled
         """
 
         df = self._load_dataset(dataset)
 
         scale_factors = {
-            1: 1.00,
-            2: 0.50,
+            1: 0.05,
+            2: 0.10,
             3: 0.25,
-            4: 0.10,
-            5: 0.05,
+            4: 0.50,
+            5: 1.00,
         }
 
         if scale_factor not in scale_factors:
@@ -38,15 +37,20 @@ class DataLoader:
             )
 
         fraction = scale_factors[scale_factor]
+        
+        # Deterministic shuffle
+        shuffled_df = df.sample(frac=1.0, replace=False, random_state=42)
 
         if fraction == 1.00:
-            return df
+            return shuffled_df.reset_index(drop=True)
 
-        return (
-            df.sample(frac=fraction, random_state=42)
-            .sort_index()
+        scaled_df = (
+            shuffled_df
+            .head(int(fraction * len(df)))
             .reset_index(drop=True)
         )
+
+        return scaled_df
 
     def _load_dataset(self, dataset: str) -> pd.DataFrame:
         csv_path = self.folderpath_raw_data / f"{dataset}.csv"

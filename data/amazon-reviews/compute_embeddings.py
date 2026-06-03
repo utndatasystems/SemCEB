@@ -122,7 +122,7 @@ def resolve_device() -> str:
 
 def load_image_model_bundle(model_name: str, device: str) -> tuple[object, object, int, object]:
     import torch
-    from transformers import AutoConfig, AutoModel, AutoProcessor
+    from transformers import AutoConfig, AutoImageProcessor, AutoModel
 
     config = AutoConfig.from_pretrained(model_name)
     dimension = getattr(getattr(config, "text_config", None), "projection_size", None)
@@ -131,7 +131,7 @@ def load_image_model_bundle(model_name: str, device: str) -> tuple[object, objec
     if dimension is None:
         raise RuntimeError(f"Could not determine embedding dimension for model {model_name}")
 
-    processor = AutoProcessor.from_pretrained(model_name)
+    processor = AutoImageProcessor.from_pretrained(model_name)
     model = AutoModel.from_pretrained(model_name)
     model.eval()
     model.to(device)

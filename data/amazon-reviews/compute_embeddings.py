@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Compute image and text embeddings for Amazon Reviews products.
+"""Compute image and text embeddings for Amazon Reviews products and reviews.
 
 This script reads a processed dataset directory created by ``amazon-reviews.py``,
-computes embeddings for selected columns in ``products_filtered``, and exports a
-new parquet file without modifying the original parquet artifact.
+computes embeddings for selected columns in the filtered product and review
+tables, and exports new parquet files without modifying the original artifacts.
 """
 
 from __future__ import annotations
@@ -31,6 +31,10 @@ TEXT_EMBEDDING_COLUMNS = [
     "features_json",
     "details_json",
 ]
+REVIEW_TEXT_EMBEDDING_COLUMNS = [
+    "review_title",
+    "review_text",
+]
 
 
 @dataclass(frozen=True)
@@ -41,7 +45,9 @@ class ImageEmbeddingJob:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Compute embeddings for products_filtered")
+    parser = argparse.ArgumentParser(
+        description="Compute embeddings for filtered product and review tables"
+    )
     parser.add_argument(
         "--run-dir",
         required=True,
@@ -86,8 +92,12 @@ def embedding_column_name(reference_column: str, model_name: str) -> str:
     return f"{reference_column}_embeddings_{sanitize_model_name(model_name)}"
 
 
-def output_parquet_path(run_dir: Path) -> Path:
+def output_products_parquet_path(run_dir: Path) -> Path:
     return run_dir / "products_filtered_with_embeddings.parquet"
+
+
+def output_reviews_parquet_path(run_dir: Path) -> Path:
+    return run_dir / "reviews_filtered_with_embeddings.parquet"
 
 
 def image_path_from_url(images_dir: Path, url: str) -> Path | None:
@@ -169,6 +179,21 @@ def ensure_products_filtered(con: duckdb.DuckDBPyConnection) -> None:
         raise RuntimeError("products_filtered table not found in DuckDB database")
 
 
+def ensure_reviews_filtered(con: duckdb.DuckDBPyConnection) -> None:
+    exists = con.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = 'main'
+              AND table_name = 'reviews_filtered'
+        )
+        """
+    ).fetchone()[0]
+    if not exists:
+        raise RuntimeError("reviews_filtered table not found in DuckDB database")
+
+
 def create_working_table(
     con: duckdb.DuckDBPyConnection,
     image_column_name: str,
@@ -183,6 +208,24 @@ def create_working_table(
         text_column_name = embedding_column_name(source_column, DEFAULT_TEXT_MODEL_NAME)
         con.execute(
             f"ALTER TABLE products_with_embeddings "
+            f"ADD COLUMN {text_column_name} DOUBLE[]"
+        )
+
+
+def create_reviews_working_table(con: duckdb.DuckDBPyConnection) -> None:
+    con.execute(
+        """
+        CREATE OR REPLACE TEMP TABLE reviews_with_embeddings AS
+        SELECT
+            row_number() OVER () AS embedding_row_id,
+            *
+        FROM reviews_filtered
+        """
+    )
+    for source_column in REVIEW_TEXT_EMBEDDING_COLUMNS:
+        text_column_name = embedding_column_name(source_column, DEFAULT_TEXT_MODEL_NAME)
+        con.execute(
+            f"ALTER TABLE reviews_with_embeddings "
             f"ADD COLUMN {text_column_name} DOUBLE[]"
         )
 
@@ -307,6 +350,31 @@ def collect_text_jobs(
             skipped += 1
             continue
         jobs.append((parent_asin, text))
+
+    return jobs, skipped
+
+
+def collect_review_text_jobs(
+    con: duckdb.DuckDBPyConnection,
+    column_name: str,
+) -> tuple[list[tuple[int, str]], int]:
+    rows = con.execute(
+        f"""
+        SELECT embedding_row_id, CAST({column_name} AS VARCHAR)
+        FROM reviews_with_embeddings
+        ORDER BY embedding_row_id
+        """
+    ).fetchall()
+
+    jobs: list[tuple[int, str]] = []
+    skipped = 0
+
+    for embedding_row_id, raw_value in rows:
+        text = text_for_embedding(column_name, raw_value)
+        if not text:
+            skipped += 1
+            continue
+        jobs.append((embedding_row_id, text))
 
     return jobs, skipped
 
@@ -436,12 +504,52 @@ def write_batch_list_embeddings(
     con.execute("DROP TABLE batch_text_embeddings")
 
 
+def write_review_batch_list_embeddings(
+    con: duckdb.DuckDBPyConnection,
+    column_name: str,
+    batch_rows: list[tuple[int, list[float]]],
+) -> None:
+    if not batch_rows:
+        return
+
+    con.execute(
+        "CREATE OR REPLACE TEMP TABLE batch_review_text_embeddings "
+        "(embedding_row_id BIGINT, embedding DOUBLE[])"
+    )
+    con.executemany("INSERT INTO batch_review_text_embeddings VALUES (?, ?)", batch_rows)
+    con.execute(
+        f"""
+        UPDATE reviews_with_embeddings AS r
+        SET {column_name} = b.embedding
+        FROM batch_review_text_embeddings AS b
+        WHERE r.embedding_row_id = b.embedding_row_id
+        """
+    )
+    con.execute("DROP TABLE batch_review_text_embeddings")
+
+
 def export_products_with_embeddings(
     con: duckdb.DuckDBPyConnection,
     output_path: Path,
 ) -> None:
     path_sql = sql_string_literal(str(output_path))
     con.execute(f"COPY products_with_embeddings TO {path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)")
+
+
+def export_reviews_with_embeddings(
+    con: duckdb.DuckDBPyConnection,
+    output_path: Path,
+) -> None:
+    path_sql = sql_string_literal(str(output_path))
+    con.execute(
+        f"""
+        COPY (
+            SELECT * EXCLUDE (embedding_row_id)
+            FROM reviews_with_embeddings
+        )
+        TO {path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)
+        """
+    )
 
 
 def run_embeddings(
@@ -451,7 +559,8 @@ def run_embeddings(
 ) -> None:
     db_path, images_dir = validate_run_dir(run_dir)
     image_column_name = embedding_column_name("main_image_local", image_model_name)
-    output_path = output_parquet_path(run_dir)
+    products_output_path = output_products_parquet_path(run_dir)
+    reviews_output_path = output_reviews_parquet_path(run_dir)
 
     device = resolve_device()
     print(f"[info] loading image embedding model {image_model_name} on {device}")
@@ -466,7 +575,9 @@ def run_embeddings(
     con = duckdb.connect(str(db_path))
     try:
         ensure_products_filtered(con)
+        ensure_reviews_filtered(con)
         create_working_table(con, image_column_name, image_dimension)
+        create_reviews_working_table(con)
         create_image_embedding_job_table(con)
 
         image_jobs, missing_url, missing_file = collect_image_jobs(con, images_dir)
@@ -531,13 +642,45 @@ def run_embeddings(
                     f"for {source_column} (batch size={len(batch_rows)})"
                 )
 
-        if output_path.exists():
-            output_path.unlink()
+        for source_column in REVIEW_TEXT_EMBEDDING_COLUMNS:
+            text_column_name = embedding_column_name(source_column, DEFAULT_TEXT_MODEL_NAME)
+            text_jobs, skipped = collect_review_text_jobs(con, source_column)
+            print(
+                f"[info] prepared {len(text_jobs)} review text embedding jobs for {source_column} "
+                f"({skipped} skipped)"
+            )
 
-        export_products_with_embeddings(con, output_path)
+            text_embedded = 0
+            for batch_start in range(0, len(text_jobs), batch_size):
+                batch_jobs = text_jobs[batch_start : batch_start + batch_size]
+                batch_row_ids = [row_id for row_id, _ in batch_jobs]
+                batch_texts = [text for _, text in batch_jobs]
+                vectors = compute_text_batch_embeddings(
+                    tokenizer=text_tokenizer,
+                    model=text_model,
+                    torch_module=text_torch,
+                    device=device,
+                    texts=batch_texts,
+                )
+                batch_rows = list(zip(batch_row_ids, vectors, strict=True))
+                write_review_batch_list_embeddings(con, text_column_name, batch_rows)
+                text_embedded += len(batch_rows)
+                print(
+                    f"[info] embedded {text_embedded}/{len(text_jobs)} review text rows "
+                    f"for {source_column} (batch size={len(batch_rows)})"
+                )
+
+        if products_output_path.exists():
+            products_output_path.unlink()
+        if reviews_output_path.exists():
+            reviews_output_path.unlink()
+
+        export_products_with_embeddings(con, products_output_path)
+        export_reviews_with_embeddings(con, reviews_output_path)
         print(
-            f"[ok] wrote {output_path} with image column {image_column_name} and text columns for "
-            f"{', '.join(TEXT_EMBEDDING_COLUMNS)}"
+            f"[ok] wrote {products_output_path} and {reviews_output_path}; "
+            f"product text columns: {', '.join(TEXT_EMBEDDING_COLUMNS)}; "
+            f"review text columns: {', '.join(REVIEW_TEXT_EMBEDDING_COLUMNS)}"
         )
     finally:
         con.close()

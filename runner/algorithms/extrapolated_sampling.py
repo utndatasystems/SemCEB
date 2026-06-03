@@ -4,6 +4,7 @@ import pandas as pd
 from runner.algorithms.interface import AlgorithmInterface
 import lotus.settings
 from queries.query_specification import QuerySpecification
+from queries.template_parser import QueryTemplatePartType
 
 
 class ExtrapolatedSampling(AlgorithmInterface):
@@ -108,35 +109,47 @@ class ExtrapolatedSampling(AlgorithmInterface):
         if len(query_spec.datasets) == 1:
 
             # Evaluate sample
-            name = query_spec.datasets[0]
-            sample_estimation = self.data_sample[name].sem_filter(
-                user_instruction=query_spec.filter,
+            query_str = ""
+            for part in query_spec.filter_parsed.parts:
+                if part.type == QueryTemplatePartType.TEXT:
+                    query_str += part.value
+                if part.type == QueryTemplatePartType.COLUMN:
+                    # Check for alias
+                    if "." in part.value:
+                        _, column = part.value.split(".")
+                    else:
+                        column = part.value
+                    query_str += f"{{{column}}}"
+
+            dataset_spec = query_spec.datasets[0]
+
+            sample_estimation = self.data_sample[dataset_spec.table_ref].sem_filter(
+                user_instruction=query_str,
             ).shape[0]
 
             # Extrapolate to estimate
             selectivity_estimation = (
-                sample_estimation / self.data_sample[name].shape[0] * self.data_rows[name]
+                sample_estimation / self.data_sample[dataset_spec.table_ref].shape[0] * self.data_rows[dataset_spec.table_ref]
             )
 
             # Track costs
-            llm_cost_stats = self._get_costs(self.data_sample[name])
+            llm_cost_stats = self._get_costs(self.data_sample[dataset_spec.table_ref])
             self._add_cost(llm_cost_stats)
             
-            selectivity_estimation = max(0, min(round(selectivity_estimation), self.data_rows[name]))
+            selectivity_estimation = max(0, min(round(selectivity_estimation), self.data_rows[dataset_spec.table_ref]))
 
         # Joining
         elif len(query_spec.datasets) > 1:
 
             # Evaluate sample
-            name_left, name_right = query_spec.datasets
-            data_left = self.data_sample[name_left]
-            data_right = self.data_sample[name_right]
-            
-            left_dataset, right_dataset = query_spec.datasets
 
+            dataset_spec_left, dataset_spec_right = query_spec.datasets
+            data_left = self.data_sample[dataset_spec_left.table_ref]
+            data_right = self.data_sample[dataset_spec_right.table_ref]
+            
             dataset_side = {
-                left_dataset: "left",
-                right_dataset: "right",
+                dataset_spec_left.alias: "left",
+                dataset_spec_right.alias: "right",
             }
 
             query_parts = []
@@ -199,14 +212,22 @@ class ExtrapolatedSampling(AlgorithmInterface):
             ).shape[0]
 
             # Extrapolate to estimate
-            selectivity_estimation = (
-                0.5 * sample_estimation / self.data_sample[name_left].shape[0] * self.data_rows[name_left] 
-                + 0.5 * sample_estimation / self.data_sample[name_right].shape[0] * self.data_rows[name_right] 
-            )
+            n_left_sample = self.data_sample[dataset_spec_left.table_ref].shape[0]
+            n_right_sample = self.data_sample[dataset_spec_right.table_ref].shape[0]
+
+            n_left_total = self.data_rows[dataset_spec_left.table_ref]
+            n_right_total = self.data_rows[dataset_spec_right.table_ref]
+
+            sample_pair_count = n_left_sample * n_right_sample
+            total_pair_count = n_left_total * n_right_total
+
+            join_selectivity = sample_estimation / sample_pair_count
+
+            selectivity_estimation = join_selectivity * total_pair_count
 
             # Track costs
-            llm_cost_stats_left = self._get_costs(self.data_sample[name_left])
-            llm_cost_stats_right = self._get_costs(self.data_sample[name_right]) # to get llm calls
+            llm_cost_stats_left = self._get_costs(self.data_sample[dataset_spec_left.table_ref])
+            llm_cost_stats_right = self._get_costs(self.data_sample[dataset_spec_right.table_ref]) # to get llm calls
             llm_cost_stats = llm_cost_stats_left
             llm_cost_stats["llm_calls"] *= llm_cost_stats_right["llm_calls"]
             self._add_cost(llm_cost_stats)

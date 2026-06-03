@@ -270,7 +270,7 @@
 <section class='query-block'>
 <h2>Query ID: 0</h2>
 <div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> Simple Base-Table Predicate</span><span><strong>Datasets:</strong> products_filtered</span></div>
+<div class='query-meta-topline'><span><strong>Category:</strong> Simple Base-Table Predicate</span><span><strong>Datasets:</strong> {&#x27;alias&#x27;: &#x27;products_filtered&#x27;, &#x27;table_ref&#x27;: &#x27;products_filtered&#x27;}</span></div>
 <div class='query-meta-query'><strong>Query:</strong> Is this product a sewing or crafting item? {product_title}</div>
 </div>
 <table>
@@ -289,7 +289,7 @@
 <tr>
 <td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
 <td><div class='metric-cell'><span class='metric-value'>1.11</span><span class='bar-track'><span class='bar-fill' style='display:block; width:15.9%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>910.27</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>612.99</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>140</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
@@ -310,7 +310,7 @@
 <section class='query-block'>
 <h2>Query ID: 1</h2>
 <div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> Complex Base-Table Predicate</span><span><strong>Datasets:</strong> reviews_5core_filtered</span></div>
+<div class='query-meta-topline'><span><strong>Category:</strong> Complex Base-Table Predicate</span><span><strong>Datasets:</strong> {&#x27;alias&#x27;: &#x27;reviews_5core_filtered&#x27;, &#x27;table_ref&#x27;: &#x27;reviews_5core_filtered&#x27;}</span></div>
 <div class='query-meta-query'><strong>Query:</strong> Does this review describe a customer who liked the product quality but had problems with delivery or packaging? {review_title} {review_text}</div>
 </div>
 <table>
@@ -329,7 +329,7 @@
 <tr>
 <td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
 <td><div class='metric-cell'><span class='metric-value'>1.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>532.66</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>1628.61</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>182</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
@@ -350,7 +350,7 @@
 <section class='query-block'>
 <h2>Query ID: 2</h2>
 <div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> Simple Join</span><span><strong>Datasets:</strong> products_filtered, reviews_5core_filtered</span></div>
+<div class='query-meta-topline'><span><strong>Category:</strong> Simple Join</span><span><strong>Datasets:</strong> {&#x27;alias&#x27;: &#x27;products_filtered&#x27;, &#x27;table_ref&#x27;: &#x27;products_filtered&#x27;}, {&#x27;alias&#x27;: &#x27;reviews_5core_filtered&#x27;, &#x27;table_ref&#x27;: &#x27;reviews_5core_filtered&#x27;}</span></div>
 <div class='query-meta-query'><strong>Query:</strong> Is this review about the same product? Review title: &#x27;{reviews_5core_filtered.review_title}&#x27;. Review text: &#x27;{reviews_5core_filtered.review_text}&#x27;. Product title: &#x27;{products_filtered.product_title}&#x27;. Product description: &#x27;{products_filtered.description_json}&#x27;.</div>
 </div>
 <table>
@@ -369,7 +369,7 @@
 <tr>
 <td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
 <td><div class='metric-cell'><span class='metric-value'>179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>417.84</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>564.57</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>334</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
@@ -377,7 +377,7 @@
 </tr>
 <tr>
 <td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='My Selectivity Estimation Algorithm'>My Selectivity Estimation Algorithm</span></td>
-<td><div class='metric-cell'><span class='metric-value'>35.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>36.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>0.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
 <td><span class='missing'>n/a</span></td>
 <td><span class='missing'>n/a</span></td>
@@ -390,7 +390,7 @@
 <section class='query-block'>
 <h2>Query ID: 3</h2>
 <div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> Complex Join</span><span><strong>Datasets:</strong> products_filtered, reviews_5core_filtered</span></div>
+<div class='query-meta-topline'><span><strong>Category:</strong> Complex Join</span><span><strong>Datasets:</strong> {&#x27;alias&#x27;: &#x27;products_filtered&#x27;, &#x27;table_ref&#x27;: &#x27;products_filtered&#x27;}, {&#x27;alias&#x27;: &#x27;reviews_5core_filtered&#x27;, &#x27;table_ref&#x27;: &#x27;reviews_5core_filtered&#x27;}</span></div>
 <div class='query-meta-query'><strong>Query:</strong> Does this review &#x27;{reviews_5core_filtered.review_text}&#x27; mention a use case, feature, or problem that is directly related to this product description &#x27;{products_filtered.description_json}&#x27;?</div>
 </div>
 <table>
@@ -409,7 +409,7 @@
 <tr>
 <td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
 <td><div class='metric-cell'><span class='metric-value'>179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>520.03</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>615.87</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>325</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
@@ -418,6 +418,86 @@
 <tr>
 <td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='My Selectivity Estimation Algorithm'>My Selectivity Estimation Algorithm</span></td>
 <td><div class='metric-cell'><span class='metric-value'>30.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>0.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section class='query-block'>
+<h2>Query ID: 4</h2>
+<div class='query-meta'>
+<div class='query-meta-topline'><span><strong>Category:</strong> Self Join</span><span><strong>Datasets:</strong> {&#x27;alias&#x27;: &#x27;p1&#x27;, &#x27;table_ref&#x27;: &#x27;products_filtered&#x27;}, {&#x27;alias&#x27;: &#x27;p2&#x27;, &#x27;table_ref&#x27;: &#x27;products_filtered&#x27;}</span></div>
+<div class='query-meta-query'><strong>Query:</strong> {p1.product_title} and {p2.product_title} describe the same or a highly similar product.</div>
+</div>
+<table>
+<thead>
+<tr>
+<th class='algorithm-header'>Algorithm</th>
+<th>Q-error</th>
+<th>Runtime ms</th>
+<th>Cost USD</th>
+<th>Tokens</th>
+<th>LLM calls</th>
+<th>Memory bytes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
+<td><div class='metric-cell'><span class='metric-value'>10.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>554.76</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>206</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>416</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+</tr>
+<tr>
+<td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='My Selectivity Estimation Algorithm'>My Selectivity Estimation Algorithm</span></td>
+<td><div class='metric-cell'><span class='metric-value'>10.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>0.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
+<td><span class='missing'>n/a</span></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section class='query-block'>
+<h2>Query ID: 5</h2>
+<div class='query-meta'>
+<div class='query-meta-topline'><span><strong>Category:</strong> Simple Base-Table Predicate</span><span><strong>Datasets:</strong> {&#x27;alias&#x27;: &#x27;p&#x27;, &#x27;table_ref&#x27;: &#x27;products_filtered&#x27;}</span></div>
+<div class='query-meta-query'><strong>Query:</strong> Is this product a sewing or crafting item? {p.product_title} {description_json}</div>
+</div>
+<table>
+<thead>
+<tr>
+<th class='algorithm-header'>Algorithm</th>
+<th>Q-error</th>
+<th>Runtime ms</th>
+<th>Cost USD</th>
+<th>Tokens</th>
+<th>LLM calls</th>
+<th>Memory bytes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
+<td><div class='metric-cell'><span class='metric-value'>1.11</span><span class='bar-track'><span class='bar-fill' style='display:block; width:15.9%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>653.71</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>285</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>416</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+</tr>
+<tr>
+<td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='My Selectivity Estimation Algorithm'>My Selectivity Estimation Algorithm</span></td>
+<td><div class='metric-cell'><span class='metric-value'>7.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>0.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
 <td><span class='missing'>n/a</span></td>
 <td><span class='missing'>n/a</span></td>

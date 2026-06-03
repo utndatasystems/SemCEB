@@ -1,3 +1,5 @@
+{"id": 5, "category": "Simple Base-Table Predicate", "datasets": ["products_filtered AS p"], "filter": "Is this product a sewing or crafting item? {p.product_title} {description_json}"}
+{"id": 4, "category": "Self Join", "datasets": ["products_filtered AS p1", "products_filtered AS p2"], "filter": "{p1.product_title} and {p2.product_title} describe the same or a highly similar product."}
 {"id": 0, "category": "Simple Base-Table Predicate", "datasets": ["products_filtered"], "filter": "Is this product a sewing or crafting item? {product_title}"}
 {"id": 1, "category": "Complex Base-Table Predicate", "datasets": ["reviews_5core_filtered"], "filter": "Does this review describe a customer who liked the product quality but had problems with delivery or packaging? {review_title} {review_text}"}
 {"id": 2, "category": "Simple Join", "datasets": ["products_filtered", "reviews_5core_filtered"], "filter": "Is this review about the same product? Review title: '{reviews_5core_filtered.review_title}'. Review text: '{reviews_5core_filtered.review_text}'. Product title: '{products_filtered.product_title}'. Product description: '{products_filtered.description_json}'."}

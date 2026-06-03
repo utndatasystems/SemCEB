@@ -44,7 +44,7 @@ class LotusBackend():
             "model_name": self.name,
             "system_prompt": self.system_prompt,
             "query_type": query_type,
-            "datasets": ", ".join(datasets),
+            "datasets": ", ".join([f"{dataset_spec.alias}:{dataset_spec.table_ref}" for dataset_spec in datasets]),
             "scale_factor": self.scale_factor,
             "query": query_str,
         }
@@ -119,7 +119,20 @@ class LotusBackend():
     def _format_filtering_query(self, query_spec: QuerySpecification, df: pd.DataFrame) -> str:
         """Format LOTUS query string for filtering."""
         self._validate_filtering_query(query_spec, df)
-        return query_spec.filter # 'query_spec.filter_parsed.raw' would be equivalent
+
+        # Supporting '<alias>.<column>' as well as just '<column>' when just filtering on one dataset
+        query_str = ""
+        for part in query_spec.filter_parsed.parts:
+            if part.type == QueryTemplatePartType.TEXT:
+                query_str += part.value
+            if part.type == QueryTemplatePartType.COLUMN:
+                # Check for alias
+                if "." in part.value:
+                    _, column = part.value.split(".")
+                else:
+                    column = part.value
+                query_str += f"{{{column}}}"
+        return query_str
     
     def _validate_filtering_query(self, query_spec: QuerySpecification, df: pd.DataFrame) -> None:
 
@@ -132,7 +145,11 @@ class LotusBackend():
             raise ValueError("Filtering query requires at least one column.")
 
         for column in columns:
-            if column not in df.columns:
+            if "." in column:     
+                column_name = column.split(".")[1] # in the case of '<alias>.<column>'
+            else:
+                column_name = column
+            if column_name not in df.columns:
                 raise ValueError(f"Column '{column}' does not exist in data.")
 
     def joining_query(self, query_spec: QuerySpecification, data_left_df: pd.DataFrame, data_right_df: pd.DataFrame) -> int:
@@ -216,11 +233,11 @@ class LotusBackend():
         if len(query_spec.datasets) != 2:
             raise ValueError("Joining query must contain exactly two datasets.")
 
-        left_dataset, right_dataset = query_spec.datasets
+        dataset_spec_left, dataset_spec_right = query_spec.datasets
 
-        dataframes_by_dataset = {
-            left_dataset: data_left_df,
-            right_dataset: data_right_df,
+        dataframes_by_dataset_name = {
+            dataset_spec_left.alias: data_left_df,
+            dataset_spec_right.alias: data_right_df,
         }
 
         columns_by_dataset = self._get_columns_by_dataset(query_spec)
@@ -233,7 +250,7 @@ class LotusBackend():
                 )
 
         for dataset_name, columns in columns_by_dataset:
-            df = dataframes_by_dataset[dataset_name]
+            df = dataframes_by_dataset_name[dataset_name]
 
             for column in columns:
                 if column not in df.columns:
@@ -247,7 +264,7 @@ class LotusBackend():
 
         The returned list follows the order of query_spec.datasets.
 
-        Example:
+        Example 1:
             query_spec.datasets = ["products", "reviews"]
 
             {reviews.review_text} and {products.title}
@@ -257,11 +274,22 @@ class LotusBackend():
                 ("products", ["title"]),
                 ("reviews", ["review_text"]),
             ]
+
+        Example 2:
+            query_spec.datasets = ["products as p1", "products as p1"]
+
+            {p1.title} and {p2.title}
+
+        becomes:
+            [
+                ("p", ["title"]),
+                ("r", ["review_text"]),
+            ]
         """
 
         columns_by_dataset: dict[str, list[str]] = {
-            dataset_name: []
-            for dataset_name in query_spec.datasets
+            dataset_spec.alias: []
+            for dataset_spec in query_spec.datasets
         }
 
         for part in query_spec.filter_parsed.parts:
@@ -274,9 +302,9 @@ class LotusBackend():
                     "Expected format: '<dataset>.<column>'."
                 )
 
-            dataset_name, column_name = part.value.split(".", maxsplit=1)
+            dataset_alias, column_name = part.value.split(".", maxsplit=1)
 
-            if not dataset_name:
+            if not dataset_alias:
                 raise ValueError(
                     f"Invalid column reference '{part.value}'. "
                     "Dataset name must not be empty."
@@ -288,15 +316,15 @@ class LotusBackend():
                     "Column name must not be empty."
                 )
 
-            if dataset_name not in columns_by_dataset:
+            if dataset_alias not in columns_by_dataset:
                 raise ValueError(
-                    f"Unknown dataset '{dataset_name}' in column reference "
+                    f"Unknown dataset '{dataset_alias}' in column reference "
                     f"'{part.value}'. Expected one of: {query_spec.datasets}."
                 )
 
-            columns_by_dataset[dataset_name].append(column_name)
+            columns_by_dataset[dataset_alias].append(column_name)
 
         return [
-            (dataset_name, columns_by_dataset[dataset_name])
-            for dataset_name in query_spec.datasets
+            (dataset_alias, columns_by_dataset)
+            for dataset_alias, columns_by_dataset in columns_by_dataset.items()
         ]

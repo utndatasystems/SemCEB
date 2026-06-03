@@ -138,7 +138,7 @@ class BenchmarkRunner:
 
             # Load the required datasets
             datasets = {
-                dataset
+                dataset.table_ref
                 for query_spec in self.queries_specs
                 for dataset in query_spec.datasets
             }
@@ -214,14 +214,14 @@ class BenchmarkRunner:
 
         if len(query_spec.datasets) == 1:
             # Filtering
-            name = query_spec.datasets[0]
-            data = data_dfs[name]
+            dataset_spec = query_spec.datasets[0]
+            data = data_dfs[dataset_spec.table_ref]
             selectivity_ground_truth = backend.filtering_query(query_spec, data)
         elif len(query_spec.datasets) > 1:
             # Joining
-            name_left, name_right = query_spec.datasets
-            data_left = data_dfs[name_left]
-            data_right = data_dfs[name_right]
+            dataset_spec_left, dataset_spec_right = query_spec.datasets
+            data_left = data_dfs[dataset_spec_left.table_ref]
+            data_right = data_dfs[dataset_spec_right.table_ref]
             selectivity_ground_truth = backend.joining_query(query_spec, data_left, data_right)
 
         return selectivity_ground_truth

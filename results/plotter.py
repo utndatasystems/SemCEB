@@ -988,7 +988,6 @@ class ResultsPlotter:
             query_meta = query_df.dropna(subset=["filter"]).iloc[0]
             query_category = str(query_meta.get("query_category", ""))
             query_datasets = [str(s) for s in query_meta.get("datasets", "")]
-            query_columns = [str(s) for s in query_meta.get("columns", "")]
             query_text = str(query_meta.get("filter", ""))
 
             query_text = ""

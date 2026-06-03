@@ -23,7 +23,6 @@ from PIL import Image, UnidentifiedImageError
 DEFAULT_IMAGE_MODEL_NAME = "google/siglip2-base-patch16-224"
 DEFAULT_TEXT_MODEL_NAME = "Qwen/Qwen3-Embedding-0.6B"
 DEFAULT_BATCH_SIZE = 32
-DEFAULT_TEXT_MAX_LENGTH = 8192
 SCRIPT_DIR = Path(__file__).resolve().parent
 TEXT_EMBEDDING_COLUMNS = [
     "product_title",
@@ -444,7 +443,6 @@ def compute_text_batch_embeddings(
 ) -> list[list[float]]:
     batch = tokenizer(
         texts,
-        max_length=DEFAULT_TEXT_MAX_LENGTH,
         padding=True,
         truncation=True,
         return_tensors="pt",

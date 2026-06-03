@@ -413,6 +413,28 @@ def compute_image_batch_embeddings(
                 raise RuntimeError("Image model output does not expose image embeddings")
             image_features = outputs.image_embeds
 
+        if not isinstance(image_features, torch_module.Tensor):
+            if hasattr(image_features, "image_embeds") and isinstance(
+                image_features.image_embeds,
+                torch_module.Tensor,
+            ):
+                image_features = image_features.image_embeds
+            elif hasattr(image_features, "pooler_output") and isinstance(
+                image_features.pooler_output,
+                torch_module.Tensor,
+            ):
+                image_features = image_features.pooler_output
+            elif hasattr(image_features, "last_hidden_state") and isinstance(
+                image_features.last_hidden_state,
+                torch_module.Tensor,
+            ):
+                image_features = image_features.last_hidden_state[:, 0, :]
+            else:
+                raise RuntimeError(
+                    "Image model did not return a tensor embedding; "
+                    f"got {type(image_features).__name__}"
+                )
+
         image_features = torch_module.nn.functional.normalize(image_features, p=2, dim=1)
         return image_features.detach().cpu().to(torch_module.float32).tolist()
 

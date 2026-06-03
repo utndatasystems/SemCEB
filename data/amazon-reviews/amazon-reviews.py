@@ -185,20 +185,8 @@ def download_images_from_products_filtered(
         print("[info] skipping image download: no image URLs found in products_filtered.")
         return
 
-    pending = 0
-    for url in urls:
-        image_path = _image_path_from_url(url, images_dir)
-        if image_path is not None and not image_path.exists():
-            pending += 1
-
-    print(
-        f"[info] {pending} images will be downloaded "
-        f"from {len(urls)} distinct MAIN hi_res URLs"
-    )
-
-    downloaded = 0
-    skipped = 0
-    failed = 0
+    existing_urls: list[tuple[str, Path]] = []
+    pending_urls: list[tuple[str, Path]] = []
     ignored = 0
 
     for url in urls:
@@ -208,9 +196,21 @@ def download_images_from_products_filtered(
             continue
 
         if image_path.exists():
-            skipped += 1
-            continue
+            existing_urls.append((url, image_path))
+        else:
+            pending_urls.append((url, image_path))
 
+    print(
+        f"[info] {len(pending_urls)} images will be downloaded, "
+        f"{len(existing_urls)} already exist, {ignored} ignored "
+        f"from {len(urls)} distinct MAIN hi_res URLs"
+    )
+
+    downloaded = 0
+    skipped = len(existing_urls)
+    failed = 0
+
+    for url, image_path in pending_urls:
         tmp_path = image_path.with_suffix(image_path.suffix + ".part")
         ensure_parent(tmp_path)
         try:

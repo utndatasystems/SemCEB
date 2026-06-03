@@ -125,6 +125,20 @@ def load_image_model_bundle(model_name: str, device: str) -> tuple[object, objec
     from transformers import AutoConfig, AutoImageProcessor, AutoModel
 
     config = AutoConfig.from_pretrained(model_name)
+    text_config = getattr(config, "text_config", None)
+    if text_config is not None:
+        # We only use the vision branch for image embeddings. Some SigLIP2
+        # checkpoints expose text token ids that fail current config validation,
+        # so clear them before model construction.
+        if hasattr(text_config, "bos_token_id"):
+            text_config.bos_token_id = None
+        if hasattr(text_config, "eos_token_id"):
+            text_config.eos_token_id = None
+    if hasattr(config, "bos_token_id"):
+        config.bos_token_id = None
+    if hasattr(config, "eos_token_id"):
+        config.eos_token_id = None
+
     dimension = getattr(getattr(config, "text_config", None), "projection_size", None)
     if dimension is None:
         dimension = getattr(getattr(config, "vision_config", None), "hidden_size", None)
@@ -132,7 +146,7 @@ def load_image_model_bundle(model_name: str, device: str) -> tuple[object, objec
         raise RuntimeError(f"Could not determine embedding dimension for model {model_name}")
 
     processor = AutoImageProcessor.from_pretrained(model_name)
-    model = AutoModel.from_pretrained(model_name)
+    model = AutoModel.from_pretrained(model_name, config=config)
     model.eval()
     model.to(device)
     return processor, model, int(dimension), torch
@@ -699,7 +713,8 @@ def main() -> int:
             batch_size=args.batch_size,
         )
     except Exception as exc:
-        print(f"[error] {exc}")
+        message = str(exc).strip() or repr(exc)
+        print(f"[error] {type(exc).__name__}: {message}")
         return 1
 
     return 0

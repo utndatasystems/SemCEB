@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 import pandas as pd
-
+from queries.query_specification import QuerySpecification
 
 class AlgorithmInterface(ABC):
     """Abstract interface for algorithms."""
@@ -40,6 +40,6 @@ class AlgorithmInterface(ABC):
         pass
 
     @abstractmethod
-    def run(self, query: dict) -> int:
+    def run(self, query_spec: QuerySpecification) -> int:
         """Run the algorithm and return the estimated output cardinality for the given query."""
         pass

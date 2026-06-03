@@ -6,6 +6,7 @@ from pathlib import Path
 import lotus.settings
 from lotus.models.lm import LM
 from queries.template_parser import QueryTemplatePartType
+from queries.query_specification import QuerySpecification
 
 
 class LotusBackend():
@@ -30,18 +31,14 @@ class LotusBackend():
     def _make_cache_key(
         self,
         query_type: str,
-        query_dict: dict,
+        query_spec: QuerySpecification,
         query_str: str,
     ) -> str:
         """Create a stable cache key for a LOTUS selectivity query."""
-        datasets = query_dict.get("datasets", [])
-        columns = query_dict.get("columns", [])
+        datasets = query_spec.datasets
 
         if isinstance(datasets, str):
             datasets = [datasets]
-
-        if isinstance(columns, str):
-            columns = [columns]
 
         key_data = {
             "model_name": self.name,
@@ -98,13 +95,13 @@ class LotusBackend():
         }
         self._save_cache()
 
-    def filtering_query(self, query_dict: dict, df: pd.DataFrame) -> int:
+    def filtering_query(self, query_spec: QuerySpecification, df: pd.DataFrame) -> int:
         """Run a semantic filter query and return the number of matching rows."""
-        query_str = self._format_filtering_query(query_dict, df)
+        query_str = self._format_filtering_query(query_spec, df)
 
         cache_key = self._make_cache_key(
             query_type="filter",
-            query_dict=query_dict,
+            query_spec=query_spec,
             query_str=query_str,
         )
 
@@ -119,20 +116,17 @@ class LotusBackend():
         self._set_cached_selectivity(cache_key, selectivity)
         return selectivity  
 
-    def _format_filtering_query(self, query_dict: dict, df: pd.DataFrame) -> str:
+    def _format_filtering_query(self, query_spec: QuerySpecification, df: pd.DataFrame) -> str:
         """Format LOTUS query string for filtering."""
-        self._validate_filtering_query(query_dict, df)
-        return query_dict["filter"] # 'query_dict["filter_parsed"].raw' would be equivalent
+        self._validate_filtering_query(query_spec, df)
+        return query_spec.filter # 'query_spec.filter_parsed.raw' would be equivalent
     
-    def _validate_filtering_query(self, query_dict: dict, df: pd.DataFrame) -> None:
+    def _validate_filtering_query(self, query_spec: QuerySpecification, df: pd.DataFrame) -> None:
 
-        if "filter_parsed" not in query_dict or "datasets" not in query_dict:
-            raise ValueError("query must contain 'filter_parsed' and 'datasets'.")
-
-        if len(query_dict["datasets"]) != 1:
+        if len(query_spec.datasets) != 1:
             raise ValueError("Filtering query must contain exactly one dataset.")
 
-        columns = [part.value for part in query_dict["filter_parsed"].parts if part.type == QueryTemplatePartType.COLUMN]
+        columns = [part.value for part in query_spec.filter_parsed.parts if part.type == QueryTemplatePartType.COLUMN]
         
         if not columns:
             raise ValueError("Filtering query requires at least one column.")
@@ -141,13 +135,13 @@ class LotusBackend():
             if column not in df.columns:
                 raise ValueError(f"Column '{column}' does not exist in data.")
 
-    def joining_query(self, query_dict: dict, data_left_df: pd.DataFrame, data_right_df: pd.DataFrame) -> int:
+    def joining_query(self, query_spec: QuerySpecification, data_left_df: pd.DataFrame, data_right_df: pd.DataFrame) -> int:
         """Run a semantic join query and return the number of matching rows."""
-        query_str = self._format_joining_query(query_dict, data_left_df, data_right_df)
+        query_str = self._format_joining_query(query_spec, data_left_df, data_right_df)
         
         cache_key = self._make_cache_key(
             query_type="join",
-            query_dict=query_dict,
+            query_spec=query_spec,
             query_str=query_str,
         )
 
@@ -165,7 +159,7 @@ class LotusBackend():
     
     def _format_joining_query(
         self,
-        query_dict: dict,
+        query_spec: QuerySpecification,
         data_left_df: pd.DataFrame,
         data_right_df: pd.DataFrame,
     ) -> str:
@@ -174,9 +168,9 @@ class LotusBackend():
         Currently supports exactly two datasets.
         """
 
-        self._validate_joining_query(query_dict, data_left_df, data_right_df)
+        self._validate_joining_query(query_spec, data_left_df, data_right_df)
 
-        columns_by_dataset = self._get_columns_by_dataset(query_dict)
+        columns_by_dataset = self._get_columns_by_dataset(query_spec)
 
         if len(columns_by_dataset) != 2:
             raise ValueError("Joining query must contain exactly two datasets.")
@@ -188,7 +182,7 @@ class LotusBackend():
 
         query_parts: list[str] = []
 
-        for part in query_dict["filter_parsed"].parts:
+        for part in query_spec.filter_parsed.parts:
             if part.type == QueryTemplatePartType.TEXT:
                 query_parts.append(part.value)
             elif part.type == QueryTemplatePartType.COLUMN:
@@ -214,24 +208,22 @@ class LotusBackend():
 
     def _validate_joining_query(
         self,
-        query_dict: dict,
+        query_spec: QuerySpecification,
         data_left_df: pd.DataFrame,
         data_right_df: pd.DataFrame,
     ) -> None:
-        if "filter_parsed" not in query_dict or "datasets" not in query_dict:
-            raise ValueError("query must contain 'filter_parsed' and 'datasets'.")
 
-        if len(query_dict["datasets"]) != 2:
+        if len(query_spec.datasets) != 2:
             raise ValueError("Joining query must contain exactly two datasets.")
 
-        left_dataset, right_dataset = query_dict["datasets"]
+        left_dataset, right_dataset = query_spec.datasets
 
         dataframes_by_dataset = {
             left_dataset: data_left_df,
             right_dataset: data_right_df,
         }
 
-        columns_by_dataset = self._get_columns_by_dataset(query_dict)
+        columns_by_dataset = self._get_columns_by_dataset(query_spec)
 
         for dataset_name, columns in columns_by_dataset:
             if not columns:
@@ -250,13 +242,13 @@ class LotusBackend():
                         f"'{dataset_name}'. Available columns are: {list(df.columns)}."
                     )
 
-    def _get_columns_by_dataset(self, query_dict: dict) -> list[tuple[str, list[str]]]:
+    def _get_columns_by_dataset(self, query_spec: QuerySpecification) -> list[tuple[str, list[str]]]:
         """Return column references grouped by dataset name.
 
-        The returned list follows the order of query_dict["datasets"].
+        The returned list follows the order of query_spec.datasets.
 
         Example:
-            query_dict["datasets"] = ["products", "reviews"]
+            query_spec.datasets = ["products", "reviews"]
 
             {reviews.review_text} and {products.title}
 
@@ -267,15 +259,12 @@ class LotusBackend():
             ]
         """
 
-        if "filter_parsed" not in query_dict or "datasets" not in query_dict:
-            raise ValueError("query must contain 'filter_parsed' and 'datasets'.")
-
         columns_by_dataset: dict[str, list[str]] = {
             dataset_name: []
-            for dataset_name in query_dict["datasets"]
+            for dataset_name in query_spec.datasets
         }
 
-        for part in query_dict["filter_parsed"].parts:
+        for part in query_spec.filter_parsed.parts:
             if part.type != QueryTemplatePartType.COLUMN:
                 continue
 
@@ -302,12 +291,12 @@ class LotusBackend():
             if dataset_name not in columns_by_dataset:
                 raise ValueError(
                     f"Unknown dataset '{dataset_name}' in column reference "
-                    f"'{part.value}'. Expected one of: {query_dict['datasets']}."
+                    f"'{part.value}'. Expected one of: {query_spec.datasets}."
                 )
 
             columns_by_dataset[dataset_name].append(column_name)
 
         return [
             (dataset_name, columns_by_dataset[dataset_name])
-            for dataset_name in query_dict["datasets"]
+            for dataset_name in query_spec.datasets
         ]

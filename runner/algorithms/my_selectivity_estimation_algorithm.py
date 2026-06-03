@@ -3,6 +3,7 @@ from typing import Any
 import pandas as pd
 
 from runner.algorithms.interface import AlgorithmInterface
+from queries.query_specification import QuerySpecification
 
 
 class MySelectivityEstimationAlgorithm(AlgorithmInterface):
@@ -47,7 +48,7 @@ class MySelectivityEstimationAlgorithm(AlgorithmInterface):
         """
         ...
 
-    def run(self, query: dict) -> int:
+    def run(self, query_spec: QuerySpecification) -> int:
         """Run the algorithm and return the estimated output cardinality for the given query."""
         ...
         return 1

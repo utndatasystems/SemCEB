@@ -12,8 +12,7 @@ from data.downloader import DataDownloader
 from data.loader import DataLoader
 from runner.algorithms.interface import AlgorithmInterface
 from runner.llm_backends.lotus_backend import LotusBackend
-from queries.template_parser import QueryTemplateParser
-
+from queries.query_specification import QuerySpecification
 
 class BenchmarkRunner:
     """Runs benchmark queries."""
@@ -35,14 +34,14 @@ class BenchmarkRunner:
         self.result_filepath = Path("results") / "raw" / "result.jsonl"
         self.query_filepath = Path("queries") / "queries.jsonl"
 
-        self.queries = self._load_queries(self.query_filepath)
+        self.queries_specs = self._load_queries_specs(self.query_filepath)
 
         self._handle_cloud_data()
 
-    def _load_queries(self, file_path: str) -> list[dict[str, Any]]:
-        """Load queries from a JSONL file."""
+    def _load_queries_specs(self, file_path: str) -> list[QuerySpecification]:
+        """Load queries specifications from a JSONL file."""
 
-        queries = []
+        queries_specs = []
 
         with open(file_path, "r", encoding="utf-8") as file:
             for line in file:
@@ -51,11 +50,11 @@ class BenchmarkRunner:
                 if not line:
                     continue
 
-                query_data = json.loads(line)
-                if query_data["category"] in self.categories:
-                    queries.append(query_data)
+                query_spec = QuerySpecification.from_dict(json.loads(line))
+                if query_spec.category in self.categories:
+                    queries_specs.append(query_spec)
 
-        return queries
+        return queries_specs
 
     def _handle_cloud_data(self) -> bool:
         """Download data if it is not available locally."""
@@ -125,7 +124,7 @@ class BenchmarkRunner:
     def run(self) -> None:
         """Measure, run and store result of benchmark queries."""
 
-        total_runs = len(self.algorithms) * len(self.queries)
+        total_runs = len(self.algorithms) * len(self.queries_specs)
 
         with create_benchmark_progress() as progress:
             task = progress.add_task(
@@ -140,8 +139,8 @@ class BenchmarkRunner:
             # Load the required datasets
             datasets = {
                 dataset
-                for query_dict in self.queries
-                for dataset in query_dict.get("datasets", [])
+                for query_spec in self.queries_specs
+                for dataset in query_spec.datasets
             }
             data_dfs = DataLoader().load(datasets=datasets, scale_factor=self.scale_factor)
             # TODO - DEBUG - Manually shortend
@@ -161,26 +160,24 @@ class BenchmarkRunner:
                 algorithm_kwargs = algorithm_config.get("algorithm_kwargs", {})
                 algorithm.preparation(data_dfs, algorithm_kwargs)
 
-                for query_dict in self.queries:
+                for query_spec in self.queries_specs:
                     
-                    query_dict["filter_parsed"] = QueryTemplateParser.parse(query_dict["filter"])
-
                     progress.update(
                         task,
                         description=(
                             f"Algorithm: [cyan]{algorithm_config['name']}[/cyan] "
-                            f"| Query ID: [yellow]{query_dict['id']}[/yellow]"
+                            f"| Query ID: [yellow]{query_spec.id}[/yellow]"
                         ),
                     )
 
                     with suspend_progress(progress):
-                        selectivity_ground_truth = self._get_selectivity_ground_truth(ground_truth_model_name, ground_truth_system_prompt, query_dict, data_dfs)
+                        selectivity_ground_truth = self._get_selectivity_ground_truth(ground_truth_model_name, ground_truth_system_prompt, query_spec, data_dfs)
 
                     algorithm.reset_cost_stats()
 
                     with suspend_progress(progress):
                         start = time.perf_counter()
-                        selectivity_estimation = algorithm.run(query_dict)
+                        selectivity_estimation = algorithm.run(query_spec)
                         time_ms = (time.perf_counter() - start) * 1000
 
                     q_error = self._calculate_q_error(
@@ -188,7 +185,7 @@ class BenchmarkRunner:
                     )
 
                     self._save_result(
-                        query_dict=query_dict,
+                        query_spec=query_spec,
                         algorithm_name=algorithm_config["name"],
                         algorithm_version=algorithm_config["version"],
                         algorithm_memory_consumption=algorithm.get_memory_consumption(),
@@ -204,28 +201,28 @@ class BenchmarkRunner:
                 progress.console.print(
                     f"[green]✓[/green] Finished algorithm "
                     f"[bold cyan]{algorithm.name}[/bold cyan] "
-                    f"on [bold]{len(self.queries)}[/bold] queries."
+                    f"on [bold]{len(self.queries_specs)}[/bold] queries."
                 )
 
         console.print(
             f"[green]✓[/green] Results written to [bold]{self.result_filepath}[/bold]"
         )
 
-    def _get_selectivity_ground_truth(self, model_name: str, system_prompt: str, query_dict: dict, data_dfs: dict[str, pd.DataFrame]) -> int:
+    def _get_selectivity_ground_truth(self, model_name: str, system_prompt: str, query_spec: QuerySpecification, data_dfs: dict[str, pd.DataFrame]) -> int:
         """Obtain model-based selectivity ground truth."""
         backend = LotusBackend(model_name=model_name, system_prompt=system_prompt, scale_factor=self.scale_factor)
 
-        if len(query_dict["datasets"]) == 1:
+        if len(query_spec.datasets) == 1:
             # Filtering
-            name = query_dict["datasets"][0]
+            name = query_spec.datasets[0]
             data = data_dfs[name]
-            selectivity_ground_truth = backend.filtering_query(query_dict, data)
-        elif len(query_dict["datasets"]) > 1:
+            selectivity_ground_truth = backend.filtering_query(query_spec, data)
+        elif len(query_spec.datasets) > 1:
             # Joining
-            name_left, name_right = query_dict["datasets"]
+            name_left, name_right = query_spec.datasets
             data_left = data_dfs[name_left]
             data_right = data_dfs[name_right]
-            selectivity_ground_truth = backend.joining_query(query_dict, data_left, data_right)
+            selectivity_ground_truth = backend.joining_query(query_spec, data_left, data_right)
 
         return selectivity_ground_truth
 
@@ -245,7 +242,7 @@ class BenchmarkRunner:
 
     def _save_result(
         self,
-        query_dict: dict,
+        query_spec: QuerySpecification,
         algorithm_name: str,
         algorithm_version: str,
         algorithm_memory_consumption: int,
@@ -267,7 +264,7 @@ class BenchmarkRunner:
             "q_error": q_error,
             "time_ms": time_ms,
         }
-        result = {"query": query_dict, "algorithm": algorithm_data}
+        result = {"query": query_spec.to_dict(), "algorithm": algorithm_data}
 
         with open(self.result_filepath, "a", encoding="utf-8") as file:
             file.write(json.dumps(result, default=self.json_default) + "\n")

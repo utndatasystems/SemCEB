@@ -3,6 +3,7 @@ import pandas as pd
 
 from runner.algorithms.interface import AlgorithmInterface
 import lotus.settings
+from queries.query_specification import QuerySpecification
 
 
 class ExtrapolatedSampling(AlgorithmInterface):
@@ -100,16 +101,16 @@ class ExtrapolatedSampling(AlgorithmInterface):
             + sys.getsizeof(self.model)
         )
 
-    def run(self, query_dict: dict) -> int:
+    def run(self, query_spec: QuerySpecification) -> int:
         """Run the algorithm and return the estimated output cardinality for the given query."""
 
         # Filtering
-        if len(query_dict["datasets"]) == 1:
+        if len(query_spec.datasets) == 1:
 
             # Evaluate sample
-            name = query_dict["datasets"][0]
+            name = query_spec.datasets[0]
             sample_estimation = self.data_sample[name].sem_filter(
-                user_instruction=query_dict['filter'],
+                user_instruction=query_spec.filter,
             ).shape[0]
 
             # Extrapolate to estimate
@@ -124,14 +125,14 @@ class ExtrapolatedSampling(AlgorithmInterface):
             selectivity_estimation = max(0, min(round(selectivity_estimation), self.data_rows[name]))
 
         # Joining
-        elif len(query_dict["datasets"]) > 1:
+        elif len(query_spec.datasets) > 1:
 
             # Evaluate sample
-            name_left, name_right = query_dict["datasets"]
+            name_left, name_right = query_spec.datasets
             data_left = self.data_sample[name_left]
             data_right = self.data_sample[name_right]
             
-            left_dataset, right_dataset = query_dict["datasets"]
+            left_dataset, right_dataset = query_spec.datasets
 
             dataset_side = {
                 left_dataset: "left",
@@ -142,7 +143,7 @@ class ExtrapolatedSampling(AlgorithmInterface):
             current_text = []
             current_column = None
 
-            for char in query_dict["filter"]:
+            for char in query_spec.filter:
                 if char == "{":
                     if current_column is not None:
                         raise ValueError("Nested '{' is not allowed.")
@@ -170,7 +171,7 @@ class ExtrapolatedSampling(AlgorithmInterface):
                     if dataset_name not in dataset_side:
                         raise ValueError(
                             f"Unknown dataset '{dataset_name}'. "
-                            f"Expected one of: {query_dict['datasets']}."
+                            f"Expected one of: {query_spec.datasets}."
                         )
 
                     side = dataset_side[dataset_name]

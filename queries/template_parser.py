@@ -4,19 +4,71 @@ from enum import Enum
 
 class QueryTemplatePartType(Enum):
     TEXT = "text"
-    COLUMN = "column"
+    COLUMN_REF = "column_ref"
+
+
+@dataclass(frozen=True)
+class ColumnRef:
+    column_name: str
+    dataset_ref: str | None = None
+
+    @staticmethod
+    def parse(raw: str) -> "ColumnRef":
+        raw = raw.strip()
+
+        if not raw:
+            raise ValueError("Empty column reference is not allowed.")
+
+        parts = raw.split(".")
+
+        if len(parts) == 1:
+            return ColumnRef(
+                dataset_ref=None,
+                column_name=parts[0].strip(),
+            )
+
+        if len(parts) == 2:
+            dataset_ref = parts[0].strip()
+            column_name = parts[1].strip()
+
+            if not dataset_ref:
+                raise ValueError("Empty dataset reference is not allowed.")
+
+            if not column_name:
+                raise ValueError("Empty column name is not allowed.")
+
+            return ColumnRef(
+                dataset_ref=dataset_ref,
+                column_name=column_name,
+            )
+
+        raise ValueError(
+            f"Invalid column reference '{raw}'. "
+            "Expected '{column}' or '{dataset.column}'."
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "dataset_ref": self.dataset_ref,
+            "column_name": self.column_name,
+        }
 
 
 @dataclass(frozen=True)
 class QueryTemplatePart:
     type: QueryTemplatePartType
-    value: str
+    value: str | ColumnRef
 
     def to_dict(self) -> dict:
         return {
-            "raw": self.type.value,
-            "value": self.value,
+            "type": self.type.value,
+            "value": (
+                self.value.to_dict()
+                if isinstance(self.value, ColumnRef)
+                else self.value
+            ),
         }
+
 
 @dataclass(frozen=True)
 class QueryTemplate:
@@ -28,6 +80,7 @@ class QueryTemplate:
             "raw": self.raw,
             "parts": [part.to_dict() for part in self.parts],
         }
+
 
 class QueryTemplateParser:
     @staticmethod
@@ -56,15 +109,13 @@ class QueryTemplateParser:
                 if current_column is None:
                     raise ValueError("Found '}' without matching '{'.")
 
-                column_name = "".join(current_column).strip()
-
-                if not column_name:
-                    raise ValueError("Empty column reference is not allowed.")
+                raw_column_ref = "".join(current_column)
+                column_ref = ColumnRef.parse(raw_column_ref)
 
                 parts.append(
                     QueryTemplatePart(
-                        QueryTemplatePartType.COLUMN,
-                        column_name,
+                        QueryTemplatePartType.COLUMN_REF,
+                        column_ref,
                     )
                 )
 

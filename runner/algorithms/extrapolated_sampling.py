@@ -113,13 +113,8 @@ class ExtrapolatedSampling(AlgorithmInterface):
             for part in query_spec.filter_parsed.parts:
                 if part.type == QueryTemplatePartType.TEXT:
                     query_str += part.value
-                if part.type == QueryTemplatePartType.COLUMN:
-                    # Check for alias
-                    if "." in part.value:
-                        _, column = part.value.split(".")
-                    else:
-                        column = part.value
-                    query_str += f"{{{column}}}"
+                if part.type == QueryTemplatePartType.COLUMN_REF:
+                    query_str += f"{{{part.value.column_name}}}"
 
             dataset_spec = query_spec.datasets[0]
 

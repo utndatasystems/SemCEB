@@ -7,6 +7,7 @@ import lotus.settings
 from lotus.models.lm import LM
 from queries.template_parser import QueryTemplatePartType
 from queries.query_specification import QuerySpecification
+from queries.template_parser import ColumnRef
 
 
 class LotusBackend():
@@ -125,13 +126,8 @@ class LotusBackend():
         for part in query_spec.filter_parsed.parts:
             if part.type == QueryTemplatePartType.TEXT:
                 query_str += part.value
-            if part.type == QueryTemplatePartType.COLUMN:
-                # Check for alias
-                if "." in part.value:
-                    _, column = part.value.split(".")
-                else:
-                    column = part.value
-                query_str += f"{{{column}}}"
+            if part.type == QueryTemplatePartType.COLUMN_REF:
+                query_str += f"{{{part.value.column_name}}}"
         return query_str
     
     def _validate_filtering_query(self, query_spec: QuerySpecification, df: pd.DataFrame) -> None:
@@ -139,18 +135,14 @@ class LotusBackend():
         if len(query_spec.datasets) != 1:
             raise ValueError("Filtering query must contain exactly one dataset.")
 
-        columns = [part.value for part in query_spec.filter_parsed.parts if part.type == QueryTemplatePartType.COLUMN]
+        columns_refs = [part.value for part in query_spec.filter_parsed.parts if part.type == QueryTemplatePartType.COLUMN_REF]
         
-        if not columns:
-            raise ValueError("Filtering query requires at least one column.")
+        if not columns_refs:
+            raise ValueError("Filtering query requires at least one column reference.")
 
-        for column in columns:
-            if "." in column:     
-                column_name = column.split(".")[1] # in the case of '<alias>.<column>'
-            else:
-                column_name = column
-            if column_name not in df.columns:
-                raise ValueError(f"Column '{column}' does not exist in data.")
+        for column_ref in columns_refs:
+            if column_ref.column_name not in df.columns:
+                raise ValueError(f"Column '{column_ref.column_name}' does not exist in data.")
 
     def joining_query(self, query_spec: QuerySpecification, data_left_df: pd.DataFrame, data_right_df: pd.DataFrame) -> int:
         """Run a semantic join query and return the number of matching rows."""
@@ -202,9 +194,9 @@ class LotusBackend():
         for part in query_spec.filter_parsed.parts:
             if part.type == QueryTemplatePartType.TEXT:
                 query_parts.append(part.value)
-            elif part.type == QueryTemplatePartType.COLUMN:
+            elif part.type == QueryTemplatePartType.COLUMN_REF:
                 query_parts.append(
-                    self._format_lotus_join_column(part.value, dataset_side)
+                    self._format_lotus_join_column(part, dataset_side)
                 )
             else:
                 raise ValueError(f"Unknown query template part type: {part.type}")
@@ -212,16 +204,15 @@ class LotusBackend():
         return "".join(query_parts)
     
 
-    def _format_lotus_join_column(self, column_ref: str, dataset_side: dict[str, str]) -> str:
-        dataset_name, column_name = column_ref.split(".", maxsplit=1)
+    def _format_lotus_join_column(self, column_ref: ColumnRef, dataset_side: dict[str, str]) -> str:
 
-        if dataset_name not in dataset_side:
+        if column_ref.value.dataset_ref not in dataset_side:
             raise ValueError(
-                f"Unknown dataset '{dataset_name}' in column reference '{column_ref}'. "
+                f"Unknown dataset '{column_ref.value.dataset_ref}' in column reference '{column_ref}'. "
                 f"Expected one of: {list(dataset_side.keys())}."
             )
 
-        return f"{{{column_name}:{dataset_side[dataset_name]}}}"
+        return f"{{{column_ref.value.column_name}:{dataset_side[column_ref.value.dataset_ref]}}}"
 
     def _validate_joining_query(
         self,
@@ -293,36 +284,16 @@ class LotusBackend():
         }
 
         for part in query_spec.filter_parsed.parts:
-            if part.type != QueryTemplatePartType.COLUMN:
+            if part.type != QueryTemplatePartType.COLUMN_REF:
                 continue
 
-            if "." not in part.value:
+            if part.value.dataset_ref not in columns_by_dataset:
                 raise ValueError(
-                    f"Invalid column reference '{part.value}'. "
-                    "Expected format: '<dataset>.<column>'."
-                )
-
-            dataset_alias, column_name = part.value.split(".", maxsplit=1)
-
-            if not dataset_alias:
-                raise ValueError(
-                    f"Invalid column reference '{part.value}'. "
-                    "Dataset name must not be empty."
-                )
-
-            if not column_name:
-                raise ValueError(
-                    f"Invalid column reference '{part.value}'. "
-                    "Column name must not be empty."
-                )
-
-            if dataset_alias not in columns_by_dataset:
-                raise ValueError(
-                    f"Unknown dataset '{dataset_alias}' in column reference "
+                    f"Unknown dataset '{part.value.dataset_ref}' in column reference "
                     f"'{part.value}'. Expected one of: {query_spec.datasets}."
                 )
 
-            columns_by_dataset[dataset_alias].append(column_name)
+            columns_by_dataset[part.value.dataset_ref].append(part.value.column_name)
 
         return [
             (dataset_alias, columns_by_dataset)

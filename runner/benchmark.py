@@ -69,7 +69,7 @@ class BenchmarkRunner:
             )
             raise SystemExit(1)
             
-        images_complete = downloader.ensure_images_available()
+        images_complete = downloader.ensure_files_available()
         if not images_complete:
             console.print(
                     "[bold red]Benchmark aborted.[/bold red]\n"

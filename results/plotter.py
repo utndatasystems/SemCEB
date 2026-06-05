@@ -59,8 +59,10 @@ class ResultsPlotter:
         console.print()
 
         self._save_summary_table(summary)
+        self._save_algorithm_summary_csv(summary)
         self._plot_algorithm_comparison(df)
         self._save_per_query_report(df)
+        self._save_per_query_statistics_csv(df)
 
     def _load_results(self) -> list[dict[str, Any]]:
         """Load raw benchmark results from JSONL."""
@@ -258,6 +260,21 @@ class ResultsPlotter:
 
         return styles
 
+    def _save_algorithm_summary_csv(self, summary: pd.DataFrame) -> None:
+        """Save algorithm-level aggregate statistics as CSV."""
+
+        csv_path = self.table_dir / "algorithm_summary.csv"
+
+        summary.to_csv(
+            csv_path,
+            index=False,
+            encoding="utf-8",
+        )
+
+        console.print(
+            f"[green]✓[/green] Saved algorithm summary CSV to [bold]{csv_path}[/bold]"
+        )
+
     def _plot_algorithm_comparison(self, df: pd.DataFrame) -> None:
         """Plot one metric as total bars while preserving empty algorithm slots."""
         
@@ -386,14 +403,21 @@ class ResultsPlotter:
 
         fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.99))
 
-        output_path = self.plot_dir / "algorithm_comparison.png"
+        png_path = self.plot_dir / "algorithm_comparison.png"
+        pdf_path = self.plot_dir / "algorithm_comparison.pdf"
 
-        fig.savefig(output_path, dpi=180, bbox_inches="tight")
+        fig.savefig(png_path, dpi=180, bbox_inches="tight")
+        console.print(
+            f"[green]✓[/green] Saved algorithm comparison plot to [bold]{png_path}[/bold]"
+        )
+
+        fig.savefig(pdf_path, bbox_inches="tight")
+        console.print(
+            f"[green]✓[/green] Saved algorithm comparison plot to [bold]{pdf_path}[/bold]"
+        )
+
         plt.close(fig)
 
-        console.print(
-            f"[green]✓[/green] Saved algorithm comparison plot to [bold]{output_path}[/bold]"
-        )
 
     def _plot_box_metric(
         self,
@@ -554,7 +578,6 @@ class ResultsPlotter:
         """Save Rich summary table to text and HTML files."""
 
         table_html_path = self.table_dir / "algorithm_summary.html"
-        table_pdf_path = self.table_dir / "algorithm_summary.pdf"
 
         summary_html = summary.copy()
 
@@ -642,16 +665,6 @@ class ResultsPlotter:
             f"[green]✓[/green] Saved algorithm comparison table in *.html to [bold]{table_html_path}[/bold]"
         )
 
-        try:
-            HTML(string=html).write_pdf(str(table_pdf_path))
-
-            console.print(
-                f"[green]✓[/green] Saved algorithm comparison table in *.pdf to [bold]{table_pdf_path}[/bold]"
-            )
-        except ImportError:
-            console.print(
-                "[yellow]Warning:[/yellow] Could not save algorithm summary PDF because WeasyPrint is not installed. "
-            )
 
     def _format_float(self, value: Any, decimals: int) -> str:
         """Format floats safely for tables."""
@@ -1089,18 +1102,37 @@ class ResultsPlotter:
             f"[green]✓[/green] Saved per-query benchmark report to [bold]{html_path}[/bold]"
         )
 
-        pdf_path = self.table_dir / "per_query_benchmark_report.pdf"
+    def _save_per_query_statistics_csv(self, df: pd.DataFrame) -> None:
+        """Save per-query, per-algorithm statistics as CSV."""
 
-        try:
-            HTML(filename=str(html_path)).write_pdf(str(pdf_path))
+        csv_path = self.table_dir / "per_query_statistics.csv"
 
-            console.print(
-                f"[green]✓[/green] Saved per-query benchmark report PDF to [bold]{pdf_path}[/bold]"
-            )
-        except ImportError:
-            console.print(
-                "[yellow]Warning:[/yellow] Could not save PDF because WeasyPrint is not installed. "
-            )
+        export_df = df.copy()
+
+        nullable_columns = [
+            "memory_consumption",
+            "cost_usd",
+            "llm_calls",
+            "tokens",
+        ]
+
+        for column in nullable_columns:
+            export_df.loc[export_df[column] < 0, column] = pd.NA
+
+        export_df = export_df.sort_values(
+            by=["query_id", "algorithm_name"],
+            kind="stable",
+        )
+
+        export_df.to_csv(
+            csv_path,
+            index=False,
+            encoding="utf-8",
+        )
+
+        console.print(
+            f"[green]✓[/green] Saved per-query statistics CSV to [bold]{csv_path}[/bold]"
+        )
 
     def _format_metric_cell_html(
         self,

@@ -8,15 +8,7 @@ version = "0.1.0"
 description = "A benchmark pipeline for running selectivity estimation algorithms and plotting the results."
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [
-    "pandas",
-    "matplotlib",
-    "seaborn",
-    "rich",
-    "lotus-ai",
-    "weasyprint",
-    "boto3",
-]
+dependencies = ["pandas", "matplotlib", "seaborn", "rich", "lotus-ai"]
 
 [project.scripts]
 semantic-selectivity = "run:main"

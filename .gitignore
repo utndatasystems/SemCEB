@@ -1,4 +1,4 @@
 __pycache__
 .*
 !.gitignore
-amazon-reviews
+data/datasets/*

@@ -36,10 +36,10 @@ sampling_frac = 0.1
 
 # Mandatory
 [[algorithms]]
-name = "My Selectivity Estimation Algorithm"
+name = "Custom Algorithm Template"
 version = "1.0.0"
-filename = "my_selectivity_estimation_algorithm.py"
-class = "MySelectivityEstimationAlgorithm"
+filename = "custom_algorithm_template.py"
+class = "CustomAlgorithmTemplate"
 
 # Optional: Overwriting general ground truth configuration
 [algorithms.ground_truth]

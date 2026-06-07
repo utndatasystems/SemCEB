@@ -6,13 +6,13 @@ from enum import Enum
 import time
 import pandas as pd
 from typing import Any
-from utils.progress import create_benchmark_progress, suspend_progress
-from utils.console import console
-from data.downloader import DataDownloader
-from data.loader import DataLoader
-from runner.algorithms.interface import AlgorithmInterface
-from runner.llm_backends.lotus_backend import LotusBackend
-from queries.query_specification import QuerySpecification
+from src.semceb.utils.progress import create_benchmark_progress, suspend_progress
+from src.semceb.utils.console import console
+from src.semceb.data.downloader import DataDownloader
+from src.semceb.data.loader import DataLoader
+from src.semceb.algorithms.interface import AlgorithmInterface
+from src.semceb.llm_backends.lotus_backend import LotusBackend
+from src.semceb.queries.query_specification import QuerySpecification
 
 class BenchmarkRunner:
     """Runs benchmark queries."""
@@ -32,7 +32,7 @@ class BenchmarkRunner:
         self.categories = categories
 
         self.result_filepath = Path("results") / "raw" / "result.jsonl"
-        self.query_filepath = Path("queries") / "queries.jsonl"
+        self.query_filepath = Path("benchmark_queries") / "queries.jsonl"
 
         self.queries_specs = self._load_queries_specs(self.query_filepath)
 
@@ -90,7 +90,7 @@ class BenchmarkRunner:
 
         filename = algorithm_config["filename"]
         module_stem = Path(filename).stem
-        module_name = f"runner.algorithms.{module_stem}"
+        module_name = f"src.semceb.algorithms.{module_stem}"
 
         module = importlib.import_module(module_name)
 

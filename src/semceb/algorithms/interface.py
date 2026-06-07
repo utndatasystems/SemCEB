@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 import pandas as pd
-from queries.query_specification import QuerySpecification
+from src.semceb.queries.query_specification import QuerySpecification
 
 class AlgorithmInterface(ABC):
     """Abstract interface for algorithms."""

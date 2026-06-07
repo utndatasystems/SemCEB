@@ -7,7 +7,7 @@ class DataLoader:
     """Loads locally stored data."""
 
     def __init__(self):
-        self.folderpath_raw_data = Path("data") / ".raw"
+        self.folderpath_datasets_data = Path("data") / "datasets"
 
     def _load(self, dataset: str, scale_factor: int) -> pd.DataFrame:
         """Load raw data into pandas dataframe.
@@ -53,8 +53,8 @@ class DataLoader:
         return scaled_df
 
     def _load_dataset(self, dataset: str) -> pd.DataFrame:
-        csv_path = self.folderpath_raw_data / f"{dataset}.csv"
-        parquet_path = self.folderpath_raw_data / f"{dataset}.parquet"
+        csv_path = self.folderpath_datasets_data / f"{dataset}.csv"
+        parquet_path = self.folderpath_datasets_data / f"{dataset}.parquet"
 
         if csv_path.exists():
             return pd.read_csv(csv_path)
@@ -64,7 +64,7 @@ class DataLoader:
 
         raise FileNotFoundError(
             f"Could not find dataset '{dataset}' as CSV or Parquet in "
-            f"{self.folderpath_raw_data}."
+            f"{self.folderpath_datasets_data}."
         )    
 
     def load(self, datasets: list[str], scale_factor: int) -> dict[str, pd.DataFrame]:

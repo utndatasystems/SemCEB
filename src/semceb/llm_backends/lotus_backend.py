@@ -5,9 +5,9 @@ from pathlib import Path
 
 import lotus.settings
 from lotus.models.lm import LM
-from queries.template_parser import QueryTemplatePartType
-from queries.query_specification import QuerySpecification
-from queries.template_parser import ColumnRef
+from src.semceb.queries.template_parser import QueryTemplatePartType
+from src.semceb.queries.query_specification import QuerySpecification
+from src.semceb.queries.template_parser import ColumnRef
 
 
 class LotusBackend():
@@ -15,7 +15,7 @@ class LotusBackend():
 
     def __init__(self, model_name: str, system_prompt: str, scale_factor: int):
 
-        self.cache_path = Path("queries") / "ground_truth_cache.json"
+        self.cache_path = Path("benchmark_queries") / "ground_truth_cache.json"
         self.cache = self._load_cache()
 
         self.name = model_name

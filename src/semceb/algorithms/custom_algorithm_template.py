@@ -2,11 +2,11 @@ from typing import Any
 
 import pandas as pd
 
-from runner.algorithms.interface import AlgorithmInterface
-from queries.query_specification import QuerySpecification
+from src.semceb.algorithms.interface import AlgorithmInterface
+from src.semceb.queries.query_specification import QuerySpecification
 
 
-class MySelectivityEstimationAlgorithm(AlgorithmInterface):
+class CustomAlgorithmTemplate(AlgorithmInterface):
 
     def __init__(self, name: str, version: str):
         self.name = name

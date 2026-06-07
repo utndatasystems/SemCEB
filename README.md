@@ -1,6 +1,6 @@
-# Semantic Selectivity Estimation
+# SemCEB
 
-A benchmark pipeline for running selectivity estimation algorithms and plotting the results.
+A benchmark pipeline for running selectivity cardinality estimation algorithms and plotting the results.
 
 ## Installation
 
@@ -10,7 +10,7 @@ Clone the repository and install the project in editable mode from the project r
 pip install -e .
 ```
 
-This installs the dependencies defined in `pyproject.toml` and makes the `semantic-selectivity` command available.
+This installs the dependencies defined in `pyproject.toml` and makes the `SemCEB` command available.
 
 The editable install means that local code changes are picked up immediately. This is useful when modifying the provided algorithm template in `runner/algorithms/my_selectivity_estimation_algorithm.py`.
 
@@ -24,13 +24,13 @@ For custom queries, models other than the currently configured OpenAI models in 
 Runs the configured algorithms on the queries.
 
 ```bash
-semantic-selectivity run  # alternative: python run.py run
+SemCEB run  # alternative: python run.py run
 ```
 
 or, because `run` is the default mode:
 
 ```bash
-semantic-selectivity  # alternative: python run.py
+SemCEB  # alternative: python run.py
 ```
 
 Uses:
@@ -52,7 +52,7 @@ results/raw/result.jsonl
 Creates result summaries and plots from the raw benchmark results.
 
 ```bash
-semantic-selectivity plot  # alternative: python run.py plot
+SemCEB plot  # alternative: python run.py plot
 ```
 
 Uses:
@@ -81,13 +81,13 @@ This is the main file intended for users to modify. You can implement your own s
 After editing the algorithm file, run the benchmark with:
 
 ```bash
-semantic-selectivity run  # alternative: python run.py run
+SemCEB run  # alternative: python run.py run
 ```
 
 Then generate plots and summary tables with:
 
 ```bash
-semantic-selectivity plot  # alternative: python run.py plot
+SemCEB plot  # alternative: python run.py plot
 ```
 
 No reinstall is needed after changing the algorithm file, as long as the project was installed in editable mode with:

@@ -135,4 +135,4 @@ The benchmark is configured in `config.toml`.
 
 Use this file to select which algorithms should run and to adjust benchmark or algorithm-specific settings. To exclude an algorithm from a run, comment out or remove its corresponding `[[algorithms]]` blocks.
 
-The size of the loaded datasets can be controlled via the `scale_factor` setting. The selected subset is shuffled deterministically, so repeated runs with the same input data and scale factor use the same rows in the same order.
+The `scale_factor` setting defines how many rows are loaded from the main dataset table. Related tables are filtered to match the selected rows. Rows are shuffled deterministically before selection.

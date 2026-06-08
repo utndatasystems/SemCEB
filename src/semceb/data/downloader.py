@@ -5,6 +5,7 @@ from urllib.request import urlopen
 from urllib.error import HTTPError, URLError
 
 from rich.progress import Progress
+from rich.prompt import Confirm
 
 from src.semceb.utils.console import console
 from src.semceb.utils.progress import create_download_progress
@@ -35,7 +36,7 @@ class DataDownloader:
         if missing_files:
             return self._download_missing_files(missing_files)
 
-        console.print("[green]✓[/green] All data files already exist locally.")
+        console.print("[green]✓[/green] All data files exist locally.")
         return True
 
     def _get_missing_files(self) -> list[dict]:
@@ -45,7 +46,7 @@ class DataDownloader:
         Example:
             amazon-reviews/images.zip
         is considered available if:
-            data/.raw/amazon-reviews/images/
+            data/datasets/amazon-reviews/images/
         already exists and contains files.
         """
 
@@ -81,22 +82,20 @@ class DataDownloader:
     def _download_missing_files(self, missing_files: list[dict]) -> bool:
         """Prompt user, download all missing files, then extract ZIP files afterwards."""
 
-        if not missing_files:
-            console.print("[green]✓[/green] All data files already exist locally.")
-            return True
-
         total_bytes = sum(file["size"] for file in missing_files)
         download_size = self._format_download_size(total_bytes)
 
-        answer = console.input(
+        console.print(
             f"[bold yellow]{len(missing_files)} missing files[/bold yellow] "
-            f"will be downloaded "
-            f"([bold]{download_size}[/bold]).\n"
-            "[bold cyan]Do you want to start downloading now?[/bold cyan] "
-            "[y/N]: "
+            f"will be downloaded ([bold]{download_size}[/bold])."
         )
 
-        if answer.lower() not in {"y", "yes"}:
+        should_download = Confirm.ask(
+            "[bold cyan]Do you want to start downloading now?[/bold cyan]",
+            default=False,
+        )
+
+        if not should_download:
             console.print("[yellow]Download skipped.[/yellow]")
             return False
 
@@ -209,10 +208,10 @@ class DataDownloader:
         """Extract a ZIP archive next to its location.
 
         Example:
-            data/.raw/amazon-reviews/images.zip
+            data/datasets/amazon-reviews/images.zip
 
         becomes:
-            data/.raw/amazon-reviews/images/
+            data/datasets/amazon-reviews/images/
         """
 
         output_folderpath = zip_path.with_suffix("")
@@ -220,16 +219,19 @@ class DataDownloader:
         uncompressed_size_bytes = self._get_zip_uncompressed_size(zip_path)
         uncompressed_size = self._format_download_size(uncompressed_size_bytes)
 
-        answer = console.input(
+        console.print(
             f"[bold yellow]ZIP file found:[/bold yellow] "
             f"[bold]{zip_path}[/bold]\n"
             f"Uncompressed size: [bold]{uncompressed_size}[/bold]\n"
-            f"Output folder: [bold]{output_folderpath}[/bold]\n"
-            "[bold cyan]Do you want to unzip it now?[/bold cyan] "
-            "[y/N]: "
+            f"Output folder: [bold]{output_folderpath}[/bold]"
         )
 
-        if answer.lower() not in {"y", "yes"}:
+        should_unzip = Confirm.ask(
+            "[bold cyan]Do you want to unzip it now?[/bold cyan]",
+            default=False,
+        )
+
+        if not should_unzip:
             console.print("[yellow]Unzipping skipped.[/yellow]")
             return
 

@@ -31,7 +31,7 @@ def run_benchmark(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
         algorithms=config["algorithms"],
         default_ground_truth_model_name=config["general"]["ground_truth"]["model_name"],
         default_ground_truth_system_prompt=config["general"]["ground_truth"]["system_prompt"],
-        scale_factor=config["general"]["data"]["scale_factor"],
+        scale_factor=config["general"]["data"].get("scale_factor"),
         categories=config["general"]["data"]["categories"],
     )
     runner.run()

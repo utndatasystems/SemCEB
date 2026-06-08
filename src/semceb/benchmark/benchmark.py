@@ -6,6 +6,7 @@ from enum import Enum
 import time
 import pandas as pd
 from typing import Any
+from rich.prompt import Confirm
 from src.semceb.utils.progress import create_benchmark_progress, suspend_progress
 from src.semceb.utils.console import console
 from src.semceb.data.downloader import DataDownloader
@@ -24,12 +25,14 @@ class BenchmarkRunner:
         default_ground_truth_system_prompt: str,
         scale_factor: int,
         categories: list[str],
+        types: list[str]
     ):
         self.algorithms = algorithms
         self.default_ground_truth_model_name = default_ground_truth_model_name
         self.default_ground_truth_system_prompt = default_ground_truth_system_prompt
         self.scale_factor = scale_factor
-        self.categories = categories
+        self.query_categories = categories
+        self.query_types = types
 
         self.result_filepath = Path("results") / "raw" / "result.jsonl"
         self.query_filepath = Path("benchmark_queries") / "queries.jsonl"
@@ -51,7 +54,7 @@ class BenchmarkRunner:
                     continue
 
                 query_spec = QuerySpecification.from_dict(json.loads(line))
-                if query_spec.category in self.categories:
+                if query_spec.category in self.query_categories and query_spec.type in self.query_types:
                     queries_specs.append(query_spec)
 
         return queries_specs
@@ -115,7 +118,23 @@ class BenchmarkRunner:
 
     def run(self) -> None:
         """Measure, run and store result of benchmark queries."""
+        
+        if self.result_filepath.exists():
+            console.print(
+                "[bold yellow]WARNING:[/bold yellow] "
+                f"[yellow]The existing results file will be erased before this run:[/yellow]\n"
+                f"[bold]{self.result_filepath}[/bold]"
+            )
 
+            should_continue = Confirm.ask(
+                "[bold cyan]Do you want to continue?[/bold cyan]",
+                default=False,
+            )
+
+            if not should_continue:
+                console.print("[yellow]Benchmark run aborted. Existing results were kept.[/yellow]")
+                return
+        
         # Clear file
         with open(self.result_filepath, "w"):
             pass
@@ -127,11 +146,8 @@ class BenchmarkRunner:
             for dataset in query_spec.datasets
         }
         data_dfs = DataLoader().load(datasets=datasets, scale_factor=self.scale_factor)
-        # TODO - DEBUG - Manually shortend
-        data_dfs = {k: df.head(10) for k, df in data_dfs.items()}
 
         total_runs = len(self.algorithms) * len(self.queries_specs)
-
         with create_benchmark_progress() as progress:
             task = progress.add_task(
                 "Running benchmark...",

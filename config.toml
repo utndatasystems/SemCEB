@@ -1,19 +1,14 @@
 [general.ground_truth]
-model_name = "gpt-4o-mini"
-system_prompt = "Evaluate if the following statement. Only answer with True or False."
+model_name = "gpt-5.4-nano"
+system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
 
 [general.data]
 # Number of rows loaded from the main dataset table.
 # Related tables are filtered to match those selected rows.
 # Rows are shuffled deterministically before selection.
 scale_factor = 10
-categories = [
-    "Simple Base-Table Predicate",
-    "Complex Base-Table Predicate",
-    "Simple Join",
-    "Complex Join",
-    "Self Join",
-] # ["equality", "inequality"]
+types = ["Simple Base-Table Predicate", "Simple Join"]
+categories = ["equality"]
 
 
 # Mandatory
@@ -25,13 +20,13 @@ class = "ExtrapolatedSampling"
 
 # Optional: Overwriting general ground truth configuration
 [algorithms.ground_truth]
-model_name = "gpt-4o-mini"
-system_prompt = "Evaluate if the following statement. Only answer with True or False."
+model_name = "gpt-5.4-nano"
+system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
 
 # Optional: Depends on implementation
 [algorithms.algorithm_kwargs]
-model_name = "gpt-4o-mini"
-system_prompt = "Evaluate if the following statement. Only answer with True or False."
+model_name = "gpt-5.4-nano"
+system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
 sampling_frac = 0.1
 
 
@@ -44,7 +39,7 @@ class = "CustomAlgorithmTemplate"
 
 # Optional: Overwriting general ground truth configuration
 [algorithms.ground_truth]
-model_name = "gpt-3.5-turbo"
+model_name = "gpt-5.4-nano"
 # system_prompt = ... # e.g. not used
 
 # Optional: Depends on implementation

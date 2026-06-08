@@ -33,6 +33,7 @@ def run_benchmark(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
         default_ground_truth_system_prompt=config["general"]["ground_truth"]["system_prompt"],
         scale_factor=config["general"]["data"].get("scale_factor"),
         categories=config["general"]["data"]["categories"],
+        types=config["general"]["data"]["types"]
     )
     runner.run()
 

@@ -56,25 +56,17 @@ class BenchmarkRunner:
 
         return queries_specs
 
-    def _handle_cloud_data(self) -> bool:
+    def _handle_cloud_data(self) -> None:
         """Download data if it is not available locally."""
 
         downloader = DataDownloader()
 
-        files_complete = downloader.ensure_files_available()
-        if not files_complete:
+        data_complete = downloader.ensure_files_available()
+        if not data_complete:
             console.print(
                 "[bold red]Benchmark aborted.[/bold red]\n"
                 "[yellow]Required benchmark data is missing, and the download was skipped.[/yellow]"
             )
-            raise SystemExit(1)
-            
-        images_complete = downloader.ensure_files_available()
-        if not images_complete:
-            console.print(
-                    "[bold red]Benchmark aborted.[/bold red]\n"
-                    "[yellow]Required benchmark image data is missing, and the download or extraction was skipped.[/yellow]"
-                )
             raise SystemExit(1)
 
 
@@ -124,6 +116,20 @@ class BenchmarkRunner:
     def run(self) -> None:
         """Measure, run and store result of benchmark queries."""
 
+        # Clear file
+        with open(self.result_filepath, "w"):
+            pass
+
+        # Load the required datasets
+        datasets = {
+            dataset.table_ref
+            for query_spec in self.queries_specs
+            for dataset in query_spec.datasets
+        }
+        data_dfs = DataLoader().load(datasets=datasets, scale_factor=self.scale_factor)
+        # TODO - DEBUG - Manually shortend
+        data_dfs = {k: df.head(10) for k, df in data_dfs.items()}
+
         total_runs = len(self.algorithms) * len(self.queries_specs)
 
         with create_benchmark_progress() as progress:
@@ -131,20 +137,6 @@ class BenchmarkRunner:
                 "Running benchmark...",
                 total=total_runs,
             )
-
-            # Clear file
-            with open(self.result_filepath, "w"):
-                pass
-
-            # Load the required datasets
-            datasets = {
-                dataset.table_ref
-                for query_spec in self.queries_specs
-                for dataset in query_spec.datasets
-            }
-            data_dfs = DataLoader().load(datasets=datasets, scale_factor=self.scale_factor)
-            # TODO - DEBUG - Manually shortend
-            data_dfs = {k: df.head(10) for k, df in data_dfs.items()}
 
             for algorithm_config in self.algorithms:
                 algorithm = self._load_algorithm_from_file(algorithm_config)

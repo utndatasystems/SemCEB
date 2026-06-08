@@ -1,6 +1,7 @@
 from pathlib import Path
-
+from rich.prompt import Confirm
 import pandas as pd
+from src.semceb.utils.console import console
 
 
 class DataLoader:
@@ -9,67 +10,101 @@ class DataLoader:
     def __init__(self):
         self.folderpath_datasets_data = Path("data") / "datasets"
 
-    def _load(self, dataset: str, scale_factor: int) -> pd.DataFrame:
-        """Load raw data into pandas dataframe.
+    def load(self, datasets: list[str], scale_factor: int | None = None) -> dict[str, pd.DataFrame]:
+        """
+        Load datasets into pandas DataFrames.
 
         scale_factor:
-            1 = 5% of rows, shuffled
-            2 = 10% of rows, shuffled
-            3 = 25% of rows, shuffled
-            4 = 50% of rows, shuffled
-            5 = 100% of rows, shuffled
+            Number of rows to load per table.
+            If None, the full table is loaded.
         """
 
-        df = self._load_dataset(dataset)
+        datasets_df: dict[str, pd.DataFrame] = {}
 
-        scale_factors = {
-            1: 0.05,
-            2: 0.10,
-            3: 0.25,
-            4: 0.50,
-            5: 1.00,
-        }
+        for dataset in datasets:
+            if dataset not in datasets_df.keys():
+                if dataset.startswith("amazon-reviews"):
+                    datasets_df = self._load_amazon_reviews_dataset(
+                        datasets_df=datasets_df,
+                        dataset=dataset,
+                        scale_factor=scale_factor,
+                    )
+                else:
+                    raise NotImplementedError(
+                        f"The dataset '{dataset}' can not be loaded!"
+                    )
 
-        if scale_factor not in scale_factors:
-            raise ValueError(
-                f"Invalid scale_factor={scale_factor}. "
-                f"Allowed values are: {list(scale_factors.keys())}."
+        return datasets_df
+
+    def _load_amazon_reviews_dataset(
+        self,
+        datasets_df: dict[str, pd.DataFrame],
+        dataset: str,
+        scale_factor: int | None = None,
+    ) -> dict[str, pd.DataFrame]:
+        """Load Amazon Reviews dataset tables."""
+
+        products_df = self._load_dataset(dataset="amazon-reviews/products_filtered")
+        reviews_df = self._load_dataset(dataset="amazon-reviews/reviews_filtered")
+
+        # Shuffle main dataset table
+        products_df = products_df.sample(frac=1.0, replace=False, random_state=42).reset_index(drop=True)
+
+        # Apply scale factor on main dataset table
+        if scale_factor is not None:
+            if scale_factor <= 0:
+                raise ValueError(
+                    f"Invalid scale_factor={scale_factor}. "
+                    "It must be a positive integer or None."
+                )
+
+            products_df = products_df.head(scale_factor).reset_index(drop=True)
+        else:
+            console.print(
+                "[bold yellow]WARNING:[/bold yellow] "
+                "[yellow]No scale_factor was provided. Loading the full dataset. "
+                "This may cause high computational demand and many LLM calls, which can increase costs.[/yellow]"
             )
 
-        fraction = scale_factors[scale_factor]
-        
-        # Deterministic shuffle
-        shuffled_df = df.sample(frac=1.0, replace=False, random_state=42)
+            continue_loading = Confirm.ask(
+                "[bold yellow]Do you want to continue loading the full dataset?[/bold yellow]",
+                default=False,
+            )
 
-        if fraction == 1.00:
-            return shuffled_df.reset_index(drop=True)
+            if not continue_loading:
+                raise RuntimeError(
+                    "Aborted because no scale_factor was provided and the user declined "
+                    "to load the full dataset."
+                )
 
-        scaled_df = (
-            shuffled_df
-            .head(int(fraction * len(df)))
-            .reset_index(drop=True)
-        )
+        # Keep only reviews related to selected products
+        selected_parent_asins = products_df["parent_asin"].dropna().unique()
 
-        return scaled_df
+        # Join other dataset tabels on main dataset table
+        reviews_df = reviews_df[
+            reviews_df["asin"].isin(selected_parent_asins)
+        ].reset_index(drop=True)
+
+        # Save dataset dfs
+        datasets_df["amazon-reviews/products_filtered"] = products_df
+        datasets_df["amazon-reviews/reviews_filtered"] = reviews_df
+
+        return datasets_df
 
     def _load_dataset(self, dataset: str) -> pd.DataFrame:
+        """Load raw dataset file as a pandas DataFrame."""
+
         csv_path = self.folderpath_datasets_data / f"{dataset}.csv"
         parquet_path = self.folderpath_datasets_data / f"{dataset}.parquet"
 
         if csv_path.exists():
-            return pd.read_csv(csv_path)
+            df = pd.read_csv(csv_path)
+        elif parquet_path.exists():
+            df = pd.read_parquet(parquet_path)
+        else:
+            raise FileNotFoundError(
+                f"Could not find dataset '{dataset}' as CSV or Parquet in "
+                f"{self.folderpath_datasets_data}."
+            )
 
-        if parquet_path.exists():
-            return pd.read_parquet(parquet_path)
-
-        raise FileNotFoundError(
-            f"Could not find dataset '{dataset}' as CSV or Parquet in "
-            f"{self.folderpath_datasets_data}."
-        )    
-
-    def load(self, datasets: list[str], scale_factor: int) -> dict[str, pd.DataFrame]:
-        """Load datasets into pandas dataframe."""
-        dataset_df = {}
-        for dataset in datasets:
-            dataset_df[dataset] = self._load(dataset=dataset, scale_factor=scale_factor)
-        return dataset_df
+        return df

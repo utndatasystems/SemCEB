@@ -5,9 +5,9 @@ from collections.abc import Callable
 from typing import Any
 import logging
 
-from runner.benchmark import BenchmarkRunner
-from results.plotter import ResultsPlotter
-from utils.console import console
+from src.semceb.benchmark.benchmark import BenchmarkRunner
+from src.semceb.reporting.plotter import ResultsPlotter
+from src.semceb.utils.console import console
 
 
 def configure_logging() -> None:

@@ -6,8 +6,8 @@ from urllib.error import HTTPError, URLError
 
 from rich.progress import Progress
 
-from utils.console import console
-from utils.progress import create_download_progress
+from src.semceb.utils.console import console
+from src.semceb.utils.progress import create_download_progress
 
 
 class DataDownloader:
@@ -25,7 +25,7 @@ class DataDownloader:
             "amazon-reviews/reviews_filtered.parquet",
         ]
 
-        self.local_data_folderpath = Path("data") / ".raw"
+        self.local_data_folderpath = Path("data") / "datasets"
 
     def ensure_files_available(self) -> bool:
         """Ensure configured files exist locally, downloading if needed."""
@@ -244,12 +244,10 @@ class DataDownloader:
         )
 
         if delete_zip_after_extract and zip_path.exists():
-            zip_size = self._format_download_size(zip_path.stat().st_size)
             zip_path.unlink()
 
             console.print(
                 f"[green]✓[/green] Deleted ZIP file "
-                f"([bold]{zip_size}[/bold] freed): "
                 f"[bold]{zip_path}[/bold]"
             )
 

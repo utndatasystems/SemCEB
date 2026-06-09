@@ -165,6 +165,9 @@ class BenchmarkRunner:
                         query_specs=query_specs,
                         scale_factor=scale_factor,
                     )
+                    
+                    if group_name == "join":
+                        self._confirm_join_benchmark_run(data_dfs)
 
                 for algorithm_config in self.algorithms:
                     algorithm = self._load_algorithm_from_file(algorithm_config)
@@ -278,6 +281,39 @@ class BenchmarkRunner:
             scale_factor=scale_factor,
         )
 
+    def _confirm_join_benchmark_run(self, data_dfs: dict[str, pd.DataFrame]) -> None:
+        """Ask the user to confirm running join benchmarks after showing input sizes."""
+
+        row_counts = {
+            table_ref: len(data_df)
+            for table_ref, data_df in data_dfs.items()
+        }
+
+        potential_join_combinations = 1
+        for row_count in row_counts.values():
+            potential_join_combinations *= row_count
+
+        console.print()
+        console.print("[bold yellow]Join benchmark input size[/bold yellow]")
+
+        for table_ref, row_count in row_counts.items():
+            console.print(f"  [cyan]{table_ref}[/cyan]: [bold]{row_count:,}[/bold] rows")
+
+        console.print(
+            "  [magenta]Potential join combinations[/magenta]: "
+            f"[bold]{potential_join_combinations:,}[/bold]"
+        )
+        console.print()
+
+        should_continue = Confirm.ask(
+            "Continue with join benchmark?",
+            default=False,
+        )
+
+        if not should_continue:
+            console.print("[yellow]Benchmark aborted by user.[/yellow]")
+            raise SystemExit(0)
+    
     def _get_cardinality_ground_truth(self, model_name: str, system_prompt: str, query_spec: QuerySpecification, data_dfs: dict[str, pd.DataFrame]) -> int:
         """Obtain model-based selectivity ground truth."""
         backend = LotusBackend(model_name=model_name, system_prompt=system_prompt, scale_factor=self.scale_factor)

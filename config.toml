@@ -8,6 +8,9 @@ system_prompt = "The user will provide a claim and some relevant context.\nYour 
 # Rows are shuffled deterministically before selection.
 # Join scale factor is applied on top restricting explosion of row counts due to joining
 scale_factor = 10
+# Number of rows loaded from the main dataset table for joining.
+# Kept separate from scale_factor because join output sizes can grow quickly.
+join_scale_factor = 10
 types = ["Simple Base-Table Predicate", "Simple Join"]
 categories = ["equality"]
 

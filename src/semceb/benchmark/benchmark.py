@@ -35,7 +35,6 @@ class BenchmarkRunner:
         self.query_categories = categories
         self.query_types = types
         self.join_scale_factor = join_scale_factor
-        self.categories = categories
 
         self.result_filepath = Path("results") / "raw" / "result.jsonl"
         self.query_filepath = Path("benchmark_queries") / "queries.jsonl"

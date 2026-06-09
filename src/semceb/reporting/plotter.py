@@ -108,7 +108,8 @@ class ResultsPlotter:
                     "algorithm_name": algorithm["name"],
                     "algorithm_version": algorithm["version"],
                     "memory_consumption": algorithm["memory_consumption"],
-                    "selectivity_ground_truth": algorithm["selectivity_ground_truth"],
+                    "cardinality_ground_truth": algorithm["cardinality_ground_truth"],
+                    "cardinality_estimation": algorithm["cardinality_estimation"],
                     "selectivity_estimation": algorithm["selectivity_estimation"],
                     "q_error": algorithm["q_error"],
                     "time_ms": algorithm["time_ms"],
@@ -121,7 +122,8 @@ class ResultsPlotter:
         df = pd.DataFrame(rows)
 
         numeric_columns = [
-            "selectivity_ground_truth",
+            "cardinality_ground_truth",
+            "cardinality_estimation",
             "selectivity_estimation",
             "q_error",
             "time_ms",

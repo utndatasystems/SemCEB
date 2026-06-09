@@ -11,11 +11,12 @@ from src.semceb.queries.template_parser import ColumnRef
 
 
 class LotusBackend():
-    """Model wrapper using LOTUS for ground-truth selectivity."""
+    """Model wrapper using LOTUS for ground-truth cardinality."""
 
     def __init__(self, model_name: str, system_prompt: str, scale_factor: int):
-
-        self.cache_path = Path("benchmark_queries") / "ground_truth_cache.json"
+        
+        safe_model_name = self._safe_cache_name(model_name)
+        self.cache_path = Path("benchmark_queries") / f"ground_truth_cache_{safe_model_name}.json"
         self.cache = self._load_cache()
 
         self.name = model_name
@@ -29,13 +30,21 @@ class LotusBackend():
         self.lm.system_prompt = self.system_prompt
         lotus.settings.configure(lm=self.lm)
 
+    def _safe_cache_name(self, model_name: str) -> str:
+        return (
+            model_name
+            .replace("/", "__")
+            .replace(":", "_")
+            .replace(" ", "_")
+        )
+
     def _make_cache_key(
         self,
         query_type: str,
         query_spec: QuerySpecification,
         query_str: str,
     ) -> str:
-        """Create a stable cache key for a LOTUS selectivity query."""
+        """Create a stable cache key of the query."""
         datasets = query_spec.datasets
 
         if isinstance(datasets, str):
@@ -56,7 +65,7 @@ class LotusBackend():
         )
 
     def _load_cache(self) -> dict:
-        """Load selectivity cache from disk."""
+        """Load cardinality cache from disk."""
         if self.cache_path is None:
             return {}
 
@@ -67,7 +76,7 @@ class LotusBackend():
             return json.load(f)
 
     def _save_cache(self) -> None:
-        """Persist selectivity cache to disk."""
+        """Persist cardinality cache to disk."""
         if self.cache_path is None:
             return
 
@@ -80,19 +89,19 @@ class LotusBackend():
 
         tmp_path.replace(self.cache_path)
 
-    def _get_cached_selectivity(self, cache_key: str) -> int | None:
-        """Return cached selectivity if available."""
+    def _get_cached_cardinality(self, cache_key: str) -> int | None:
+        """Return cached cardinality if available."""
         value = self.cache.get(cache_key)
 
         if value is None:
             return None
 
-        return int(value["selectivity"])
+        return int(value["cardinality"])
 
-    def _set_cached_selectivity(self, cache_key: str, selectivity: int) -> None:
-        """Store selectivity in the cache."""
+    def _set_cached_cardinality(self, cache_key: str, cardinality: int) -> None:
+        """Store cardinality in the cache."""
         self.cache[cache_key] = {
-            "selectivity": int(selectivity),
+            "cardinality": int(cardinality),
         }
         self._save_cache()
 
@@ -106,16 +115,16 @@ class LotusBackend():
             query_str=query_str,
         )
 
-        cached = self._get_cached_selectivity(cache_key)
+        cached = self._get_cached_cardinality(cache_key)
         if cached is not None:
             return cached
 
-        selectivity = df.sem_filter(
+        cardinality = df.sem_filter(
             user_instruction=query_str,
         ).shape[0]
 
-        self._set_cached_selectivity(cache_key, selectivity)
-        return selectivity  
+        self._set_cached_cardinality(cache_key, cardinality)
+        return cardinality  
 
     def _format_filtering_query(self, query_spec: QuerySpecification, df: pd.DataFrame) -> str:
         """Format LOTUS query string for filtering."""
@@ -154,17 +163,17 @@ class LotusBackend():
             query_str=query_str,
         )
 
-        cached = self._get_cached_selectivity(cache_key)
+        cached = self._get_cached_cardinality(cache_key)
         if cached is not None:
             return cached
         
-        selectivity = data_left_df.sem_join(
+        cardinality = data_left_df.sem_join(
             data_right_df,
             query_str,
         ).shape[0]
 
-        self._set_cached_selectivity(cache_key, selectivity)
-        return selectivity
+        self._set_cached_cardinality(cache_key, cardinality)
+        return cardinality
     
     def _format_joining_query(
         self,

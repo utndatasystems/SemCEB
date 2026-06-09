@@ -24,6 +24,7 @@ class BenchmarkRunner:
         default_ground_truth_model_name: str,
         default_ground_truth_system_prompt: str,
         scale_factor: int,
+        join_scale_factor: int,
         categories: list[str],
         types: list[str]
     ):
@@ -33,6 +34,8 @@ class BenchmarkRunner:
         self.scale_factor = scale_factor
         self.query_categories = categories
         self.query_types = types
+        self.join_scale_factor = join_scale_factor
+        self.categories = categories
 
         self.result_filepath = Path("results") / "raw" / "result.jsonl"
         self.query_filepath = Path("benchmark_queries") / "queries.jsonl"
@@ -117,106 +120,166 @@ class BenchmarkRunner:
         )
 
     def run(self) -> None:
-        """Measure, run and store result of benchmark queries."""
-        
-        if self.result_filepath.exists():
-            console.print(
-                "[bold yellow]WARNING:[/bold yellow] "
-                f"[yellow]The existing results file will be erased before this run:[/yellow]\n"
-                f"[bold]{self.result_filepath}[/bold]"
-            )
+        """Measure, run, and store results of benchmark queries."""
 
-            should_continue = Confirm.ask(
-                "[bold cyan]Do you want to continue?[/bold cyan]",
-                default=False,
-            )
-
-            if not should_continue:
-                console.print("[yellow]Benchmark run aborted. Existing results were kept.[/yellow]")
-                return
-        
-        # Clear file
+        # Clear result file
         with open(self.result_filepath, "w"):
             pass
 
-        # Load the required datasets
-        datasets = {
-            dataset.table_ref
-            for query_spec in self.queries_specs
-            for dataset in query_spec.datasets
-        }
-        data_dfs = DataLoader().load(datasets=datasets, scale_factor=self.scale_factor)
+        filter_query_specs, join_query_specs = self._split_query_specs_by_type()
 
-        total_runs = len(self.algorithms) * len(self.queries_specs)
+        query_groups = [
+            {
+                "name": "filter",
+                "query_specs": filter_query_specs,
+                "scale_factor": self.scale_factor,
+            },
+            {
+                "name": "join",
+                "query_specs": join_query_specs,
+                "scale_factor": self.join_scale_factor,
+            },
+        ]
+
+        total_runs = sum(
+            len(self.algorithms) * len(group["query_specs"])
+            for group in query_groups
+        )
+
         with create_benchmark_progress() as progress:
             task = progress.add_task(
                 "Running benchmark...",
                 total=total_runs,
             )
 
-            for algorithm_config in self.algorithms:
-                algorithm = self._load_algorithm_from_file(algorithm_config)
+            for query_group in query_groups:
+                query_specs = query_group["query_specs"]
 
-                # Check if algorithm configuration demands non default ground truth procedure
-                ground_truth_model_name = algorithm_config.get("ground_truth", {}).get("model_name", None)
-                if not ground_truth_model_name:
-                    ground_truth_model_name = self.default_ground_truth_model_name
-                ground_truth_system_prompt = algorithm_config.get("ground_truth", {}).get("system_prompt", None)
-                if not ground_truth_system_prompt:
-                    ground_truth_system_prompt = self.default_ground_truth_system_prompt
+                if not query_specs:
+                    continue
 
-                algorithm_kwargs = algorithm_config.get("algorithm_kwargs", {})
-                algorithm.preparation(data_dfs, algorithm_kwargs)
+                scale_factor = query_group["scale_factor"]
+                group_name = query_group["name"]
 
-                for query_spec in self.queries_specs:
-                    
-                    progress.update(
-                        task,
-                        description=(
-                            f"Algorithm: [cyan]{algorithm_config['name']}[/cyan] "
-                            f"| Query ID: [yellow]{query_spec.id}[/yellow]"
-                        ),
+                with suspend_progress(progress):
+                    data_dfs = self._load_required_datasets(
+                        query_specs=query_specs,
+                        scale_factor=scale_factor,
                     )
 
-                    with suspend_progress(progress):
-                        selectivity_ground_truth = self._get_selectivity_ground_truth(ground_truth_model_name, ground_truth_system_prompt, query_spec, data_dfs)
+                for algorithm_config in self.algorithms:
+                    algorithm = self._load_algorithm_from_file(algorithm_config)
 
-                    algorithm.reset_cost_stats()
-
-                    with suspend_progress(progress):
-                        start = time.perf_counter()
-                        selectivity_estimation = algorithm.run(query_spec)
-                        time_ms = (time.perf_counter() - start) * 1000
-
-                    q_error = self._calculate_q_error(
-                        selectivity_estimation, selectivity_ground_truth
+                    ground_truth_model_name = (
+                        algorithm_config
+                        .get("ground_truth", {})
+                        .get("model_name")
+                        or self.default_ground_truth_model_name
                     )
 
-                    self._save_result(
-                        query_spec=query_spec,
-                        algorithm_name=algorithm_config["name"],
-                        algorithm_version=algorithm_config["version"],
-                        algorithm_memory_consumption=algorithm.get_memory_consumption(),
-                        algorithm_cost_stats=algorithm.get_cost_stats(),
-                        selectivity_ground_truth=selectivity_ground_truth,
-                        selectivity_estimation=selectivity_estimation,
-                        q_error=q_error,
-                        time_ms=time_ms,
+                    ground_truth_system_prompt = (
+                        algorithm_config
+                        .get("ground_truth", {})
+                        .get("system_prompt")
+                        or self.default_ground_truth_system_prompt
                     )
 
-                    progress.advance(task)
+                    algorithm_kwargs = algorithm_config.get("algorithm_kwargs", {})
+                    algorithm.preparation(data_dfs, algorithm_kwargs)
 
-                progress.console.print(
-                    f"[green]✓[/green] Finished algorithm "
-                    f"[bold cyan]{algorithm.name}[/bold cyan] "
-                    f"on [bold]{len(self.queries_specs)}[/bold] queries."
-                )
+                    for query_spec in query_specs:
+                        progress.update(
+                            task,
+                            description=(
+                                f"Group: [magenta]{group_name}[/magenta] "
+                                f"| Algorithm: [cyan]{algorithm_config['name']}[/cyan] "
+                                f"| Query ID: [yellow]{query_spec.id}[/yellow]"
+                            ),
+                        )
+
+                        with suspend_progress(progress):
+                            cardinality_ground_truth = self._get_cardinality_ground_truth(
+                                ground_truth_model_name,
+                                ground_truth_system_prompt,
+                                query_spec,
+                                data_dfs,
+                            )
+
+                        algorithm.reset_cost_stats()
+
+                        with suspend_progress(progress):
+                            start = time.perf_counter()
+                            cardinality_estimation = algorithm.run(query_spec)
+                            time_ms = (time.perf_counter() - start) * 1000
+
+                        q_error = self._calculate_q_error(
+                            cardinality_estimation,
+                            cardinality_ground_truth,
+                        )
+
+                        selectivity_estimation = self._calculate_selectivity(
+                            cardinality_estimation,
+                            query_spec,
+                            data_dfs,
+                        )
+
+                        self._save_result(
+                            query_spec=query_spec,
+                            algorithm_name=algorithm_config["name"],
+                            algorithm_version=algorithm_config["version"],
+                            algorithm_memory_consumption=algorithm.get_memory_consumption(),
+                            algorithm_cost_stats=algorithm.get_cost_stats(),
+                            cardinality_ground_truth=cardinality_ground_truth,
+                            cardinality_estimation=cardinality_estimation,
+                            selectivity_estimation=selectivity_estimation,
+                            q_error=q_error,
+                            time_ms=time_ms,
+                        )
+
+                        progress.advance(task)
+
+                    progress.console.print(
+                        f"[green]✓[/green] Finished algorithm "
+                        f"[bold cyan]{algorithm.name}[/bold cyan] "
+                        f"on [bold]{len(query_specs)}[/bold] {group_name} queries."
+                    )
 
         console.print(
             f"[green]✓[/green] Results written to [bold]{self.result_filepath}[/bold]"
         )
 
-    def _get_selectivity_ground_truth(self, model_name: str, system_prompt: str, query_spec: QuerySpecification, data_dfs: dict[str, pd.DataFrame]) -> int:
+    def _split_query_specs_by_type(self):
+        filter_query_specs = []
+        join_query_specs = []
+
+        for query_spec in self.queries_specs:
+            dataset_count = len(query_spec.datasets)
+
+            if dataset_count == 1:
+                filter_query_specs.append(query_spec)
+            elif dataset_count == 2:
+                join_query_specs.append(query_spec)
+            else:
+                raise NotImplementedError(
+                    f"Invalid dataset amount for query {query_spec.id}: "
+                    f"expected 1 or 2 datasets, got {dataset_count}"
+                )
+
+        return filter_query_specs, join_query_specs
+
+    def _load_required_datasets(self, query_specs, scale_factor):
+        datasets = {
+            dataset.table_ref
+            for query_spec in query_specs
+            for dataset in query_spec.datasets
+        }
+
+        return DataLoader().load(
+            datasets=datasets,
+            scale_factor=scale_factor,
+        )
+
+    def _get_cardinality_ground_truth(self, model_name: str, system_prompt: str, query_spec: QuerySpecification, data_dfs: dict[str, pd.DataFrame]) -> int:
         """Obtain model-based selectivity ground truth."""
         backend = LotusBackend(model_name=model_name, system_prompt=system_prompt, scale_factor=self.scale_factor)
 
@@ -224,29 +287,46 @@ class BenchmarkRunner:
             # Filtering
             dataset_spec = query_spec.datasets[0]
             data = data_dfs[dataset_spec.table_ref]
-            selectivity_ground_truth = backend.filtering_query(query_spec, data)
+            cardinality_ground_truth = backend.filtering_query(query_spec, data)
         elif len(query_spec.datasets) > 1:
             # Joining
             dataset_spec_left, dataset_spec_right = query_spec.datasets
             data_left = data_dfs[dataset_spec_left.table_ref]
             data_right = data_dfs[dataset_spec_right.table_ref]
-            selectivity_ground_truth = backend.joining_query(query_spec, data_left, data_right)
+            cardinality_ground_truth = backend.joining_query(query_spec, data_left, data_right)
 
-        return selectivity_ground_truth
+        return cardinality_ground_truth
 
     def _calculate_q_error(
-        self, selectivity_estimation: int, selectivity_ground_truth: int
+        self, cardinality_estimation: int, cardinality_ground_truth: int
     ) -> float:
         """Calcualte q error. Higher is worse."""
-        if selectivity_estimation == selectivity_ground_truth:
+        if cardinality_estimation == cardinality_ground_truth:
             return 1.0
-        elif selectivity_estimation == 0 or selectivity_ground_truth == 0:
+        elif cardinality_estimation == 0 or cardinality_ground_truth == 0:
             return sys.float_info.max
         else:
             return max(
-                selectivity_estimation / selectivity_ground_truth,
-                selectivity_ground_truth / selectivity_estimation,
+                cardinality_estimation / cardinality_ground_truth,
+                cardinality_ground_truth / cardinality_estimation,
             )
+    
+    def _calculate_selectivity(self, cardinality_estimation: int, query_spec: QuerySpecification, data_dfs: dict[str, pd.DataFrame]) -> float:
+        """Calculate selectivity based on cardinality estimation and number of input rows."""
+        if len(query_spec.datasets) == 1: # Filter query
+            table_ref = query_spec.datasets[0].table_ref
+            input_rows = data_dfs[table_ref].shape[0]
+        
+        elif len(query_spec.datasets) > 1: # Join query
+            input_rows = 1
+            for dataset in query_spec.datasets:
+                table_ref = dataset.table_ref
+                input_rows *= data_dfs[table_ref].shape[0]
+        else:
+            raise ValueError("Used dataset of query can not be empty!")
+        
+        selectivity = cardinality_estimation / input_rows
+        return selectivity
 
     def _save_result(
         self,
@@ -255,8 +335,9 @@ class BenchmarkRunner:
         algorithm_version: str,
         algorithm_memory_consumption: int,
         algorithm_cost_stats: dict,
-        selectivity_ground_truth: int,
-        selectivity_estimation: int,
+        cardinality_ground_truth: int,
+        cardinality_estimation: int,
+        selectivity_estimation: float,
         q_error: float,
         time_ms: float,
     ) -> None:
@@ -267,7 +348,8 @@ class BenchmarkRunner:
             "version": algorithm_version,
             "memory_consumption": algorithm_memory_consumption,
             "cost_stats": algorithm_cost_stats,
-            "selectivity_ground_truth": selectivity_ground_truth,
+            "cardinality_ground_truth": cardinality_ground_truth,
+            "cardinality_estimation": cardinality_estimation,
             "selectivity_estimation": selectivity_estimation,
             "q_error": q_error,
             "time_ms": time_ms,

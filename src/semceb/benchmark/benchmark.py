@@ -163,18 +163,20 @@ class BenchmarkRunner:
                     )
 
                     with suspend_progress(progress):
-                        selectivity_ground_truth = self._get_selectivity_ground_truth(ground_truth_model_name, ground_truth_system_prompt, query_spec, data_dfs)
+                        cardinality_ground_truth = self._get_cardinality_ground_truth(ground_truth_model_name, ground_truth_system_prompt, query_spec, data_dfs)
 
                     algorithm.reset_cost_stats()
 
                     with suspend_progress(progress):
                         start = time.perf_counter()
-                        selectivity_estimation = algorithm.run(query_spec)
+                        cardinality_estimation = algorithm.run(query_spec)
                         time_ms = (time.perf_counter() - start) * 1000
 
                     q_error = self._calculate_q_error(
-                        selectivity_estimation, selectivity_ground_truth
+                        cardinality_estimation, cardinality_ground_truth
                     )
+
+                    selectivity_estimation = self._calculate_selectivity(cardinality_estimation, query_spec, data_dfs)
 
                     self._save_result(
                         query_spec=query_spec,
@@ -182,7 +184,8 @@ class BenchmarkRunner:
                         algorithm_version=algorithm_config["version"],
                         algorithm_memory_consumption=algorithm.get_memory_consumption(),
                         algorithm_cost_stats=algorithm.get_cost_stats(),
-                        selectivity_ground_truth=selectivity_ground_truth,
+                        cardinality_ground_truth=cardinality_ground_truth,
+                        cardinality_estimation=cardinality_estimation,
                         selectivity_estimation=selectivity_estimation,
                         q_error=q_error,
                         time_ms=time_ms,
@@ -200,7 +203,7 @@ class BenchmarkRunner:
             f"[green]✓[/green] Results written to [bold]{self.result_filepath}[/bold]"
         )
 
-    def _get_selectivity_ground_truth(self, model_name: str, system_prompt: str, query_spec: QuerySpecification, data_dfs: dict[str, pd.DataFrame]) -> int:
+    def _get_cardinality_ground_truth(self, model_name: str, system_prompt: str, query_spec: QuerySpecification, data_dfs: dict[str, pd.DataFrame]) -> int:
         """Obtain model-based selectivity ground truth."""
         backend = LotusBackend(model_name=model_name, system_prompt=system_prompt, scale_factor=self.scale_factor)
 
@@ -208,29 +211,46 @@ class BenchmarkRunner:
             # Filtering
             dataset_spec = query_spec.datasets[0]
             data = data_dfs[dataset_spec.table_ref]
-            selectivity_ground_truth = backend.filtering_query(query_spec, data)
+            cardinality_ground_truth = backend.filtering_query(query_spec, data)
         elif len(query_spec.datasets) > 1:
             # Joining
             dataset_spec_left, dataset_spec_right = query_spec.datasets
             data_left = data_dfs[dataset_spec_left.table_ref]
             data_right = data_dfs[dataset_spec_right.table_ref]
-            selectivity_ground_truth = backend.joining_query(query_spec, data_left, data_right)
+            cardinality_ground_truth = backend.joining_query(query_spec, data_left, data_right)
 
-        return selectivity_ground_truth
+        return cardinality_ground_truth
 
     def _calculate_q_error(
-        self, selectivity_estimation: int, selectivity_ground_truth: int
+        self, cardinality_estimation: int, cardinality_ground_truth: int
     ) -> float:
         """Calcualte q error. Higher is worse."""
-        if selectivity_estimation == selectivity_ground_truth:
+        if cardinality_estimation == cardinality_ground_truth:
             return 1.0
-        elif selectivity_estimation == 0 or selectivity_ground_truth == 0:
+        elif cardinality_estimation == 0 or cardinality_ground_truth == 0:
             return sys.float_info.max
         else:
             return max(
-                selectivity_estimation / selectivity_ground_truth,
-                selectivity_ground_truth / selectivity_estimation,
+                cardinality_estimation / cardinality_ground_truth,
+                cardinality_ground_truth / cardinality_estimation,
             )
+    
+    def _calculate_selectivity(self, cardinality_estimation: int, query_spec: QuerySpecification, data_dfs: dict[str, pd.DataFrame]) -> float:
+        """Calculate selectivity based on cardinality estimation and number of input rows."""
+        if len(query_spec.datasets) == 1: # Filter query
+            table_ref = query_spec.datasets[0].table_ref
+            input_rows = data_dfs[table_ref].shape[0]
+        
+        elif len(query_spec.datasets) > 1: # Join query
+            input_rows = 1
+            for dataset in query_spec.datasets:
+                table_ref = dataset.table_ref
+                input_rows *= data_dfs[table_ref].shape[0]
+        else:
+            raise ValueError("Used dataset of query can not be empty!")
+        
+        selectivity = cardinality_estimation / input_rows
+        return selectivity
 
     def _save_result(
         self,
@@ -239,8 +259,9 @@ class BenchmarkRunner:
         algorithm_version: str,
         algorithm_memory_consumption: int,
         algorithm_cost_stats: dict,
-        selectivity_ground_truth: int,
-        selectivity_estimation: int,
+        cardinality_ground_truth: int,
+        cardinality_estimation: int,
+        selectivity_estimation: float,
         q_error: float,
         time_ms: float,
     ) -> None:
@@ -251,7 +272,8 @@ class BenchmarkRunner:
             "version": algorithm_version,
             "memory_consumption": algorithm_memory_consumption,
             "cost_stats": algorithm_cost_stats,
-            "selectivity_ground_truth": selectivity_ground_truth,
+            "cardinality_ground_truth": cardinality_ground_truth,
+            "cardinality_estimation": cardinality_estimation,
             "selectivity_estimation": selectivity_estimation,
             "q_error": q_error,
             "time_ms": time_ms,

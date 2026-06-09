@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "SemCEB"
 version = "0.1.0"
-description = "A benchmark pipeline for running selectivity estimation algorithms and plotting the results."
+description = "A benchmark pipeline for running cardinality estimation algorithms and plotting the results."
 readme = "README.md"
 authors = [
     { name = "Claudius Kühn", email = "claudius.kuehn@utn.de" },

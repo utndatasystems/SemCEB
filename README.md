@@ -113,7 +113,7 @@ The provided algorithm template is located at:
 src/semceb/algorithms/custom_algorithm_template.py
 ```
 
-This is the main file intended for users to modify. You can implement your own selectivity estimation logic there while keeping the rest of the benchmark pipeline unchanged.
+This is the main file intended for users to modify. You can implement your own cardinality estimation logic there while keeping the rest of the benchmark pipeline unchanged.
 
 After editing the algorithm file, run the benchmark with:
 

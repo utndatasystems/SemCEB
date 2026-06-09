@@ -14,8 +14,9 @@ class LotusBackend():
     """Model wrapper using LOTUS for ground-truth selectivity."""
 
     def __init__(self, model_name: str, system_prompt: str, scale_factor: int):
-
-        self.cache_path = Path("benchmark_queries") / "ground_truth_cache.json"
+        
+        safe_model_name = self._safe_cache_name(model_name)
+        self.cache_path = Path("benchmark_queries") / f"ground_truth_cache_{safe_model_name}.json"
         self.cache = self._load_cache()
 
         self.name = model_name
@@ -28,6 +29,14 @@ class LotusBackend():
         )
         self.lm.system_prompt = self.system_prompt
         lotus.settings.configure(lm=self.lm)
+
+    def _safe_cache_name(self, model_name: str) -> str:
+        return (
+            model_name
+            .replace("/", "__")
+            .replace(":", "_")
+            .replace(" ", "_")
+        )
 
     def _make_cache_key(
         self,

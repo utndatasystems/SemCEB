@@ -23,12 +23,14 @@ class BenchmarkRunner:
         default_ground_truth_model_name: str,
         default_ground_truth_system_prompt: str,
         scale_factor: int,
+        join_scale_factor: int,
         categories: list[str],
     ):
         self.algorithms = algorithms
         self.default_ground_truth_model_name = default_ground_truth_model_name
         self.default_ground_truth_system_prompt = default_ground_truth_system_prompt
         self.scale_factor = scale_factor
+        self.join_scale_factor = join_scale_factor
         self.categories = categories
 
         self.result_filepath = Path("results") / "raw" / "result.jsonl"
@@ -114,23 +116,31 @@ class BenchmarkRunner:
         )
 
     def run(self) -> None:
-        """Measure, run and store result of benchmark queries."""
+        """Measure, run, and store results of benchmark queries."""
 
-        # Clear file
+        # Clear result file
         with open(self.result_filepath, "w"):
             pass
 
-        # Load the required datasets
-        datasets = {
-            dataset.table_ref
-            for query_spec in self.queries_specs
-            for dataset in query_spec.datasets
-        }
-        data_dfs = DataLoader().load(datasets=datasets, scale_factor=self.scale_factor)
-        # TODO - DEBUG - Manually shortend
-        data_dfs = {k: df.head(10) for k, df in data_dfs.items()}
+        filter_query_specs, join_query_specs = self._split_query_specs_by_type()
 
-        total_runs = len(self.algorithms) * len(self.queries_specs)
+        query_groups = [
+            {
+                "name": "filter",
+                "query_specs": filter_query_specs,
+                "scale_factor": self.scale_factor,
+            },
+            {
+                "name": "join",
+                "query_specs": join_query_specs,
+                "scale_factor": self.join_scale_factor,
+            },
+        ]
+
+        total_runs = sum(
+            len(self.algorithms) * len(group["query_specs"])
+            for group in query_groups
+        )
 
         with create_benchmark_progress() as progress:
             task = progress.add_task(
@@ -138,69 +148,131 @@ class BenchmarkRunner:
                 total=total_runs,
             )
 
-            for algorithm_config in self.algorithms:
-                algorithm = self._load_algorithm_from_file(algorithm_config)
+            for query_group in query_groups:
+                query_specs = query_group["query_specs"]
 
-                # Check if algorithm configuration demands non default ground truth procedure
-                ground_truth_model_name = algorithm_config.get("ground_truth", {}).get("model_name", None)
-                if not ground_truth_model_name:
-                    ground_truth_model_name = self.default_ground_truth_model_name
-                ground_truth_system_prompt = algorithm_config.get("ground_truth", {}).get("system_prompt", None)
-                if not ground_truth_system_prompt:
-                    ground_truth_system_prompt = self.default_ground_truth_system_prompt
+                if not query_specs:
+                    continue
 
-                algorithm_kwargs = algorithm_config.get("algorithm_kwargs", {})
-                algorithm.preparation(data_dfs, algorithm_kwargs)
+                scale_factor = query_group["scale_factor"]
+                group_name = query_group["name"]
 
-                for query_spec in self.queries_specs:
-                    
-                    progress.update(
-                        task,
-                        description=(
-                            f"Algorithm: [cyan]{algorithm_config['name']}[/cyan] "
-                            f"| Query ID: [yellow]{query_spec.id}[/yellow]"
-                        ),
+                with suspend_progress(progress):
+                    data_dfs = self._load_required_datasets(
+                        query_specs=query_specs,
+                        scale_factor=scale_factor,
                     )
 
-                    with suspend_progress(progress):
-                        cardinality_ground_truth = self._get_cardinality_ground_truth(ground_truth_model_name, ground_truth_system_prompt, query_spec, data_dfs)
+                for algorithm_config in self.algorithms:
+                    algorithm = self._load_algorithm_from_file(algorithm_config)
 
-                    algorithm.reset_cost_stats()
-
-                    with suspend_progress(progress):
-                        start = time.perf_counter()
-                        cardinality_estimation = algorithm.run(query_spec)
-                        time_ms = (time.perf_counter() - start) * 1000
-
-                    q_error = self._calculate_q_error(
-                        cardinality_estimation, cardinality_ground_truth
+                    ground_truth_model_name = (
+                        algorithm_config
+                        .get("ground_truth", {})
+                        .get("model_name")
+                        or self.default_ground_truth_model_name
                     )
 
-                    selectivity_estimation = self._calculate_selectivity(cardinality_estimation, query_spec, data_dfs)
-
-                    self._save_result(
-                        query_spec=query_spec,
-                        algorithm_name=algorithm_config["name"],
-                        algorithm_version=algorithm_config["version"],
-                        algorithm_memory_consumption=algorithm.get_memory_consumption(),
-                        algorithm_cost_stats=algorithm.get_cost_stats(),
-                        cardinality_ground_truth=cardinality_ground_truth,
-                        cardinality_estimation=cardinality_estimation,
-                        selectivity_estimation=selectivity_estimation,
-                        q_error=q_error,
-                        time_ms=time_ms,
+                    ground_truth_system_prompt = (
+                        algorithm_config
+                        .get("ground_truth", {})
+                        .get("system_prompt")
+                        or self.default_ground_truth_system_prompt
                     )
 
-                    progress.advance(task)
+                    algorithm_kwargs = algorithm_config.get("algorithm_kwargs", {})
+                    algorithm.preparation(data_dfs, algorithm_kwargs)
 
-                progress.console.print(
-                    f"[green]✓[/green] Finished algorithm "
-                    f"[bold cyan]{algorithm.name}[/bold cyan] "
-                    f"on [bold]{len(self.queries_specs)}[/bold] queries."
-                )
+                    for query_spec in query_specs:
+                        progress.update(
+                            task,
+                            description=(
+                                f"Group: [magenta]{group_name}[/magenta] "
+                                f"| Algorithm: [cyan]{algorithm_config['name']}[/cyan] "
+                                f"| Query ID: [yellow]{query_spec.id}[/yellow]"
+                            ),
+                        )
+
+                        with suspend_progress(progress):
+                            cardinality_ground_truth = self._get_cardinality_ground_truth(
+                                ground_truth_model_name,
+                                ground_truth_system_prompt,
+                                query_spec,
+                                data_dfs,
+                            )
+
+                        algorithm.reset_cost_stats()
+
+                        with suspend_progress(progress):
+                            start = time.perf_counter()
+                            cardinality_estimation = algorithm.run(query_spec)
+                            time_ms = (time.perf_counter() - start) * 1000
+
+                        q_error = self._calculate_q_error(
+                            cardinality_estimation,
+                            cardinality_ground_truth,
+                        )
+
+                        selectivity_estimation = self._calculate_selectivity(
+                            cardinality_estimation,
+                            query_spec,
+                            data_dfs,
+                        )
+
+                        self._save_result(
+                            query_spec=query_spec,
+                            algorithm_name=algorithm_config["name"],
+                            algorithm_version=algorithm_config["version"],
+                            algorithm_memory_consumption=algorithm.get_memory_consumption(),
+                            algorithm_cost_stats=algorithm.get_cost_stats(),
+                            cardinality_ground_truth=cardinality_ground_truth,
+                            cardinality_estimation=cardinality_estimation,
+                            selectivity_estimation=selectivity_estimation,
+                            q_error=q_error,
+                            time_ms=time_ms,
+                        )
+
+                        progress.advance(task)
+
+                    progress.console.print(
+                        f"[green]✓[/green] Finished algorithm "
+                        f"[bold cyan]{algorithm.name}[/bold cyan] "
+                        f"on [bold]{len(query_specs)}[/bold] {group_name} queries."
+                    )
 
         console.print(
             f"[green]✓[/green] Results written to [bold]{self.result_filepath}[/bold]"
+        )
+
+    def _split_query_specs_by_type(self):
+        filter_query_specs = []
+        join_query_specs = []
+
+        for query_spec in self.queries_specs:
+            dataset_count = len(query_spec.datasets)
+
+            if dataset_count == 1:
+                filter_query_specs.append(query_spec)
+            elif dataset_count == 2:
+                join_query_specs.append(query_spec)
+            else:
+                raise NotImplementedError(
+                    f"Invalid dataset amount for query {query_spec.id}: "
+                    f"expected 1 or 2 datasets, got {dataset_count}"
+                )
+
+        return filter_query_specs, join_query_specs
+
+    def _load_required_datasets(self, query_specs, scale_factor):
+        datasets = {
+            dataset.table_ref
+            for query_spec in query_specs
+            for dataset in query_spec.datasets
+        }
+
+        return DataLoader().load(
+            datasets=datasets,
+            scale_factor=scale_factor,
         )
 
     def _get_cardinality_ground_truth(self, model_name: str, system_prompt: str, query_spec: QuerySpecification, data_dfs: dict[str, pd.DataFrame]) -> int:

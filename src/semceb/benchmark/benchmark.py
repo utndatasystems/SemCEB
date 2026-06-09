@@ -2,6 +2,7 @@ import sys
 import importlib
 from pathlib import Path
 import json
+import math
 from enum import Enum
 import time
 import pandas as pd
@@ -339,7 +340,7 @@ class BenchmarkRunner:
         if cardinality_estimation == cardinality_ground_truth:
             return 1.0
         elif cardinality_estimation == 0 or cardinality_ground_truth == 0:
-            return sys.float_info.max
+            return math.inf
         else:
             return max(
                 cardinality_estimation / cardinality_ground_truth,

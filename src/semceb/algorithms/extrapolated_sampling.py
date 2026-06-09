@@ -123,15 +123,26 @@ class ExtrapolatedSampling(AlgorithmInterface):
             ).shape[0]
 
             # Extrapolate to estimate
-            selectivity_estimation = (
-                sample_estimation / self.data_sample[dataset_spec.table_ref].shape[0] * self.data_rows[dataset_spec.table_ref]
-            )
+            sample_row_count = self.data_sample[dataset_spec.table_ref].shape[0]
+            total_row_count = self.data_rows[dataset_spec.table_ref]
 
+            if sample_row_count == 0:
+                cardinality_estimation = 0
+            else:
+                filter_selectivity = sample_estimation / sample_row_count
+                cardinality_estimation = filter_selectivity * total_row_count
+
+                cardinality_estimation = max(
+                    0,
+                    min(
+                        round(cardinality_estimation),
+                        total_row_count,
+                    ),
+                )
+            
             # Track costs
             llm_cost_stats = self._get_costs(self.data_sample[dataset_spec.table_ref])
             self._add_cost(llm_cost_stats)
-            
-            selectivity_estimation = max(0, min(round(selectivity_estimation), self.data_rows[dataset_spec.table_ref]))
 
         # Joining
         elif len(query_spec.datasets) > 1:
@@ -216,9 +227,19 @@ class ExtrapolatedSampling(AlgorithmInterface):
             sample_pair_count = n_left_sample * n_right_sample
             total_pair_count = n_left_total * n_right_total
 
-            join_selectivity = sample_estimation / sample_pair_count
+            if sample_pair_count == 0:
+                cardinality_estimation = 0
+            else:
+                join_selectivity = sample_estimation / sample_pair_count
+                cardinality_estimation = join_selectivity * total_pair_count
 
-            selectivity_estimation = join_selectivity * total_pair_count
+                cardinality_estimation = max(
+                    0,
+                    min(
+                        round(cardinality_estimation),
+                        total_pair_count,
+                    ),
+                )
 
             # Track costs
             llm_cost_stats_left = self._get_costs(self.data_sample[dataset_spec_left.table_ref])
@@ -227,7 +248,7 @@ class ExtrapolatedSampling(AlgorithmInterface):
             llm_cost_stats["llm_calls"] *= llm_cost_stats_right["llm_calls"]
             self._add_cost(llm_cost_stats)
 
-        return selectivity_estimation
+        return cardinality_estimation
 
 
     def _get_costs(self, data: pd.DataFrame) -> dict:

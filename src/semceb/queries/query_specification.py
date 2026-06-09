@@ -39,6 +39,7 @@ class DatasetSpecification:
 @dataclass(frozen=True)
 class QuerySpecification:
     id: int
+    type: str
     category: str
     datasets: list[DatasetSpecification]
     filter: str
@@ -50,6 +51,7 @@ class QuerySpecification:
 
         return cls(
             id=data["id"],
+            type=data["type"],
             category=data["category"],
             datasets=[DatasetSpecification.from_str(dataset) for dataset in data["datasets"]],
             filter=raw_filter,

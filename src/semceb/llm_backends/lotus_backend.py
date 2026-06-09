@@ -25,7 +25,7 @@ class LotusBackend():
         self.lm = LM(
             model=self.name,
             rate_limit=None,
-            max_batch_size=64,
+            max_batch_size=256,
         )
         self.lm.system_prompt = self.system_prompt
         lotus.settings.configure(lm=self.lm)

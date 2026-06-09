@@ -1,74 +1,17 @@
 {
-  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='p:products_filtered' | scale_factor='1' | query='Is this product a sewing or crafting item? {product_title} {description_json}'": {
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered:amazon-reviews/products_filtered' | scale_factor='10' | query='I am looking for tools or materials for handmade paper crafts, especially card making, scrapbooking, die cutting, embossing, stenciling, or decorative paper projects. Does the following product description match my requirements? The product description is: {description_json}'": {
+    "selectivity": 6
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p:amazon-reviews/products_filtered, r:amazon-reviews/reviews_filtered' | scale_factor='10' | query='Determine if the following review text clearly refers to the product. The review text is: {review_text:right}. The product description is: {description_json:left}'": {
+    "selectivity": 746
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered:amazon-reviews/products_filtered' | scale_factor='20' | query='I am looking for tools or materials for handmade paper crafts, especially card making, scrapbooking, die cutting, embossing, stenciling, or decorative paper projects. Does the following product description match my requirements? The product description is: {description_json}'": {
     "selectivity": 9
   },
-  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='p1:products_filtered, p2:products_filtered' | scale_factor='1' | query='{product_title:left} and {product_title:right} describe the same or a highly similar product.'": {
-    "selectivity": 10
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p:amazon-reviews/products_filtered, r:amazon-reviews/reviews_filtered' | scale_factor='20' | query='Determine if the following review text clearly refers to the product. The review text is: {review_text:right}. The product description is: {description_json:left}'": {
+    "selectivity": 2334
   },
-  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='products_filtered:products_filtered' | scale_factor='1' | query='Is this product a sewing or crafting item? {product_title}'": {
-    "selectivity": 9
-  },
-  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='reviews_5core_filtered:reviews_5core_filtered' | scale_factor='1' | query='Does this review describe a customer who liked the product quality but had problems with delivery or packaging? {review_title} {review_text}'": {
-    "selectivity": 0
-  },
-  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='products_filtered:products_filtered, reviews_5core_filtered:reviews_5core_filtered' | scale_factor='1' | query='Is this review about the same product? Review title: '{review_title:right}'. Review text: '{review_text:right}'. Product title: '{product_title:left}'. Product description: '{description_json:left}'.'": {
-    "selectivity": 30
-  },
-  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='products_filtered:products_filtered, reviews_5core_filtered:reviews_5core_filtered' | scale_factor='1' | query='Does this review '{review_text:right}' mention a use case, feature, or problem that is directly related to this product description '{description_json:left}'?'": {
-    "selectivity": 26
-  },
-  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='p:products_filtered' | scale_factor='1' | query='Is this product a sewing or crafting item? {product_title} {description_json}'": {
-    "selectivity": 7
-  },
-  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='p1:products_filtered, p2:products_filtered' | scale_factor='1' | query='{product_title:left} and {product_title:right} describe the same or a highly similar product.'": {
-    "selectivity": 10
-  },
-  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='products_filtered:products_filtered' | scale_factor='1' | query='Is this product a sewing or crafting item? {product_title}'": {
-    "selectivity": 7
-  },
-  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='reviews_5core_filtered:reviews_5core_filtered' | scale_factor='1' | query='Does this review describe a customer who liked the product quality but had problems with delivery or packaging? {review_title} {review_text}'": {
-    "selectivity": 0
-  },
-  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='products_filtered:products_filtered, reviews_5core_filtered:reviews_5core_filtered' | scale_factor='1' | query='Is this review about the same product? Review title: '{review_title:right}'. Review text: '{review_text:right}'. Product title: '{product_title:left}'. Product description: '{description_json:left}'.'": {
-    "selectivity": 36
-  },
-  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='products_filtered:products_filtered, reviews_5core_filtered:reviews_5core_filtered' | scale_factor='1' | query='Does this review '{review_text:right}' mention a use case, feature, or problem that is directly related to this product description '{description_json:left}'?'": {
-    "selectivity": 30
-  },
-  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='p:amazon-reviews/products_filtered' | scale_factor='1' | query='Is this product a sewing or crafting item? {product_title} {description_json}'": {
-    "selectivity": 7
-  },
-  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='p:amazon-reviews/products_filtered' | scale_factor='1' | query='Is this product a sewing or crafting item? {product_title} {description_json}'": {
-    "selectivity": 5
-  },
-  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='p1:amazon-reviews/products_filtered, p2:amazon-reviews/products_filtered' | scale_factor='1' | query='{product_title:left} and {product_title:right} describe the same or a highly similar product.'": {
-    "selectivity": 10
-  },
-  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='amazon-reviews/products_filtered:amazon-reviews/products_filtered' | scale_factor='1' | query='Is this product a sewing or crafting item? {product_title}'": {
-    "selectivity": 7
-  },
-  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='amazon-reviews/reviews_filtered:amazon-reviews/reviews_filtered' | scale_factor='1' | query='Does this review describe a customer who liked the product quality but had problems with delivery or packaging? {review_title} {review_text}'": {
-    "selectivity": 0
-  },
-  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='amazon-reviews/products_filtered:amazon-reviews/products_filtered, amazon-reviews/reviews_filtered:amazon-reviews/reviews_filtered' | scale_factor='1' | query='Is this review about the same product? Review title: '{review_title:right}'. Review text: '{review_text:right}'. Product title: '{product_title:left}'. Product description: '{description_json:left}'.'": {
-    "selectivity": 51
-  },
-  "model_name='gpt-4o-mini' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='amazon-reviews/products_filtered:amazon-reviews/products_filtered, amazon-reviews/reviews_filtered:amazon-reviews/reviews_filtered' | scale_factor='1' | query='Does this review '{review_text:right}' mention a use case, feature, or problem that is directly related to this product description '{description_json:left}'?'": {
-    "selectivity": 25
-  },
-  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='p1:amazon-reviews/products_filtered, p2:amazon-reviews/products_filtered' | scale_factor='1' | query='{product_title:left} and {product_title:right} describe the same or a highly similar product.'": {
-    "selectivity": 10
-  },
-  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='amazon-reviews/products_filtered:amazon-reviews/products_filtered' | scale_factor='1' | query='Is this product a sewing or crafting item? {product_title}'": {
-    "selectivity": 5
-  },
-  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='filter' | datasets='amazon-reviews/reviews_filtered:amazon-reviews/reviews_filtered' | scale_factor='1' | query='Does this review describe a customer who liked the product quality but had problems with delivery or packaging? {review_title} {review_text}'": {
-    "selectivity": 0
-  },
-  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='amazon-reviews/products_filtered:amazon-reviews/products_filtered, amazon-reviews/reviews_filtered:amazon-reviews/reviews_filtered' | scale_factor='1' | query='Is this review about the same product? Review title: '{review_title:right}'. Review text: '{review_text:right}'. Product title: '{product_title:left}'. Product description: '{description_json:left}'.'": {
-    "selectivity": 31
-  },
-  "model_name='gpt-3.5-turbo' | system_prompt='Evaluate if the following statement. Only answer with True or False.' | query_type='join' | datasets='amazon-reviews/products_filtered:amazon-reviews/products_filtered, amazon-reviews/reviews_filtered:amazon-reviews/reviews_filtered' | scale_factor='1' | query='Does this review '{review_text:right}' mention a use case, feature, or problem that is directly related to this product description '{description_json:left}'?'": {
-    "selectivity": 23
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered:amazon-reviews/products_filtered' | scale_factor='1000' | query='I am looking for tools or materials for handmade paper crafts, especially card making, scrapbooking, die cutting, embossing, stenciling, or decorative paper projects. Does the following product description match my requirements? The product description is: {description_json}'": {
+    "selectivity": 463
   }
 }

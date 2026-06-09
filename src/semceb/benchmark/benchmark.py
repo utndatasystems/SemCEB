@@ -6,6 +6,7 @@ from enum import Enum
 import time
 import pandas as pd
 from typing import Any
+from rich.prompt import Confirm
 from src.semceb.utils.progress import create_benchmark_progress, suspend_progress
 from src.semceb.utils.console import console
 from src.semceb.data.downloader import DataDownloader
@@ -25,11 +26,14 @@ class BenchmarkRunner:
         scale_factor: int,
         join_scale_factor: int,
         categories: list[str],
+        types: list[str]
     ):
         self.algorithms = algorithms
         self.default_ground_truth_model_name = default_ground_truth_model_name
         self.default_ground_truth_system_prompt = default_ground_truth_system_prompt
         self.scale_factor = scale_factor
+        self.query_categories = categories
+        self.query_types = types
         self.join_scale_factor = join_scale_factor
         self.categories = categories
 
@@ -53,7 +57,7 @@ class BenchmarkRunner:
                     continue
 
                 query_spec = QuerySpecification.from_dict(json.loads(line))
-                if query_spec.category in self.categories:
+                if query_spec.category in self.query_categories and query_spec.type in self.query_types:
                     queries_specs.append(query_spec)
 
         return queries_specs

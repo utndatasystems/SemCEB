@@ -270,8 +270,8 @@
 <section class='query-block'>
 <h2>Query ID: 0</h2>
 <div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> Simple Base-Table Predicate</span><span><strong>Datasets:</strong> {&#x27;alias&#x27;: &#x27;amazon-reviews/products_filtered&#x27;, &#x27;table_ref&#x27;: &#x27;amazon-reviews/products_filtered&#x27;}</span></div>
-<div class='query-meta-query'><strong>Query:</strong> Is this product a sewing or crafting item? {product_title}</div>
+<div class='query-meta-topline'><span><strong>Category:</strong> equality</span><span><strong>Datasets:</strong> {&#x27;alias&#x27;: &#x27;amazon-reviews/products_filtered&#x27;, &#x27;table_ref&#x27;: &#x27;amazon-reviews/products_filtered&#x27;}</span></div>
+<div class='query-meta-query'><strong>Query:</strong> I am looking for tools or materials for handmade paper crafts, especially card making, scrapbooking, die cutting, embossing, stenciling, or decorative paper projects. Does the following product description match my requirements? The product description is: {description_json}</div>
 </div>
 <table>
 <thead>
@@ -288,96 +288,16 @@
 <tbody>
 <tr>
 <td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>3233.84</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>139</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>416</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='Custom Algorithm Template'>Custom Algorithm Template</span></td>
-<td><div class='metric-cell'><span class='metric-value'>5.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
-<td><span class='missing'>n/a</span></td>
-<td><span class='missing'>n/a</span></td>
-<td><span class='missing'>n/a</span></td>
-<td><span class='missing'>n/a</span></td>
-</tr>
-</tbody>
-</table>
-</section>
-<section class='query-block'>
-<h2>Query ID: 1</h2>
-<div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> Complex Base-Table Predicate</span><span><strong>Datasets:</strong> {&#x27;alias&#x27;: &#x27;amazon-reviews/reviews_filtered&#x27;, &#x27;table_ref&#x27;: &#x27;amazon-reviews/reviews_filtered&#x27;}</span></div>
-<div class='query-meta-query'><strong>Query:</strong> Does this review describe a customer who liked the product quality but had problems with delivery or packaging? {review_title} {review_text}</div>
-</div>
-<table>
-<thead>
-<tr>
-<th class='algorithm-header'>Algorithm</th>
-<th>Q-error</th>
-<th>Runtime ms</th>
-<th>Cost USD</th>
-<th>Tokens</th>
-<th>LLM calls</th>
-<th>Memory bytes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1000.18</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>138</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>416</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='Custom Algorithm Template'>Custom Algorithm Template</span></td>
-<td><div class='metric-cell'><span class='metric-value'>179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
-<td><span class='missing'>n/a</span></td>
-<td><span class='missing'>n/a</span></td>
-<td><span class='missing'>n/a</span></td>
-<td><span class='missing'>n/a</span></td>
-</tr>
-</tbody>
-</table>
-</section>
-<section class='query-block'>
-<h2>Query ID: 2</h2>
-<div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> Simple Join</span><span><strong>Datasets:</strong> {&#x27;alias&#x27;: &#x27;amazon-reviews/products_filtered&#x27;, &#x27;table_ref&#x27;: &#x27;amazon-reviews/products_filtered&#x27;}, {&#x27;alias&#x27;: &#x27;amazon-reviews/reviews_filtered&#x27;, &#x27;table_ref&#x27;: &#x27;amazon-reviews/reviews_filtered&#x27;}</span></div>
-<div class='query-meta-query'><strong>Query:</strong> Is this review about the same product? Review title: &#x27;{amazon-reviews/reviews_filtered.review_title}&#x27;. Review text: &#x27;{amazon-reviews/reviews_filtered.review_text}&#x27;. Product title: &#x27;{amazon-reviews/products_filtered.product_title}&#x27;. Product description: &#x27;{amazon-reviews/products_filtered.description_json}&#x27;.</div>
-</div>
-<table>
-<thead>
-<tr>
-<th class='algorithm-header'>Algorithm</th>
-<th>Q-error</th>
-<th>Runtime ms</th>
-<th>Cost USD</th>
-<th>Tokens</th>
-<th>LLM calls</th>
-<th>Memory bytes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>1.96</span><span class='bar-track'><span class='bar-fill' style='display:block; width:6.3%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>771.08</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>inf</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>4998.26</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>443</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>420</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>416</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 </tr>
 <tr>
 <td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='Custom Algorithm Template'>Custom Algorithm Template</span></td>
-<td><div class='metric-cell'><span class='metric-value'>31.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>6.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>0.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
 <td><span class='missing'>n/a</span></td>
 <td><span class='missing'>n/a</span></td>
@@ -388,10 +308,10 @@
 </table>
 </section>
 <section class='query-block'>
-<h2>Query ID: 3</h2>
+<h2>Query ID: 30</h2>
 <div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> Complex Join</span><span><strong>Datasets:</strong> {&#x27;alias&#x27;: &#x27;amazon-reviews/products_filtered&#x27;, &#x27;table_ref&#x27;: &#x27;amazon-reviews/products_filtered&#x27;}, {&#x27;alias&#x27;: &#x27;amazon-reviews/reviews_filtered&#x27;, &#x27;table_ref&#x27;: &#x27;amazon-reviews/reviews_filtered&#x27;}</span></div>
-<div class='query-meta-query'><strong>Query:</strong> Does this review &#x27;{amazon-reviews/reviews_filtered.review_text}&#x27; mention a use case, feature, or problem that is directly related to this product description &#x27;{amazon-reviews/products_filtered.description_json}&#x27;?</div>
+<div class='query-meta-topline'><span><strong>Category:</strong> equality</span><span><strong>Datasets:</strong> {&#x27;alias&#x27;: &#x27;p&#x27;, &#x27;table_ref&#x27;: &#x27;amazon-reviews/products_filtered&#x27;}, {&#x27;alias&#x27;: &#x27;r&#x27;, &#x27;table_ref&#x27;: &#x27;amazon-reviews/reviews_filtered&#x27;}</span></div>
+<div class='query-meta-query'><strong>Query:</strong> Determine if the following review text clearly refers to the product. The review text is: {r.review_text}. The product description is: {p.description_json}</div>
 </div>
 <table>
 <thead>
@@ -408,96 +328,16 @@
 <tbody>
 <tr>
 <td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>4.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:17.4%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>552.35</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>434</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>1.05</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.1%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>5713.59</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>0.0012</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>5806</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>13</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>416</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 </tr>
 <tr>
 <td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='Custom Algorithm Template'>Custom Algorithm Template</span></td>
-<td><div class='metric-cell'><span class='metric-value'>23.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
-<td><span class='missing'>n/a</span></td>
-<td><span class='missing'>n/a</span></td>
-<td><span class='missing'>n/a</span></td>
-<td><span class='missing'>n/a</span></td>
-</tr>
-</tbody>
-</table>
-</section>
-<section class='query-block'>
-<h2>Query ID: 4</h2>
-<div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> Self Join</span><span><strong>Datasets:</strong> {&#x27;alias&#x27;: &#x27;p1&#x27;, &#x27;table_ref&#x27;: &#x27;amazon-reviews/products_filtered&#x27;}, {&#x27;alias&#x27;: &#x27;p2&#x27;, &#x27;table_ref&#x27;: &#x27;amazon-reviews/products_filtered&#x27;}</span></div>
-<div class='query-meta-query'><strong>Query:</strong> {p1.product_title} and {p2.product_title} describe the same or a highly similar product.</div>
-</div>
-<table>
-<thead>
-<tr>
-<th class='algorithm-header'>Algorithm</th>
-<th>Q-error</th>
-<th>Runtime ms</th>
-<th>Cost USD</th>
-<th>Tokens</th>
-<th>LLM calls</th>
-<th>Memory bytes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>10.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>28166.97</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0000</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>204</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>416</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='Custom Algorithm Template'>Custom Algorithm Template</span></td>
-<td><div class='metric-cell'><span class='metric-value'>10.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
-<td><span class='missing'>n/a</span></td>
-<td><span class='missing'>n/a</span></td>
-<td><span class='missing'>n/a</span></td>
-<td><span class='missing'>n/a</span></td>
-</tr>
-</tbody>
-</table>
-</section>
-<section class='query-block'>
-<h2>Query ID: 5</h2>
-<div class='query-meta'>
-<div class='query-meta-topline'><span><strong>Category:</strong> Simple Base-Table Predicate</span><span><strong>Datasets:</strong> {&#x27;alias&#x27;: &#x27;p&#x27;, &#x27;table_ref&#x27;: &#x27;amazon-reviews/products_filtered&#x27;}</span></div>
-<div class='query-meta-query'><strong>Query:</strong> Is this product a sewing or crafting item? {p.product_title} {description_json}</div>
-</div>
-<table>
-<thead>
-<tr>
-<th class='algorithm-header'>Algorithm</th>
-<th>Q-error</th>
-<th>Runtime ms</th>
-<th>Cost USD</th>
-<th>Tokens</th>
-<th>LLM calls</th>
-<th>Memory bytes</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#ffffff;'></span><span class='algorithm-name' title='Extrapolation Sampling'>Extrapolation Sampling</span></td>
-<td><div class='metric-cell'><span class='metric-value'>179769313486231570814527423731704356798070567525844996598917476803157260780028538760589558632766878171540458953514382464234321326889464182768467546703537516986049910576551282076245490090389328944075868508455133942304583236903222948165808559332123348274797826204144723168738177180919299881250404026184124858368.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1858.58</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>0.0001</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>435</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>1</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-<td><div class='metric-cell'><span class='metric-value'>416</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
-</tr>
-<tr>
-<td class='algorithm-cell'><span class='style-swatch' style='background:#e6e6e6;'></span><span class='algorithm-name' title='Custom Algorithm Template'>Custom Algorithm Template</span></td>
-<td><div class='metric-cell'><span class='metric-value'>5.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
+<td><div class='metric-cell'><span class='metric-value'>747.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:100.0%;'></span></span></div></td>
 <td><div class='metric-cell'><span class='metric-value'>0.00</span><span class='bar-track'><span class='bar-fill' style='display:block; width:0.0%;'></span></span></div></td>
 <td><span class='missing'>n/a</span></td>
 <td><span class='missing'>n/a</span></td>

@@ -6,8 +6,8 @@ This script supports an iterative workflow:
 2) set up a chosen category locally with compact DuckDB/parquet tables
 
 Examples:
-  python data/amazon-reviews/amazon-reviews.py --analyze-only
-  python data/amazon-reviews/amazon-reviews.py --category Arts_Crafts_and_Sewing --mode raw_5core
+  python data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --analyze-only
+  python data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --category Arts_Crafts_and_Sewing --mode raw_5core
 """
 
 from __future__ import annotations
@@ -533,6 +533,11 @@ def create_products_table(
           AND description_json IS NOT NULL
           AND details_json IS NOT NULL
           AND images_json IS NOT NULL
+          AND length(trim(product_title)) >= 5
+          AND length(trim(CAST(features_json AS VARCHAR))) >= 5
+          AND length(trim(CAST(description_json AS VARCHAR))) >= 5
+          AND length(trim(CAST(details_json AS VARCHAR))) >= 5
+          AND length(trim(CAST(images_json AS VARCHAR))) >= 5
           AND lower(CAST(features_json AS VARCHAR)) <> 'null'
           AND lower(CAST(description_json AS VARCHAR)) <> 'null'
           AND lower(CAST(details_json AS VARCHAR)) <> 'null'
@@ -541,6 +546,7 @@ def create_products_table(
           AND NOT (json_type(description_json) = 'ARRAY' AND json_array_length(description_json) = 0)
           AND NOT (json_type(images_json) = 'ARRAY' AND json_array_length(images_json) = 0)
           AND main_image_local IS NOT NULL
+          AND length(trim(main_image_local)) >= 5
         """,
         [str(meta_jsonl_path)],
     )

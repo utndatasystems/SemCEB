@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compute image and text embeddings for Amazon Reviews products and reviews.
 
-This script reads a processed dataset directory created by ``amazon-reviews.py``,
+This script reads a processed dataset directory created by ``download_and_prepare_amazon_reviews_dataset.py``,
 computes embeddings for selected columns in the filtered product and review
 tables, and exports new parquet files without modifying the original artifacts.
 """
@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
         "--run-dir",
         required=True,
         help=(
-            "Processed dataset directory created by amazon-reviews.py. "
+            "Processed dataset directory created by download_and_prepare_amazon_reviews_dataset.py. "
             "Example: processed/Arts_Crafts_and_Sewing__raw_5core"
         ),
     )

@@ -34,7 +34,7 @@ In the end, two tables are created:
 To generate the dataset, run the following command:
 
 ```
-python amazon-reviews.py --category Arts_Crafts_and_Sewing --mode raw_5core
+python download_and_prepare_amazon_reviews_dataset.py --category Arts_Crafts_and_Sewing --mode raw_5core
 ```
 
 To compute image and text embeddings for the filtered product and review tables, run:

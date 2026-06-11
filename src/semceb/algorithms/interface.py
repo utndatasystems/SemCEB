@@ -24,7 +24,7 @@ class AlgorithmInterface(ABC):
 
     @abstractmethod
     def reset_cost_stats(self) -> None:
-        """Reset tracked algorithm cost."""
+        """Reset all accumulated runtime and cost statistics for the algorithm."""
         pass
 
     @abstractmethod
@@ -41,5 +41,5 @@ class AlgorithmInterface(ABC):
 
     @abstractmethod
     def run(self, query_spec: QuerySpecification) -> int:
-        """Run the algorithm and return the estimated output cardinality for the given query."""
+        """Estimate the output cardinality for the provided query specification."""
         pass

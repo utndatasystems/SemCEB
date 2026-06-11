@@ -17,7 +17,7 @@ from src.semceb.llm_backends.lotus_backend import LotusBackend
 from src.semceb.queries.query_specification import QuerySpecification
 
 class BenchmarkRunner:
-    """Runs benchmark queries."""
+    """Run benchmark queries and collect algorithm evaluation results."""
 
     def __init__(
         self,
@@ -29,6 +29,7 @@ class BenchmarkRunner:
         categories: list[str],
         types: list[str]
     ):
+        """Initialize benchmark runner settings, query selection, and local storage paths."""
         self.algorithms = algorithms
         self.default_ground_truth_model_name = default_ground_truth_model_name
         self.default_ground_truth_system_prompt = default_ground_truth_system_prompt
@@ -45,7 +46,7 @@ class BenchmarkRunner:
         self._handle_cloud_data()
 
     def _load_queries_specs(self, file_path: str) -> list[QuerySpecification]:
-        """Load queries specifications from a JSONL file."""
+        """Load query specifications from a JSONL file and filter by selected categories and types."""
 
         queries_specs = []
 
@@ -122,25 +123,8 @@ class BenchmarkRunner:
     def run(self) -> None:
         """Measure, run, and store results of benchmark queries."""
 
-        # Clear result file
-        with open(self.result_filepath, "w"):
-            pass
-
-        filter_query_specs, join_query_specs = self._split_query_specs_by_type()
-
-        query_groups = [
-            {
-                "name": "filter",
-                "query_specs": filter_query_specs,
-                "scale_factor": self.scale_factor,
-            },
-            {
-                "name": "join",
-                "query_specs": join_query_specs,
-                "scale_factor": self.join_scale_factor,
-            },
-        ]
-
+        self._clear_result_file()
+        query_groups = self._build_query_groups()
         total_runs = sum(
             len(self.algorithms) * len(group["query_specs"])
             for group in query_groups
@@ -153,105 +137,180 @@ class BenchmarkRunner:
             )
 
             for query_group in query_groups:
-                query_specs = query_group["query_specs"]
-
-                if not query_specs:
-                    continue
-
-                scale_factor = query_group["scale_factor"]
-                group_name = query_group["name"]
-
-                with suspend_progress(progress):
-                    data_dfs = self._load_required_datasets(
-                        query_specs=query_specs,
-                        scale_factor=scale_factor,
-                    )
-                    
-                    if group_name == "join":
-                        self._confirm_join_benchmark_run(data_dfs)
-
-                for algorithm_config in self.algorithms:
-                    algorithm = self._load_algorithm_from_file(algorithm_config)
-
-                    ground_truth_model_name = (
-                        algorithm_config
-                        .get("ground_truth", {})
-                        .get("model_name")
-                        or self.default_ground_truth_model_name
-                    )
-
-                    ground_truth_system_prompt = (
-                        algorithm_config
-                        .get("ground_truth", {})
-                        .get("system_prompt")
-                        or self.default_ground_truth_system_prompt
-                    )
-
-                    algorithm_kwargs = algorithm_config.get("algorithm_kwargs", {})
-                    algorithm.preparation(data_dfs, algorithm_kwargs)
-
-                    for query_spec in query_specs:
-                        progress.update(
-                            task,
-                            description=(
-                                f"Group: [magenta]{group_name}[/magenta] "
-                                f"| Algorithm: [cyan]{algorithm_config['name']}[/cyan] "
-                                f"| Query ID: [yellow]{query_spec.id}[/yellow]"
-                            ),
-                        )
-
-                        with suspend_progress(progress):
-                            cardinality_ground_truth = self._get_cardinality_ground_truth(
-                                ground_truth_model_name,
-                                ground_truth_system_prompt,
-                                query_spec,
-                                data_dfs,
-                            )
-
-                        algorithm.reset_cost_stats()
-
-                        with suspend_progress(progress):
-                            start = time.perf_counter()
-                            cardinality_estimation = algorithm.run(query_spec)
-                            time_ms = (time.perf_counter() - start) * 1000
-
-                        q_error = self._calculate_q_error(
-                            cardinality_estimation,
-                            cardinality_ground_truth,
-                        )
-
-                        selectivity_estimation = self._calculate_selectivity(
-                            cardinality_estimation,
-                            query_spec,
-                            data_dfs,
-                        )
-
-                        self._save_result(
-                            query_spec=query_spec,
-                            algorithm_name=algorithm_config["name"],
-                            algorithm_version=algorithm_config["version"],
-                            algorithm_memory_consumption=algorithm.get_memory_consumption(),
-                            algorithm_cost_stats=algorithm.get_cost_stats(),
-                            cardinality_ground_truth=cardinality_ground_truth,
-                            cardinality_estimation=cardinality_estimation,
-                            selectivity_estimation=selectivity_estimation,
-                            q_error=q_error,
-                            time_ms=time_ms,
-                        )
-
-                        progress.advance(task)
-
-                    progress.console.print(
-                        f"[green]✓[/green] Finished algorithm "
-                        f"[bold cyan]{algorithm.name}[/bold cyan] "
-                        f"on [bold]{len(query_specs)}[/bold] {group_name} queries."
-                    )
+                self._run_query_group(query_group, progress, task)
 
         console.print(
             f"[green]✓[/green] Results written to [bold]{self.result_filepath}[/bold]"
         )
 
+    def _clear_result_file(self) -> None:
+        """Reset the result file before writing new benchmark output."""
+
+        with open(self.result_filepath, "w"):
+            pass
+
+    def _build_query_groups(self) -> list[dict[str, Any]]:
+        """Group query specifications by query type and scale factor."""
+
+        filter_query_specs, join_query_specs = self._split_query_specs_by_type()
+
+        return [
+            {
+                "name": "filter",
+                "query_specs": filter_query_specs,
+                "scale_factor": self.scale_factor,
+            },
+            {
+                "name": "join",
+                "query_specs": join_query_specs,
+                "scale_factor": self.join_scale_factor,
+            },
+        ]
+
+    def _run_query_group(
+        self,
+        query_group: dict[str, Any],
+        progress,
+        task,
+    ) -> None:
+        """Execute benchmark runs for one query group."""
+
+        query_specs = query_group["query_specs"]
+        if not query_specs:
+            return
+
+        with suspend_progress(progress):
+            data_dfs = self._load_required_datasets(
+                query_specs=query_specs,
+                scale_factor=query_group["scale_factor"],
+            )
+
+            if query_group["name"] == "join":
+                self._confirm_join_benchmark_run(data_dfs)
+
+        for algorithm_config in self.algorithms:
+            self._run_algorithm_for_query_group(
+                algorithm_config=algorithm_config,
+                query_specs=query_specs,
+                data_dfs=data_dfs,
+                progress=progress,
+                task=task,
+                group_name=query_group["name"],
+            )
+
+    def _get_ground_truth_params(self, algorithm_config: dict[str, Any]) -> tuple[str, str]:
+        """Resolve the ground-truth model name and system prompt for an algorithm."""
+
+        ground_truth = algorithm_config.get("ground_truth", {})
+
+        return (
+            ground_truth.get("model_name") or self.default_ground_truth_model_name,
+            ground_truth.get("system_prompt") or self.default_ground_truth_system_prompt,
+        )
+
+    def _run_algorithm_for_query_group(
+        self,
+        algorithm_config: dict[str, Any],
+        query_specs: list[QuerySpecification],
+        data_dfs: dict[str, pd.DataFrame],
+        progress,
+        task,
+        group_name: str,
+    ) -> None:
+        """Run one algorithm on a group of queries."""
+
+        algorithm = self._load_algorithm_from_file(algorithm_config)
+        ground_truth_model_name, ground_truth_system_prompt = self._get_ground_truth_params(
+            algorithm_config,
+        )
+        algorithm_kwargs = algorithm_config.get("algorithm_kwargs", {})
+        algorithm.preparation(data_dfs, algorithm_kwargs)
+
+        for query_spec in query_specs:
+            self._run_single_query(
+                algorithm=algorithm,
+                algorithm_config=algorithm_config,
+                query_spec=query_spec,
+                data_dfs=data_dfs,
+                progress=progress,
+                task=task,
+                group_name=group_name,
+                ground_truth_model_name=ground_truth_model_name,
+                ground_truth_system_prompt=ground_truth_system_prompt,
+            )
+
+        progress.console.print(
+            f"[green]✓[/green] Finished algorithm "
+            f"[bold cyan]{algorithm.name}[/bold cyan] "
+            f"on [bold]{len(query_specs)}[/bold] {group_name} queries."
+        )
+
+    def _run_single_query(
+        self,
+        algorithm: AlgorithmInterface,
+        algorithm_config: dict[str, Any],
+        query_spec: QuerySpecification,
+        data_dfs: dict[str, pd.DataFrame],
+        progress,
+        task,
+        group_name: str,
+        ground_truth_model_name: str,
+        ground_truth_system_prompt: str,
+    ) -> None:
+        """Run one query for a single algorithm and write the result."""
+
+        progress.update(
+            task,
+            description=(
+                f"Group: [magenta]{group_name}[/magenta] "
+                f"| Algorithm: [cyan]{algorithm_config['name']}[/cyan] "
+                f"| Query ID: [yellow]{query_spec.id}[/yellow]"
+            ),
+        )
+
+        with suspend_progress(progress):
+            cardinality_ground_truth = self._get_cardinality_ground_truth(
+                ground_truth_model_name,
+                ground_truth_system_prompt,
+                query_spec,
+                data_dfs,
+            )
+
+        algorithm.reset_cost_stats()
+
+        with suspend_progress(progress):
+            start = time.perf_counter()
+            cardinality_estimation = algorithm.run(query_spec)
+            time_ms = (time.perf_counter() - start) * 1000
+
+        q_error = self._calculate_q_error(
+            cardinality_estimation,
+            cardinality_ground_truth,
+        )
+
+        selectivity_estimation = self._calculate_selectivity(
+            cardinality_estimation,
+            query_spec,
+            data_dfs,
+        )
+
+        self._save_result(
+            query_spec=query_spec,
+            algorithm_name=algorithm_config["name"],
+            algorithm_version=algorithm_config["version"],
+            algorithm_memory_consumption=algorithm.get_memory_consumption(),
+            algorithm_cost_stats=algorithm.get_cost_stats(),
+            cardinality_ground_truth=cardinality_ground_truth,
+            cardinality_estimation=cardinality_estimation,
+            selectivity_estimation=selectivity_estimation,
+            q_error=q_error,
+            time_ms=time_ms,
+        )
+
+        progress.advance(task)
+
     def _split_query_specs_by_type(self):
+        """Split loaded queries into filter and join groups based on dataset count."""
         filter_query_specs = []
         join_query_specs = []
 
@@ -271,6 +330,7 @@ class BenchmarkRunner:
         return filter_query_specs, join_query_specs
 
     def _load_required_datasets(self, query_specs, scale_factor):
+        """Load all datasets required by a set of query specifications."""
         datasets = {
             dataset.table_ref
             for query_spec in query_specs
@@ -396,6 +456,7 @@ class BenchmarkRunner:
             file.write(json.dumps(result, default=self.json_default) + "\n")
 
     def json_default(self, obj):
+        """JSON serializer helper for objects that provide to_dict or Enum values."""
         if hasattr(obj, "to_dict"):
             return obj.to_dict()
 

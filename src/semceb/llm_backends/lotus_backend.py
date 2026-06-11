@@ -11,9 +11,10 @@ from src.semceb.queries.template_parser import ColumnRef
 
 
 class LotusBackend():
-    """Model wrapper using LOTUS for ground-truth cardinality."""
+    """LOTUS backend for ground-truth cardinality estimation and caching."""
 
     def __init__(self, model_name: str, system_prompt: str, scale_factor: int):
+        """Initialize the LOTUS backend, cache, and model instance."""
         
         safe_model_name = self._safe_cache_name(model_name)
         self.cache_path = Path("benchmark_queries") / f"ground_truth_cache_{safe_model_name}.json"
@@ -31,6 +32,7 @@ class LotusBackend():
         lotus.settings.configure(lm=self.lm)
 
     def _safe_cache_name(self, model_name: str) -> str:
+        """Return a filesystem-safe name for the model cache file."""
         return (
             model_name
             .replace("/", "__")
@@ -140,6 +142,7 @@ class LotusBackend():
         return query_str
     
     def _validate_filtering_query(self, query_spec: QuerySpecification, df: pd.DataFrame) -> None:
+        """Validate that the filter query is well-formed for a single dataset."""
 
         if len(query_spec.datasets) != 1:
             raise ValueError("Filtering query must contain exactly one dataset.")
@@ -214,6 +217,7 @@ class LotusBackend():
     
 
     def _format_lotus_join_column(self, column_ref: ColumnRef, dataset_side: dict[str, str]) -> str:
+        """Format a Lotus join column reference using the dataset side mapping."""
 
         if column_ref.value.dataset_ref not in dataset_side:
             raise ValueError(
@@ -229,6 +233,7 @@ class LotusBackend():
         data_left_df: pd.DataFrame,
         data_right_df: pd.DataFrame,
     ) -> None:
+        """Validate that a joining query references both datasets and valid columns."""
 
         if len(query_spec.datasets) != 2:
             raise ValueError("Joining query must contain exactly two datasets.")

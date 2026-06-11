@@ -15,6 +15,7 @@ class DataDownloader:
     """Downloads benchmark data from a public cloud bucket."""
 
     def __init__(self):
+        """Initialize downloader settings, bucket URL, and local data paths."""
         self.bucket_url = (
             "https://azimmerer-semantic-selectivity-datasets."
             "s3.eu-central-1.amazonaws.com/"
@@ -90,18 +91,41 @@ class DataDownloader:
             f"will be downloaded ([bold]{download_size}[/bold])."
         )
 
-        should_download = Confirm.ask(
+        if not self._confirm_download():
+            console.print("[yellow]Download skipped.[/yellow]")
+            return False
+
+        downloaded_zip_paths = self._download_files_with_progress(
+            missing_files=missing_files,
+            total_bytes=total_bytes,
+        )
+
+        console.print(
+            f"[green]✓[/green] Downloaded missing data to "
+            f"[bold]{self.local_data_folderpath}[/bold]"
+        )
+
+        self._extract_downloaded_zips(downloaded_zip_paths)
+
+        return True
+
+    def _confirm_download(self) -> bool:
+        """Ask the user whether to start the download."""
+
+        return Confirm.ask(
             "[bold cyan]Do you want to start downloading now?[/bold cyan]",
             default=False,
         )
 
-        if not should_download:
-            console.print("[yellow]Download skipped.[/yellow]")
-            return False
+    def _download_files_with_progress(
+        self,
+        missing_files: list[dict],
+        total_bytes: int,
+    ) -> list[Path]:
+        """Download each missing file while updating progress."""
 
         downloaded_zip_paths: list[Path] = []
 
-        # Phase 1: download everything first.
         with create_download_progress() as progress:
             task = progress.add_task(
                 "Downloading data...",
@@ -121,19 +145,16 @@ class DataDownloader:
                 if self._is_zip_file(remote_file["filename"]):
                     downloaded_zip_paths.append(local_filepath)
 
-        console.print(
-            f"[green]✓[/green] Downloaded missing data to "
-            f"[bold]{self.local_data_folderpath}[/bold]"
-        )
+        return downloaded_zip_paths
 
-        # Phase 2: after all downloads are done, ask about ZIP extraction.
+    def _extract_downloaded_zips(self, downloaded_zip_paths: list[Path]) -> None:
+        """Extract any ZIP files that were downloaded."""
+
         for zip_path in downloaded_zip_paths:
             self._extract_zip_next_to_file(
                 zip_path=zip_path,
                 delete_zip_after_extract=True,
             )
-
-        return True
 
     def _get_remote_file_size(self, remote_url: str) -> int:
         """Return the remote file size in bytes."""

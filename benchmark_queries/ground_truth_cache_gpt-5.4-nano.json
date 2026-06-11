@@ -1,8 +1,6 @@
 {
   "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered:amazon-reviews/products_filtered' | scale_factor='10' | query='I am looking for tools or materials for handmade paper crafts, especially card making, scrapbooking, die cutting, embossing, stenciling, or decorative paper projects. Does the following product description match my requirements? The product description is: {description_json}'": {
-    "cardinality": 6
-  },
-  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p:amazon-reviews/products_filtered, r:amazon-reviews/reviews_filtered' | scale_factor='10' | query='Determine if the following review text clearly refers to the product. The review text is: {review_text:right}. The product description is: {description_json:left}'": {
-    "cardinality": 747
+    "cardinality": 6,
+    "selectivity": 0.6
   }
 }

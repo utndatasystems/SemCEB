@@ -14,6 +14,7 @@ class ResultsPlotter:
     """Plots benchmark run results."""
 
     def __init__(self):
+        """Initialize the plotter with default output directories and style settings."""
         self.raw_results_path = Path("results") / "raw" / "result.jsonl"
         self.plot_dir = Path("results") / "plots"
         self.table_dir = Path("results") / "tables"
@@ -278,6 +279,35 @@ class ResultsPlotter:
     def _plot_algorithm_comparison(self, df: pd.DataFrame) -> None:
         """Plot one metric as total bars while preserving empty algorithm slots."""
         
+        self._configure_plot_style()
+
+        algorithms = self._get_algorithms_for_comparison(df)
+        algorithm_styles = self._get_algorithm_styles(algorithms)
+        palette = {
+            algorithm: algorithm_styles[algorithm]["facecolor"]
+            for algorithm in algorithms
+        }
+
+        fig, axes = self._create_comparison_figure()
+        plot_specs = self._build_comparison_plot_specs()
+
+        self._draw_comparison_plots(
+            axes=axes,
+            plot_specs=plot_specs,
+            df=df,
+            algorithms=algorithms,
+            palette=palette,
+            algorithm_styles=algorithm_styles,
+        )
+
+        self._finalize_comparison_figure(
+            fig=fig,
+            algorithms=algorithms,
+            algorithm_styles=algorithm_styles,
+        )
+
+    def _configure_plot_style(self) -> None:
+        """Configure Matplotlib and Seaborn style settings for consistent plots."""
         plt.rcParams["font.family"] = "serif"
         plt.rcParams["font.serif"] = ["DejaVu Serif"]
         plt.rcParams["mathtext.fontset"] = "dejavuserif"
@@ -305,25 +335,24 @@ class ResultsPlotter:
                 "xtick.color": "#222222",
                 "ytick.color": "#222222",
                 "font.family": "serif",
-                "font.serif": ["DejaVu Serif"],  
-              },
+                "font.serif": ["DejaVu Serif"],
+            },
         )
 
+    def _get_algorithms_for_comparison(self, df: pd.DataFrame) -> list[str]:
+        """Return the ordered list of algorithms to include in comparison plots."""
         if self.algorithm_order is None:
-            algorithms = df["algorithm_name"].drop_duplicates().tolist()
-        else:
-            algorithms = self.algorithm_order
+            return df["algorithm_name"].drop_duplicates().tolist()
 
-        algorithm_styles = self._get_algorithm_styles(algorithms)
+        return self.algorithm_order
 
-        palette = {
-            algorithm: algorithm_styles[algorithm]["facecolor"]
-            for algorithm in algorithms
-        }
-
+    def _create_comparison_figure(self):
+        """Create a fixed subplot grid for algorithm comparison charts."""
         fig, axes = plt.subplots(2, 3, figsize=(20, 11))
-        axes = axes.flatten()
+        return fig, axes.flatten()
 
+    def _build_comparison_plot_specs(self) -> list[tuple[str, str, str]]:
+        """Return the comparison metrics and labels used for the benchmark plots."""
         distribution_plot_specs = [
             ("q_error", "Q-error", "Q-error"),
         ]
@@ -336,9 +365,19 @@ class ResultsPlotter:
             ("memory_consumption", "Total Memory", "Memory in bytes"),
         ]
 
-        all_plot_specs = distribution_plot_specs + resource_plot_specs
+        return distribution_plot_specs + resource_plot_specs
 
-        for axis, (column, title, ylabel) in zip(axes, all_plot_specs):
+    def _draw_comparison_plots(
+        self,
+        axes,
+        plot_specs: list[tuple[str, str, str]],
+        df: pd.DataFrame,
+        algorithms: list[str],
+        palette: dict[str, Any],
+        algorithm_styles: dict[str, dict[str, Any]],
+    ) -> None:
+        """Draw all configured comparison plots for the benchmark metrics."""
+        for axis, (column, title, ylabel) in zip(axes, plot_specs):
             plot_df = df[df[column] >= 0].copy()
 
             if column == "q_error":
@@ -370,6 +409,13 @@ class ResultsPlotter:
                     scilimits=(0, 0),
                 )
 
+    def _finalize_comparison_figure(
+        self,
+        fig,
+        algorithms: list[str],
+        algorithm_styles: dict[str, dict[str, Any]],
+    ) -> None:
+        """Finalize figure layout, add legend/title, and save comparison plot files."""
         legend_handles = [
             Patch(
                 facecolor=algorithm_styles[algorithm]["facecolor"],
@@ -578,7 +624,17 @@ class ResultsPlotter:
         """Save Rich summary table to text and HTML files."""
 
         table_html_path = self.table_dir / "algorithm_summary.html"
+        html = self._build_summary_table_html(summary)
 
+        with open(table_html_path, "w", encoding="utf-8") as file:
+            file.write(html)
+
+        console.print(
+            f"[green]✓[/green] Saved algorithm comparison table in *.html to [bold]{table_html_path}[/bold]"
+        )
+
+    def _build_summary_table_html(self, summary: pd.DataFrame) -> str:
+        """Create an HTML page containing the algorithm summary table."""
         summary_html = summary.copy()
 
         summary_html = summary_html.rename(
@@ -598,7 +654,7 @@ class ResultsPlotter:
             }
         )
 
-        html = f"""
+        return f"""
         <html>
         <head>
         <meta charset="utf-8">
@@ -658,14 +714,6 @@ class ResultsPlotter:
         </html>
         """
 
-        with open(table_html_path, "w", encoding="utf-8") as file:
-            file.write(html)
-
-        console.print(
-            f"[green]✓[/green] Saved algorithm comparison table in *.html to [bold]{table_html_path}[/bold]"
-        )
-
-
     def _format_float(self, value: Any, decimals: int) -> str:
         """Format floats safely for tables."""
 
@@ -696,23 +744,7 @@ class ResultsPlotter:
             algorithms = self.algorithm_order
 
         algorithm_styles = self._get_algorithm_styles(algorithms)
-
-        report_df = df.copy()
-
-        nullable_columns = [
-            "memory_consumption",
-            "cost_usd",
-            "llm_calls",
-            "tokens",
-        ]
-
-        for column in nullable_columns:
-            report_df.loc[report_df[column] < 0, column] = pd.NA
-
-        report_df = report_df.sort_values(
-            by=["query_id", "algorithm_name"],
-            kind="stable",
-        )
+        report_df = self._prepare_per_query_report_df(df)
 
         metric_specs = [
             ("q_error", "Q-error", "{:.2f}", "lower"),
@@ -728,14 +760,63 @@ class ResultsPlotter:
             "<head>",
             "<meta charset='utf-8'>",
             "<style>",
-            """
+            self._get_per_query_report_css(),
+            "</style>",
+            "</head>",
+            "<body>",
+            "<h1>Per-query benchmark report</h1>",
+        ]
+
+        for query_id, query_df in report_df.groupby("query_id", sort=True):
+            query_df = query_df.set_index("algorithm_name").reindex(algorithms).reset_index()
+            html_parts.extend(
+                self._build_per_query_report_section(
+                    query_id=query_id,
+                    query_df=query_df,
+                    metric_specs=metric_specs,
+                    algorithm_styles=algorithm_styles,
+                )
+            )
+
+        html_parts.extend(["</body>", "</html>"])
+
+        html_path = self.table_dir / "per_query_benchmark_report.html"
+
+        with open(html_path, "w", encoding="utf-8") as file:
+            file.write("\n".join(html_parts))
+
+        console.print(
+            f"[green]✓[/green] Saved per-query benchmark report to [bold]{html_path}[/bold]"
+        )
+
+    def _prepare_per_query_report_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Prepare a per-query report dataframe with missing values normalized."""
+        report_df = df.copy()
+
+        nullable_columns = [
+            "memory_consumption",
+            "cost_usd",
+            "llm_calls",
+            "tokens",
+        ]
+
+        for column in nullable_columns:
+            report_df.loc[report_df[column] < 0, column] = pd.NA
+
+        return report_df.sort_values(
+            by=["query_id", "algorithm_name"],
+            kind="stable",
+        )
+
+    def _get_per_query_report_css(self) -> str:
+        """Return the embedded CSS used for rendering the per-query HTML report."""
+        return """
             @page {
                 size: A4 landscape;
                 margin: 8mm;
             }
 
             @media print {
-                
                 body {
                     margin: 0;
                 }
@@ -988,119 +1069,129 @@ class ResultsPlotter:
                 margin-bottom: 8px;
                 color: #444444;
             }
-            """,
-            "</style>",
-            "</head>",
-            "<body>",
-            "<h1>Per-query benchmark report</h1>",
+        """
+
+    def _build_per_query_report_section(
+        self,
+        query_id: int,
+        query_df: pd.DataFrame,
+        metric_specs: list[tuple[str, str, str, str]],
+        algorithm_styles: dict[str, dict[str, Any]],
+    ) -> list[str]:
+        """Build the HTML section for one query's per-algorithm metric report."""
+        query_meta = query_df.dropna(subset=["filter"]).iloc[0]
+        query_category = str(query_meta.get("query_category", ""))
+        query_datasets = [str(s) for s in query_meta.get("datasets", "")]
+        query_text = self._extract_query_text(query_df)
+
+        html_parts = [
+            "<section class='query-block'>",
+            f"<h2>Query ID: {query_id}</h2>",
+        ]
+        html_parts.extend(
+            self._build_query_meta_html(
+                query_category=query_category,
+                query_datasets=query_datasets,
+                query_text=query_text,
+            )
+        )
+        html_parts.extend(
+            self._build_query_table_html(
+                query_df=query_df,
+                metric_specs=metric_specs,
+                algorithm_styles=algorithm_styles,
+            )
+        )
+        html_parts.append("</section>")
+        return html_parts
+
+    def _build_query_meta_html(
+        self,
+        query_category: str,
+        query_datasets: list[str],
+        query_text: str,
+    ) -> list[str]:
+        """Build the metadata block HTML for one query in the per-query report."""
+        datasets_html = ", ".join(
+            self._escape_html(dataset)
+            for dataset in query_datasets
+        )
+
+        return [
+            "<div class='query-meta'>",
+            "<div class='query-meta-topline'>"
+            f"<span><strong>Category:</strong> {self._escape_html(query_category)}</span>"
+            f"<span><strong>Datasets:</strong> {datasets_html}</span>"
+            "</div>",
+            "<div class='query-meta-query'>"
+            f"<strong>Query:</strong> {self._escape_html(query_text)}"
+            "</div>",
+            "</div>",
         ]
 
-        for query_id, query_df in report_df.groupby("query_id", sort=True):
-            query_df = query_df.set_index("algorithm_name").reindex(algorithms).reset_index()
-            
-            query_meta = query_df.dropna(subset=["filter"]).iloc[0]
-            query_category = str(query_meta.get("query_category", ""))
-            query_datasets = [str(s) for s in query_meta.get("datasets", "")]
-            query_text = str(query_meta.get("filter", ""))
+    def _build_query_table_html(
+        self,
+        query_df: pd.DataFrame,
+        metric_specs: list[tuple[str, str, str, str]],
+        algorithm_styles: dict[str, dict[str, Any]],
+    ) -> list[str]:
+        """Build the HTML table rows for a single query's per-algorithm report."""
+        html_parts = [
+            "<table>",
+            "<thead>",
+            "<tr>",
+            "<th class='algorithm-header'>Algorithm</th>",
+        ]
 
-            query_text = ""
-            if "filter" in query_df.columns:
-                non_empty_queries = query_df["filter"].dropna()
-                if not non_empty_queries.empty:
-                    query_text = str(non_empty_queries.iloc[0])
+        for _, label, _, _ in metric_specs:
+            html_parts.append(f"<th>{label}</th>")
 
-            html_parts.append("<section class='query-block'>")
-            html_parts.append(f"<h2>Query ID: {query_id}</h2>")
+        html_parts.extend(["</tr>", "</thead>", "<tbody>"])
 
-            html_parts.append("<div class='query-meta'>")
-            datasets_html = ", ".join(
-                self._escape_html(dataset)
-                for dataset in query_datasets
+        metric_max_values = self._calculate_metric_max_values(
+            query_df=query_df,
+            metric_specs=metric_specs,
+        )
+
+        for _, row in query_df.iterrows():
+            algorithm = row["algorithm_name"]
+            style = algorithm_styles.get(
+                algorithm,
+                {
+                    "facecolor": "#ffffff",
+                    "edgecolor": "#222222",
+                    "hatch": "",
+                },
             )
-            html_parts.append(
-                "<div class='query-meta-topline'>"
-                f"<span><strong>Category:</strong> {self._escape_html(query_category)}</span>"
-                f"<span><strong>Datasets:</strong> {datasets_html}</span>"
-                "</div>"
-            )
-            html_parts.append(
-                "<div class='query-meta-query'>"
-                f"<strong>Query:</strong> {self._escape_html(query_text)}"
-                "</div>"
-            )
-            html_parts.append("</div>")
 
-            html_parts.append("<table>")
-            html_parts.append("<thead>")
             html_parts.append("<tr>")
-            html_parts.append("<th class='algorithm-header'>Algorithm</th>")
+            html_parts.append(
+                "<td class='algorithm-cell'>"
+                f"<span class='style-swatch' style='background:{style['facecolor']};'></span>"
+                f"<span class='algorithm-name' title='{self._escape_html(str(algorithm))}'>"
+                f"{self._escape_html(str(algorithm))}"
+                "</span>"
+                "</td>"
+            )
 
-            for _, label, _, _ in metric_specs:
-                html_parts.append(f"<th>{label}</th>")
-
-            html_parts.append("</tr>")
-            html_parts.append("</thead>")
-            html_parts.append("<tbody>")
-
-            metric_max_values = {}
-
-            for column, _, _, _ in metric_specs:
-                values = pd.to_numeric(query_df[column], errors="coerce")
-                valid_values = values[values >= 0]
-                metric_max_values[column] = valid_values.max() if not valid_values.empty else pd.NA
-
-            for _, row in query_df.iterrows():
-                algorithm = row["algorithm_name"]
-                style = algorithm_styles.get(
-                    algorithm,
-                    {
-                        "facecolor": "#ffffff",
-                        "edgecolor": "#222222",
-                        "hatch": "",
-                    },
-                )
-
-                html_parts.append("<tr>")
+            for column, _, format_string, _ in metric_specs:
+                value = row.get(column, pd.NA)
+                max_value = metric_max_values[column]
 
                 html_parts.append(
-                    "<td class='algorithm-cell'>"
-                    f"<span class='style-swatch' style='background:{style['facecolor']};'></span>"
-                    f"<span class='algorithm-name' title='{self._escape_html(str(algorithm))}'>"
-                    f"{self._escape_html(str(algorithm))}"
-                    "</span>"
-                    "</td>"
+                    "<td>"
+                    + self._format_metric_cell_html(
+                        value=value,
+                        max_value=max_value,
+                        format_string=format_string,
+                    )
+                    + "</td>"
                 )
 
-                for column, _, format_string, _ in metric_specs:
-                    value = row.get(column, pd.NA)
-                    max_value = metric_max_values[column]
+            html_parts.append("</tr>")
 
-                    html_parts.append(
-                        "<td>"
-                        + self._format_metric_cell_html(
-                            value=value,
-                            max_value=max_value,
-                            format_string=format_string,
-                        )
-                        + "</td>"
-                    )
-
-                html_parts.append("</tr>")
-
-            html_parts.append("</tbody>")
-            html_parts.append("</table>")
-            html_parts.append("</section>")
-        
-        html_parts.extend(["</body>", "</html>"])
-
-        html_path = self.table_dir / "per_query_benchmark_report.html"
-
-        with open(html_path, "w", encoding="utf-8") as file:
-            file.write("\n".join(html_parts))
-
-        console.print(
-            f"[green]✓[/green] Saved per-query benchmark report to [bold]{html_path}[/bold]"
-        )
+        html_parts.extend(["</tbody>", "</table>"])
+        return html_parts
 
     def _save_per_query_statistics_csv(self, df: pd.DataFrame) -> None:
         """Save per-query, per-algorithm statistics as CSV."""
@@ -1169,6 +1260,35 @@ class ResultsPlotter:
             "</div>"
         )
 
+    def _calculate_metric_max_values(
+        self,
+        query_df: pd.DataFrame,
+        metric_specs: list[tuple[str, str, str, str]],
+    ) -> dict[str, Any]:
+        """Calculate the maximum valid value for each metric in one query block."""
+
+        metric_max_values: dict[str, Any] = {}
+
+        for column, _, _, _ in metric_specs:
+            values = pd.to_numeric(query_df[column], errors="coerce")
+            valid_values = values[values >= 0]
+            metric_max_values[column] = (
+                valid_values.max() if not valid_values.empty else pd.NA
+            )
+
+        return metric_max_values
+
+    def _extract_query_text(self, query_df: pd.DataFrame) -> str:
+        """Extract the first non-empty query string for a query block."""
+
+        if "filter" not in query_df.columns:
+            return ""
+
+        non_empty_queries = query_df["filter"].dropna()
+        if non_empty_queries.empty:
+            return ""
+
+        return str(non_empty_queries.iloc[0])
 
     def _escape_html(self, value: str) -> str:
         """Escape text for simple HTML output."""

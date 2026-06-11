@@ -7,7 +7,7 @@ The whole dataset is large, which would exceed the current capabilities of moder
 Therefore, we apply the following transformations:
 
  - Only the category `Arts_Crafts_and_Sewing` is used.
- - The `products` table is filtered such that the following columns do not contain `NULL` values.
+ - The `products` table is filtered such that the following columns do not contain `NULL` values and all values must have at least 5 characters.
    - `product_title IS NOT NULL`
    - `features_json IS NOT NULL`
    - `description_json IS NOT NULL`

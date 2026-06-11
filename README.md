@@ -1,41 +1,81 @@
-# Semantic Selectivity Estimation
+# SemCEB
 
-A benchmark pipeline for running selectivity estimation algorithms and plotting the results.
+**A Cardinality Estimation Benchmark for Semantic Operators**
+
+SemCEB provides a benchmark pipeline for running cardinality estimation algorithms and plotting the results.
 
 ## Installation
 
-Clone the repository and install the project in editable mode from the project root:
+Clone the repository and install the project in editable mode from the project root.
+
+The editable install means that local code changes are picked up immediately. This is useful when modifying the provided algorithm template in `src/semceb/algorithms/custom_algorithm_template.py`.
+
+<details>
+<summary>Linux</summary>
 
 ```bash
-pip install -e .
+git clone https://github.com/utndatasystems/SemCEB.git
+cd SemCEB
+
+python3 -m venv .venv
+source .venv/bin/activate
+
+python -m pip install --upgrade pip
+python -m pip install -e .
 ```
 
-This installs the dependencies defined in `pyproject.toml` and makes the `semantic-selectivity` command available.
+</details>
 
-The editable install means that local code changes are picked up immediately. This is useful when modifying the provided algorithm template in `runner/algorithms/my_selectivity_estimation_algorithm.py`.
+<details>
+<summary>macOS</summary>
+
+```bash
+git clone https://github.com/utndatasystems/SemCEB.git
+cd SemCEB
+
+python3 -m venv .venv
+source .venv/bin/activate
+
+python -m pip install --upgrade pip
+python -m pip install -e .
+```
+
+</details>
+
+<details>
+<summary>Windows</summary>
+
+```bash
+git clone https://github.com/utndatasystems/SemCEB.git
+cd SemCEB
+
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+python -m pip install --upgrade pip
+python -m pip install -e .
+```
+
+</details>
+
+**Note:**
+For custom queries, models other than the currently configured OpenAI models in `config.toml`, or new LLM-based algorithms, create a local `.env` file from `.env.example` and add the required API keys or credentials.
 
 ## Modes
 
 ### `run`
 
-Runs the configured algorithms on the queries.
+Runs the configured algorithms on the benchmark queries.
 
 ```bash
-semantic-selectivity run  # alternative: python run.py run
-```
-
-or, because `run` is the default mode:
-
-```bash
-semantic-selectivity  # alternative: python run.py
+semceb run  # alternative: python run.py run
 ```
 
 Uses:
 
 ```text
 config.toml
-queries/queries.jsonl
-runner/algorithms/
+benchmark_queries/queries.jsonl
 ```
 
 Writes raw benchmark results to:
@@ -46,16 +86,15 @@ results/raw/result.jsonl
 
 ### `plot`
 
-Creates result summaries and plots from the raw benchmark results.
+Creates result summaries, plots, and tables from the raw benchmark results.
 
 ```bash
-semantic-selectivity plot  # alternative: python run.py plot
+semceb plot  # alternative: python run.py plot
 ```
 
 Uses:
 
 ```text
-config.toml
 results/raw/result.jsonl
 ```
 
@@ -71,31 +110,29 @@ results/tables
 The provided algorithm template is located at:
 
 ```text
-runner/algorithms/my_selectivity_estimation_algorithm.py
+src/semceb/algorithms/custom_algorithm_template.py
 ```
 
-This is the main file intended for users to modify. You can implement your own selectivity estimation logic there while keeping the rest of the benchmark pipeline unchanged.
+This is the main file intended for users to modify. You can implement your own cardinality estimation logic there while keeping the rest of the benchmark pipeline unchanged.
 
 After editing the algorithm file, run the benchmark with:
 
 ```bash
-semantic-selectivity run  # alternative: python run.py run
+semceb run  # alternative: python run.py run
 ```
 
 Then generate plots and summary tables with:
 
 ```bash
-semantic-selectivity plot  # alternative: python run.py plot
+semceb plot  # alternative: python run.py plot
 ```
 
-No reinstall is needed after changing the algorithm file, as long as the project was installed in editable mode with:
-
-```bash
-pip install -e .
-```
+No reinstall is needed after changing the algorithm file, as long as the project was installed in editable mode; see [Installation](#installation).
 
 ## Configuration
 
 The benchmark is configured in `config.toml`.
 
 Use this file to select which algorithms should run and to adjust benchmark or algorithm-specific settings. To exclude an algorithm from a run, comment out or remove its corresponding `[[algorithms]]` blocks.
+
+The `scale_factor` setting defines how many rows are loaded from the main dataset table. Related tables are filtered to match the selected rows. Rows are shuffled deterministically before selection.

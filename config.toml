@@ -1,10 +1,18 @@
 [general.ground_truth]
-model_name = "gpt-4o-mini"
-system_prompt = "Evaluate if the following statement. Only answer with True or False."
+model_name = "gpt-5.4-nano"
+system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
 
 [general.data]
-scale_factor = 1                        # 1 to 5
-categories = ["equality", "inequality"]
+# Number of rows loaded from the main dataset table for filtering.
+# Related tables are filtered to match those selected rows.
+# Rows are shuffled deterministically before selection.
+# Join scale factor is applied on top restricting explosion of row counts due to joining
+scale_factor = 10
+# Number of rows loaded from the main dataset table for joining.
+# Kept separate from scale_factor because join output sizes can grow quickly.
+join_scale_factor = 10
+types = ["Simple Base-Table Predicate", "Simple Join"]
+categories = ["equality"]
 
 
 # Mandatory
@@ -16,26 +24,26 @@ class = "ExtrapolatedSampling"
 
 # Optional: Overwriting general ground truth configuration
 [algorithms.ground_truth]
-model_name = "gpt-4o-mini"
-system_prompt = "Evaluate if the following statement. Only answer with True or False."
+model_name = "gpt-5.4-nano"
+system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
 
 # Optional: Depends on implementation
 [algorithms.algorithm_kwargs]
-model_name = "gpt-4o-mini"
-system_prompt = "Evaluate if the following statement. Only answer with True or False."
+model_name = "gpt-5.4-nano"
+system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
 sampling_frac = 0.1
 
 
 # Mandatory
 [[algorithms]]
-name = "My Selectivity Estimation Algorithm"
+name = "Custom Algorithm Template"
 version = "1.0.0"
-filename = "my_selectivity_estimation_algorithm.py"
-class = "MySelectivityEstimationAlgorithm"
+filename = "custom_algorithm_template.py"
+class = "CustomAlgorithmTemplate"
 
 # Optional: Overwriting general ground truth configuration
 [algorithms.ground_truth]
-model_name = "gpt-3.5-turbo"
+model_name = "gpt-5.4-nano"
 # system_prompt = ... # e.g. not used
 
 # Optional: Depends on implementation

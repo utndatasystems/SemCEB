@@ -5,11 +5,9 @@ import math
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 import pandas as pd
-from rich.console import Console
-from utils.console import console
+from src.semceb.utils.console import console
 from rich.table import Table
 import seaborn as sns
-from weasyprint import HTML
 
 
 class ResultsPlotter:
@@ -58,9 +56,11 @@ class ResultsPlotter:
         console.print(table)
         console.print()
 
-        self._save_summary_table(table, summary)
+        self._save_summary_table(summary)
+        self._save_algorithm_summary_csv(summary)
         self._plot_algorithm_comparison(df)
         self._save_per_query_report(df)
+        self._save_per_query_statistics_csv(df)
 
     def _load_results(self) -> list[dict[str, Any]]:
         """Load raw benchmark results from JSONL."""
@@ -103,13 +103,13 @@ class ResultsPlotter:
                     "query_id": query["id"],
                     "query_name": query.get("name", ""),
                     "query_category": query.get("category", ""),
-                    "dataset": query["dataset"],
-                    "column": query["column"],
-                    "query": query["query"],
+                    "datasets": query["datasets"],
+                    "filter": query["filter"],
                     "algorithm_name": algorithm["name"],
                     "algorithm_version": algorithm["version"],
                     "memory_consumption": algorithm["memory_consumption"],
-                    "selectivity_ground_truth": algorithm["selectivity_ground_truth"],
+                    "cardinality_ground_truth": algorithm["cardinality_ground_truth"],
+                    "cardinality_estimation": algorithm["cardinality_estimation"],
                     "selectivity_estimation": algorithm["selectivity_estimation"],
                     "q_error": algorithm["q_error"],
                     "time_ms": algorithm["time_ms"],
@@ -122,7 +122,8 @@ class ResultsPlotter:
         df = pd.DataFrame(rows)
 
         numeric_columns = [
-            "selectivity_ground_truth",
+            "cardinality_ground_truth",
+            "cardinality_estimation",
             "selectivity_estimation",
             "q_error",
             "time_ms",
@@ -259,6 +260,21 @@ class ResultsPlotter:
 
         return styles
 
+    def _save_algorithm_summary_csv(self, summary: pd.DataFrame) -> None:
+        """Save algorithm-level aggregate statistics as CSV."""
+
+        csv_path = self.table_dir / "algorithm_summary.csv"
+
+        summary.to_csv(
+            csv_path,
+            index=False,
+            encoding="utf-8",
+        )
+
+        console.print(
+            f"[green]✓[/green] Saved algorithm summary CSV to [bold]{csv_path}[/bold]"
+        )
+
     def _plot_algorithm_comparison(self, df: pd.DataFrame) -> None:
         """Plot one metric as total bars while preserving empty algorithm slots."""
         
@@ -387,14 +403,21 @@ class ResultsPlotter:
 
         fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.99))
 
-        output_path = self.plot_dir / "algorithm_comparison.png"
+        png_path = self.plot_dir / "algorithm_comparison.png"
+        pdf_path = self.plot_dir / "algorithm_comparison.pdf"
 
-        fig.savefig(output_path, dpi=180, bbox_inches="tight")
+        fig.savefig(png_path, dpi=180, bbox_inches="tight")
+        console.print(
+            f"[green]✓[/green] Saved algorithm comparison plot to [bold]{png_path}[/bold]"
+        )
+
+        fig.savefig(pdf_path, bbox_inches="tight")
+        console.print(
+            f"[green]✓[/green] Saved algorithm comparison plot to [bold]{pdf_path}[/bold]"
+        )
+
         plt.close(fig)
 
-        console.print(
-            f"[green]✓[/green] Saved algorithm comparison plot to [bold]{output_path}[/bold]"
-        )
 
     def _plot_box_metric(
         self,
@@ -551,27 +574,10 @@ class ResultsPlotter:
             bottom=False,
         )
 
-    def _save_summary_table(self, table: Table, summary: pd.DataFrame) -> None:
+    def _save_summary_table(self, summary: pd.DataFrame) -> None:
         """Save Rich summary table to text and HTML files."""
 
-        table_txt_path = self.table_dir / "algorithm_summary.txt"
         table_html_path = self.table_dir / "algorithm_summary.html"
-
-        text_console = Console(
-            record=True,
-            width=180,
-            color_system=None,
-        )
-
-        with open(table_txt_path, "w", encoding="utf-8") as file:
-            file.write(text_console.export_text())
-
-        console.print(
-            f"[green]✓[/green] Saved algorithm comparison table in *.txt to [bold]{table_txt_path}[/bold]"
-        )
-
-        table_html_path = self.table_dir / "algorithm_summary.html"
-        table_pdf_path = self.table_dir / "algorithm_summary.pdf"
 
         summary_html = summary.copy()
 
@@ -659,16 +665,6 @@ class ResultsPlotter:
             f"[green]✓[/green] Saved algorithm comparison table in *.html to [bold]{table_html_path}[/bold]"
         )
 
-        try:
-            HTML(string=html).write_pdf(str(table_pdf_path))
-
-            console.print(
-                f"[green]✓[/green] Saved algorithm comparison table in *.pdf to [bold]{table_pdf_path}[/bold]"
-            )
-        except ImportError:
-            console.print(
-                "[yellow]Warning:[/yellow] Could not save algorithm summary PDF because WeasyPrint is not installed. "
-            )
 
     def _format_float(self, value: Any, decimals: int) -> str:
         """Format floats safely for tables."""
@@ -1002,15 +998,14 @@ class ResultsPlotter:
         for query_id, query_df in report_df.groupby("query_id", sort=True):
             query_df = query_df.set_index("algorithm_name").reindex(algorithms).reset_index()
             
-            query_meta = query_df.dropna(subset=["query"]).iloc[0]
+            query_meta = query_df.dropna(subset=["filter"]).iloc[0]
             query_category = str(query_meta.get("query_category", ""))
-            query_dataset = str(query_meta.get("dataset", ""))
-            query_column = str(query_meta.get("column", ""))
-            query_text = str(query_meta.get("query", ""))
+            query_datasets = [str(s) for s in query_meta.get("datasets", "")]
+            query_text = str(query_meta.get("filter", ""))
 
             query_text = ""
-            if "query" in query_df.columns:
-                non_empty_queries = query_df["query"].dropna()
+            if "filter" in query_df.columns:
+                non_empty_queries = query_df["filter"].dropna()
                 if not non_empty_queries.empty:
                     query_text = str(non_empty_queries.iloc[0])
 
@@ -1018,11 +1013,14 @@ class ResultsPlotter:
             html_parts.append(f"<h2>Query ID: {query_id}</h2>")
 
             html_parts.append("<div class='query-meta'>")
+            datasets_html = ", ".join(
+                self._escape_html(dataset)
+                for dataset in query_datasets
+            )
             html_parts.append(
                 "<div class='query-meta-topline'>"
                 f"<span><strong>Category:</strong> {self._escape_html(query_category)}</span>"
-                f"<span><strong>Dataset:</strong> {self._escape_html(query_dataset)}</span>"
-                f"<span><strong>Column:</strong> {self._escape_html(query_column)}</span>"
+                f"<span><strong>Datasets:</strong> {datasets_html}</span>"
                 "</div>"
             )
             html_parts.append(
@@ -1104,18 +1102,37 @@ class ResultsPlotter:
             f"[green]✓[/green] Saved per-query benchmark report to [bold]{html_path}[/bold]"
         )
 
-        pdf_path = self.table_dir / "per_query_benchmark_report.pdf"
+    def _save_per_query_statistics_csv(self, df: pd.DataFrame) -> None:
+        """Save per-query, per-algorithm statistics as CSV."""
 
-        try:
-            HTML(filename=str(html_path)).write_pdf(str(pdf_path))
+        csv_path = self.table_dir / "per_query_statistics.csv"
 
-            console.print(
-                f"[green]✓[/green] Saved per-query benchmark report PDF to [bold]{pdf_path}[/bold]"
-            )
-        except ImportError:
-            console.print(
-                "[yellow]Warning:[/yellow] Could not save PDF because WeasyPrint is not installed. "
-            )
+        export_df = df.copy()
+
+        nullable_columns = [
+            "memory_consumption",
+            "cost_usd",
+            "llm_calls",
+            "tokens",
+        ]
+
+        for column in nullable_columns:
+            export_df.loc[export_df[column] < 0, column] = pd.NA
+
+        export_df = export_df.sort_values(
+            by=["query_id", "algorithm_name"],
+            kind="stable",
+        )
+
+        export_df.to_csv(
+            csv_path,
+            index=False,
+            encoding="utf-8",
+        )
+
+        console.print(
+            f"[green]✓[/green] Saved per-query statistics CSV to [bold]{csv_path}[/bold]"
+        )
 
     def _format_metric_cell_html(
         self,

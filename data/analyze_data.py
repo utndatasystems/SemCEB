@@ -8,6 +8,7 @@ from __future__ import annotations
 #   --columns=review_title_embeddings_qwen_qwen3_embedding_0_6b,review_text_embeddings_qwen_qwen3_embedding_0_6b
 #
 import argparse
+import json
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -38,6 +39,7 @@ except ModuleNotFoundError as error:
 
 DEFAULT_K_VALUES = (1, 5, 10, 100)
 PLOT_OUTPUT_DIR = Path("results") / "plots" / "dataset_analysis"
+CACHE_OUTPUT_DIR = Path("data") / "amazon-reviews" / "cache" / "dataset_analysis"
 IMBALANCE_UMAP_COMPONENTS = 20
 IMBALANCE_UMAP_NEIGHBORS = 15
 IMBALANCE_HDBSCAN_MIN_SAMPLES = 5
@@ -524,6 +526,16 @@ def sanitize_filename(name: str) -> str:
     return "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in name)
 
 
+def get_cache_filepaths(parquet_file: Path, column: str) -> tuple[Path, Path]:
+    """Return metadata and array cache paths for one parquet/column pair."""
+
+    stem = f"{parquet_file.stem}__{sanitize_filename(column)}"
+    return (
+        CACHE_OUTPUT_DIR / f"{stem}.json",
+        CACHE_OUTPUT_DIR / f"{stem}.npz",
+    )
+
+
 def create_umap_scatter_plot_figure(
     umap_projection: np.ndarray,
     point_colors_by_k: dict[int, np.ndarray],
@@ -857,59 +869,176 @@ def compute_umap_projection(embeddings: np.ndarray) -> np.ndarray:
     ).fit_transform(reduced_embeddings)
 
 
+def compute_pca_embedding(embeddings: np.ndarray) -> np.ndarray:
+    """Compute the cached PCA representation used before UMAP."""
+
+    normalized_embeddings = normalize_embeddings(embeddings)
+    n_rows, n_dims = normalized_embeddings.shape
+    n_pca_components = min(50, n_dims, n_rows)
+    return PCA(n_components=n_pca_components).fit_transform(normalized_embeddings)
+
+
+def prepare_column_cache(
+    parquet_file: Path,
+    column: str,
+    k_values: tuple[int, ...] = DEFAULT_K_VALUES,
+) -> dict[str, Any]:
+    """Compute expensive analysis artifacts once and write them to cache."""
+
+    metadata_path, arrays_path = get_cache_filepaths(parquet_file, column)
+    metadata_path.parent.mkdir(parents=True, exist_ok=True)
+
+    embeddings, dropped_nulls = load_embedding_column(parquet_file, column)
+    knn_results = compute_knn_similarity_coefficient(embeddings, k_values=k_values)
+    pca_projection = compute_pca_embedding(embeddings)
+    umap_projection = umap.UMAP(
+        n_components=2,
+        n_neighbors=min(15, max(2, len(pca_projection) - 1)),
+        random_state=42,
+    ).fit_transform(pca_projection)
+    imbalance_report = compute_embedding_imbalance_report(embeddings)
+
+    np.savez_compressed(
+        arrays_path,
+        pca_projection=pca_projection.astype(np.float32),
+        umap_projection=umap_projection.astype(np.float32),
+        labels=imbalance_report.labels.astype(np.int64),
+        label_tiers=imbalance_report.label_tiers.astype(np.int8),
+        cluster_sizes=imbalance_report.cluster_sizes.astype(np.int64),
+        **{
+            f"pointwise_min_similarity_k{k}": knn_results["pointwise_min_similarity"][k].astype(np.float32)
+            for k in k_values
+        },
+    )
+
+    metadata = {
+        "parquet_file": str(parquet_file),
+        "column": column,
+        "k_values": list(k_values),
+        "num_rows": int(embeddings.shape[0]),
+        "embedding_dim": int(embeddings.shape[1]),
+        "dropped_null_embeddings": int(dropped_nulls),
+        "knn_density": knn_results["summary"],
+        "imbalance": {
+            "n_clusters": imbalance_report.n_clusters,
+            "n_primary_clusters": imbalance_report.n_primary_clusters,
+            "n_micro_clusters": imbalance_report.n_micro_clusters,
+            "n_singletons": imbalance_report.n_singletons,
+            "raw_noise_fraction": imbalance_report.raw_noise_fraction,
+            "gini": imbalance_report.gini,
+            "gini_std": imbalance_report.gini_std,
+            "lir": imbalance_report.lir,
+            "alpha": imbalance_report.alpha,
+            "largest_share": imbalance_report.largest_share,
+        },
+    }
+    metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    return load_cached_column_analysis(parquet_file, column)
+
+
+def load_cached_column_analysis(parquet_file: Path, column: str) -> dict[str, Any]:
+    """Load cached arrays and metadata for one parquet/column pair."""
+
+    metadata_path, arrays_path = get_cache_filepaths(parquet_file, column)
+    if not metadata_path.exists() or not arrays_path.exists():
+        raise FileNotFoundError(
+            f"Missing cache for column '{column}'. Expected {metadata_path} and {arrays_path}."
+        )
+
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    arrays = np.load(arrays_path)
+    k_values = tuple(int(k) for k in metadata["k_values"])
+    pointwise_min_similarity = {
+        k: arrays[f"pointwise_min_similarity_k{k}"]
+        for k in k_values
+    }
+
+    imbalance = metadata["imbalance"]
+    imbalance_report = ImbalanceReport(
+        n_samples=int(metadata["num_rows"]),
+        n_clusters=int(imbalance["n_clusters"]),
+        n_primary_clusters=int(imbalance["n_primary_clusters"]),
+        n_micro_clusters=int(imbalance["n_micro_clusters"]),
+        n_singletons=int(imbalance["n_singletons"]),
+        raw_noise_fraction=float(imbalance["raw_noise_fraction"]),
+        cluster_sizes=arrays["cluster_sizes"],
+        labels=arrays["labels"],
+        label_tiers=arrays["label_tiers"],
+        embedding_2d=arrays["umap_projection"],
+        gini=float(imbalance["gini"]),
+        lir=float(imbalance["lir"]),
+        alpha=float(imbalance["alpha"]),
+        largest_share=float(imbalance["largest_share"]),
+        gini_per_seed=[],
+        n_clusters_per_seed=[],
+    )
+
+    return {
+        "num_rows": int(metadata["num_rows"]),
+        "embedding_dim": int(metadata["embedding_dim"]),
+        "dropped_null_embeddings": int(metadata["dropped_null_embeddings"]),
+        "k_values": k_values,
+        "knn_density": {int(k): v for k, v in metadata["knn_density"].items()},
+        "pointwise_min_similarity": pointwise_min_similarity,
+        "pca_projection": arrays["pca_projection"],
+        "umap_projection": arrays["umap_projection"],
+        "imbalance_report": imbalance_report,
+    }
+
+
 def analyze_columns(
     parquet_file: Path,
     columns: list[str],
     k_values: tuple[int, ...] = DEFAULT_K_VALUES,
 ) -> dict[str, dict[str, Any]]:
-    """Compute embedding statistics for all requested columns."""
+    """Prepare cache if needed, then create plots from cached analysis."""
 
     validate_embedding_columns(parquet_file, columns)
 
     results: dict[str, dict[str, Any]] = {}
     for column in columns:
-        embeddings, dropped_nulls = load_embedding_column(parquet_file, column)
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[bold green]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            TimeElapsedColumn(),
-            console=console,
-        ) as progress:
-            task_id = progress.add_task(
-                f"Computing kNN statistics for [cyan]{column}[/cyan]",
-                total=len(k_values) + 1,
-            )
-            knn_results = compute_knn_similarity_coefficient(
-                embeddings,
-                k_values=k_values,
-                progress=progress,
-                task_id=task_id,
-            )
-            imbalance_report = compute_embedding_imbalance_report(embeddings)
-            progress.advance(task_id)
+        metadata_path, arrays_path = get_cache_filepaths(parquet_file, column)
+        if metadata_path.exists() and arrays_path.exists():
+            cached = load_cached_column_analysis(parquet_file, column)
+        else:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[bold green]{task.description}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TimeElapsedColumn(),
+                console=console,
+            ) as progress:
+                task_id = progress.add_task(
+                    f"Preparing cache for [cyan]{column}[/cyan]",
+                    total=1,
+                )
+                cached = prepare_column_cache(
+                    parquet_file=parquet_file,
+                    column=column,
+                    k_values=k_values,
+                )
+                progress.advance(task_id)
 
         plot_paths: dict[str, str] = {}
-        umap_projection = compute_umap_projection(embeddings)
         scatter_plot_path = PLOT_OUTPUT_DIR / (
             f"{parquet_file.stem}__{sanitize_filename(column)}__scatter.pdf"
         )
         create_umap_scatter_plot_figure(
-            umap_projection=umap_projection,
-            point_colors_by_k=knn_results["pointwise_min_similarity"],
+            umap_projection=cached["umap_projection"],
+            point_colors_by_k=cached["pointwise_min_similarity"],
             output_path=scatter_plot_path,
             title=f"{column} ({parquet_file.stem})",
-            k_values=k_values,
+            k_values=cached["k_values"],
         )
         sorted_plot_path = PLOT_OUTPUT_DIR / (
             f"{parquet_file.stem}__{sanitize_filename(column)}__sorted.pdf"
         )
         create_sorted_knn_similarity_plot_figure(
-            point_similarities_by_k=knn_results["pointwise_min_similarity"],
+            point_similarities_by_k=cached["pointwise_min_similarity"],
             output_path=sorted_plot_path,
             title=f"{column} ({parquet_file.stem}) sorted similarities",
-            k_values=k_values,
+            k_values=cached["k_values"],
         )
         plot_paths["scatter"] = str(scatter_plot_path)
         plot_paths["sorted"] = str(sorted_plot_path)
@@ -917,28 +1046,30 @@ def analyze_columns(
             f"{parquet_file.stem}__{sanitize_filename(column)}__imbalance.pdf"
         )
         create_imbalance_plot_figure(
-            report=imbalance_report,
+            report=cached["imbalance_report"],
             output_path=imbalance_plot_path,
             title=f"{column} ({parquet_file.stem}) semantic imbalance",
         )
         plot_paths["imbalance"] = str(imbalance_plot_path)
 
         results[column] = {
-            "num_rows": int(embeddings.shape[0]),
-            "embedding_dim": int(embeddings.shape[1]),
-            "dropped_null_embeddings": dropped_nulls,
-            "knn_density": knn_results["summary"],
+            "num_rows": cached["num_rows"],
+            "embedding_dim": cached["embedding_dim"],
+            "dropped_null_embeddings": cached["dropped_null_embeddings"],
+            "cache_metadata_path": str(metadata_path),
+            "cache_arrays_path": str(arrays_path),
+            "knn_density": cached["knn_density"],
             "imbalance": {
-                "n_clusters": imbalance_report.n_clusters,
-                "n_primary_clusters": imbalance_report.n_primary_clusters,
-                "n_micro_clusters": imbalance_report.n_micro_clusters,
-                "n_singletons": imbalance_report.n_singletons,
-                "raw_noise_fraction": imbalance_report.raw_noise_fraction,
-                "gini": imbalance_report.gini,
-                "gini_std": imbalance_report.gini_std,
-                "lir": imbalance_report.lir,
-                "alpha": imbalance_report.alpha,
-                "largest_share": imbalance_report.largest_share,
+                "n_clusters": cached["imbalance_report"].n_clusters,
+                "n_primary_clusters": cached["imbalance_report"].n_primary_clusters,
+                "n_micro_clusters": cached["imbalance_report"].n_micro_clusters,
+                "n_singletons": cached["imbalance_report"].n_singletons,
+                "raw_noise_fraction": cached["imbalance_report"].raw_noise_fraction,
+                "gini": cached["imbalance_report"].gini,
+                "gini_std": cached["imbalance_report"].gini_std,
+                "lir": cached["imbalance_report"].lir,
+                "alpha": cached["imbalance_report"].alpha,
+                "largest_share": cached["imbalance_report"].largest_share,
             },
             "plot_paths": plot_paths,
         }
@@ -954,6 +1085,8 @@ def print_results(results: dict[str, dict[str, Any]]) -> None:
         print(f"  rows: {stats['num_rows']}")
         print(f"  embedding_dim: {stats['embedding_dim']}")
         print(f"  dropped_null_embeddings: {stats['dropped_null_embeddings']}")
+        print(f"  cache_metadata_path: {stats['cache_metadata_path']}")
+        print(f"  cache_arrays_path: {stats['cache_arrays_path']}")
         print(f"  scatter_plot_path: {stats['plot_paths']['scatter']}")
         print(f"  sorted_plot_path: {stats['plot_paths']['sorted']}")
         print(f"  imbalance_plot_path: {stats['plot_paths']['imbalance']}")

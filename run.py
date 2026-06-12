@@ -1,5 +1,8 @@
 import sys
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 from pathlib import Path
 from collections.abc import Callable
 from typing import Any

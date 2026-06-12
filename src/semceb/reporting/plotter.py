@@ -5,7 +5,7 @@ import math
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 import pandas as pd
-from src.semceb.utils.console import console
+from semceb.utils.console import console
 from rich.table import Table
 import seaborn as sns
 

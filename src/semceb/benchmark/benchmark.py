@@ -8,13 +8,13 @@ import time
 import pandas as pd
 from typing import Any
 from rich.prompt import Confirm
-from src.semceb.utils.progress import create_benchmark_progress, suspend_progress
-from src.semceb.utils.console import console
-from src.semceb.data.downloader import DataDownloader
-from src.semceb.data.loader import DataLoader
-from src.semceb.algorithms.interface import AlgorithmInterface
-from src.semceb.llm_backends.lotus_backend import LotusBackend
-from src.semceb.queries.query_specification import QuerySpecification
+from semceb.utils.progress import create_benchmark_progress, suspend_progress
+from semceb.utils.console import console
+from semceb.data.downloader import DataDownloader
+from semceb.data.loader import DataLoader
+from semceb.algorithms.interface import AlgorithmInterface
+from semceb.llm_backends.lotus_backend import LotusBackend
+from semceb.queries.query_specification import QuerySpecification
 
 class BenchmarkRunner:
     """Run benchmark queries and collect algorithm evaluation results."""
@@ -89,7 +89,7 @@ class BenchmarkRunner:
 
         filename = algorithm_config["filename"]
         module_stem = Path(filename).stem
-        module_name = f"src.semceb.algorithms.{module_stem}"
+        module_name = f"semceb.algorithms.{module_stem}"
 
         module = importlib.import_module(module_name)
 

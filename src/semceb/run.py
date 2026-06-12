@@ -8,9 +8,12 @@ from collections.abc import Callable
 from typing import Any
 import logging
 
-from src.semceb.benchmark.benchmark import BenchmarkRunner
-from src.semceb.reporting.plotter import ResultsPlotter
-from src.semceb.utils.console import console
+from semceb.benchmark.benchmark import BenchmarkRunner
+from semceb.reporting.plotter import ResultsPlotter
+from semceb.utils.console import console
+
+from dotenv import load_dotenv
+load_dotenv()
 
 
 def configure_logging() -> None:

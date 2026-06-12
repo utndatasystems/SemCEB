@@ -58,7 +58,12 @@ python -m pip install -e .
 
 </details>
 
-**Note:**
+Verify the installation by printing the available commands:   
+```bash
+semceb
+```
+
+**Note:**   
 The provided `config.toml` is configured to use an OpenAI model for LLM-based semantic operators. Therefore, an OpenAI API key is required when running the benchmark with the configuration included in this repository.   
 Create a local `.env` file from `.env.example` and configure the required `OPENAI_API_KEY` value there. If you configure or implement other LLM providers, add the corresponding API keys or credentials to the same `.env` file.
 

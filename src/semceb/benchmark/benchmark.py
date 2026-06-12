@@ -125,6 +125,9 @@ class BenchmarkRunner:
 
         self._clear_result_file()
         query_groups = self._build_query_groups()
+
+        self._confirm_join_benchmark_run_if_required(query_groups)
+
         total_runs = sum(
             len(self.algorithms) * len(group["query_specs"])
             for group in query_groups
@@ -167,6 +170,31 @@ class BenchmarkRunner:
             },
         ]
 
+    def _confirm_join_benchmark_run_if_required(
+        self,
+        query_groups: list[dict[str, Any]],
+    ) -> None:
+        """Ask for confirmation before any benchmark queries run if join queries are selected."""
+
+        join_group = next(
+            (
+                query_group
+                for query_group in query_groups
+                if query_group["name"] == "join" and query_group["query_specs"]
+            ),
+            None,
+        )
+
+        if join_group is None:
+            return
+
+        data_dfs = self._load_required_datasets(
+            query_specs=join_group["query_specs"],
+            scale_factor=join_group["scale_factor"],
+        )
+
+        self._confirm_join_benchmark_run(data_dfs)
+
     def _run_query_group(
         self,
         query_group: dict[str, Any],
@@ -184,9 +212,6 @@ class BenchmarkRunner:
                 query_specs=query_specs,
                 scale_factor=query_group["scale_factor"],
             )
-
-            if query_group["name"] == "join":
-                self._confirm_join_benchmark_run(data_dfs)
 
         for algorithm_config in self.algorithms:
             self._run_algorithm_for_query_group(

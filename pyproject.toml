@@ -11,16 +11,29 @@ authors = [
     { name = "Claudius Kühn", email = "claudius.kuehn@utn.de" },
     { name = "Andreas Zimmer", email = "andreas.zimmer@utn.de" },
 ]
-license = { "file" = "LICENSE" }
+license = { file = "LICENSE" }
 requires-python = ">=3.10, <3.13"
-dependencies = ["pandas", "matplotlib", "seaborn", "rich", "lotus-ai", "certifi"]
+dependencies = [
+    "pandas",
+    "matplotlib",
+    "seaborn",
+    "rich",
+    "lotus-ai",
+    "certifi",
+    "pyarrow",
+    "python-dotenv",
+    "tomli; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+dev = ["duckdb", "pillow", "transformers", "torch"]
 
 [project.scripts]
-semceb = "run:main"
+semceb = "semceb.run:main"
 
 [tool.setuptools]
-py-modules = ["run"]
+package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
-include = ["runner*", "utils*", "data*", "results*"]
-exclude = ["queries*", "documentation*"]
+where = ["src"]
+include = ["semceb*"]

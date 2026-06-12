@@ -31,28 +31,36 @@ In the end, two tables are created:
 
 ## Setup
 
-To generate the dataset, run the following command:
+To generate the dataset, run the following command from the repository root:
 
+```bash
+python src/semceb/data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --category Arts_Crafts_and_Sewing --mode raw_5core
 ```
-python download_and_prepare_amazon_reviews_dataset.py --category Arts_Crafts_and_Sewing --mode raw_5core
+
+This writes the processed dataset to:
+
+```text
+data/amazon-reviews/processed/Arts_Crafts_and_Sewing__raw_5core/
 ```
 
 To compute image and text embeddings for the filtered product and review tables, run:
 
+```bash
+python src/semceb/data/amazon-reviews/compute_embeddings.py --run-dir Arts_Crafts_and_Sewing__raw_5core
 ```
-python compute_embeddings.py --run-dir processed/Arts_Crafts_and_Sewing__raw_5core
-```
+
+The short `--run-dir` value is resolved relative to `data/amazon-reviews/processed/`.
 
 This uses `google/siglip2-base-patch16-224` for images and `Qwen/Qwen3-Embedding-0.6B`
 for the textual product and review columns, auto-selects the available device, and writes:
 
-```
+```text
 products_filtered_with_embeddings.parquet
 reviews_filtered_with_embeddings.parquet
 ```
 
-The original `products_filtered.parquet` and `reviews_filtered.parquet` remain untouched.
-
+The embedding files are written into the same processed dataset directory. The original
+`products_filtered.parquet` and `reviews_filtered.parquet` remain untouched.
 
 
 ## Schema

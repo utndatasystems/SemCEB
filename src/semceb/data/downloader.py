@@ -9,8 +9,8 @@ import certifi
 from rich.progress import Progress
 from rich.prompt import Confirm
 
-from src.semceb.utils.console import console
-from src.semceb.utils.progress import create_download_progress
+from semceb.utils.console import console
+from semceb.utils.progress import create_download_progress
 
 
 class DataDownloader:

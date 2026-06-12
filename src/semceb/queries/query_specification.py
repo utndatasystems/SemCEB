@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 import re
 
-from src.semceb.queries.template_parser import QueryTemplate, QueryTemplateParser
+from semceb.queries.template_parser import QueryTemplate, QueryTemplateParser
 
 @dataclass(frozen=True)
 class DatasetSpecification:

@@ -8,7 +8,7 @@ SemCEB provides a benchmark pipeline for running cardinality estimation algorith
 
 Clone the repository and install the project in editable mode from the project root.
 
-The editable install means that local code changes are picked up immediately. This is useful when modifying the provided algorithm template in `src/semceb/algorithms/custom_algorithm_template.py`.
+The editable install means that local code changes under `src/semceb/` are picked up immediately. This is useful when modifying the provided algorithm template in `src/semceb/algorithms/custom_algorithm_template.py`.
 
 <details>
 <summary>Linux</summary>
@@ -58,8 +58,15 @@ python -m pip install -e .
 
 </details>
 
-**Note:**
-For custom queries, models other than the currently configured OpenAI models in `config.toml`, or new LLM-based algorithms, create a local `.env` file from `.env.example` and add the required API keys or credentials.
+Verify the installation by printing the available commands:   
+```bash
+semceb
+```
+
+**Note:**   
+The provided `config.toml` is configured to use an OpenAI model for LLM-based semantic operators. Therefore, an OpenAI API key is required when running the benchmark with the configuration included in this repository.   
+Create a local `.env` file from `.env.example` and configure the required `OPENAI_API_KEY` value there. If you configure or implement other LLM providers, add the corresponding API keys or credentials to the same `.env` file.
+
 
 ## Modes
 
@@ -68,7 +75,7 @@ For custom queries, models other than the currently configured OpenAI models in 
 Runs the configured algorithms on the benchmark queries.
 
 ```bash
-semceb run  # alternative: python run.py run
+semceb run
 ```
 
 Uses:
@@ -89,7 +96,7 @@ results/raw/result.jsonl
 Creates result summaries, plots, and tables from the raw benchmark results.
 
 ```bash
-semceb plot  # alternative: python run.py plot
+semceb plot
 ```
 
 Uses:
@@ -118,16 +125,16 @@ This is the main file intended for users to modify. You can implement your own c
 After editing the algorithm file, run the benchmark with:
 
 ```bash
-semceb run  # alternative: python run.py run
+semceb run
 ```
 
 Then generate plots and summary tables with:
 
 ```bash
-semceb plot  # alternative: python run.py plot
+semceb plot
 ```
 
-No reinstall is needed after changing the algorithm file, as long as the project was installed in editable mode; see [Installation](#installation).
+No reinstall is needed after changing files under `src/semceb/`, as long as the project was installed in editable mode; see [Installation](#installation).
 
 ## Configuration
 

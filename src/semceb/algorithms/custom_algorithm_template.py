@@ -2,8 +2,8 @@ from typing import Any
 
 import pandas as pd
 
-from src.semceb.algorithms.interface import AlgorithmInterface
-from src.semceb.queries.query_specification import QuerySpecification
+from semceb.algorithms.interface import AlgorithmInterface
+from semceb.queries.query_specification import QuerySpecification
 
 
 class CustomAlgorithmTemplate(AlgorithmInterface):

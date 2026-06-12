@@ -14,7 +14,7 @@ from rich.progress import (
     TransferSpeedColumn,
 )
 
-from src.semceb.utils.console import console
+from semceb.utils.console import console
 
 
 def create_download_progress(*, disable: bool = False) -> Progress:

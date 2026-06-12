@@ -1,10 +1,10 @@
 import sys
 import pandas as pd
 
-from src.semceb.algorithms.interface import AlgorithmInterface
+from semceb.algorithms.interface import AlgorithmInterface
 import lotus.settings
-from src.semceb.queries.query_specification import QuerySpecification
-from src.semceb.queries.template_parser import QueryTemplatePartType
+from semceb.queries.query_specification import QuerySpecification
+from semceb.queries.template_parser import QueryTemplatePartType
 
 
 class ExtrapolatedSampling(AlgorithmInterface):

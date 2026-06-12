@@ -20,6 +20,7 @@ dependencies = [
     "rich",
     "lotus-ai",
     "certifi",
+    "pyarrow",
     "python-dotenv",
     "tomli; python_version < '3.11'",
 ]

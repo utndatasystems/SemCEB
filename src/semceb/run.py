@@ -74,8 +74,7 @@ Commands:
 
 Examples:
   semceb run
-  semceb plot
-"""
+  semceb plot"""
     )
 
     print_done()

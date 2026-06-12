@@ -13,7 +13,7 @@ authors = [
 ]
 license = { "file" = "LICENSE" }
 requires-python = ">=3.10, <3.13"
-dependencies = ["pandas", "matplotlib", "seaborn", "rich", "lotus-ai"]
+dependencies = ["pandas", "matplotlib", "seaborn", "rich", "lotus-ai", "certifi"]
 
 [project.scripts]
 semceb = "run:main"

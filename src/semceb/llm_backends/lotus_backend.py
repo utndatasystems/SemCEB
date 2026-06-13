@@ -100,10 +100,11 @@ class LotusBackend():
 
         return int(value["cardinality"])
 
-    def _set_cached_cardinality(self, cache_key: str, cardinality: int) -> None:
+    def _set_cached_cardinality(self, cache_key: str, cardinality: int, selectivity: float) -> None:
         """Store cardinality in the cache."""
         self.cache[cache_key] = {
             "cardinality": int(cardinality),
+            "selectivity": float(selectivity),
         }
         self._save_cache()
 
@@ -125,7 +126,7 @@ class LotusBackend():
             user_instruction=query_str,
         ).shape[0]
 
-        self._set_cached_cardinality(cache_key, cardinality)
+        self._set_cached_cardinality(cache_key, cardinality, selectivity=cardinality / df.shape[0])
         return cardinality  
 
     def _format_filtering_query(self, query_spec: QuerySpecification, df: pd.DataFrame) -> str:
@@ -175,7 +176,7 @@ class LotusBackend():
             query_str,
         ).shape[0]
 
-        self._set_cached_cardinality(cache_key, cardinality)
+        self._set_cached_cardinality(cache_key, cardinality, selectivity=cardinality / (data_left_df.shape[0] * data_right_df.shape[0]))
         return cardinality
     
     def _format_joining_query(

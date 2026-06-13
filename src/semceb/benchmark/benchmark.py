@@ -26,16 +26,16 @@ class BenchmarkRunner:
         default_ground_truth_system_prompt: str,
         scale_factor: int,
         join_scale_factor: int,
-        categories: list[str],
-        types: list[str]
+        categories: list[str] | None,
+        types: list[str] | None,
     ):
         """Initialize benchmark runner settings, query selection, and local storage paths."""
         self.algorithms = algorithms
         self.default_ground_truth_model_name = default_ground_truth_model_name
         self.default_ground_truth_system_prompt = default_ground_truth_system_prompt
         self.scale_factor = scale_factor
-        self.query_categories = categories
-        self.query_types = types
+        self.query_categories = set(categories or [])
+        self.query_types = set(types or [])
         self.join_scale_factor = join_scale_factor
 
         self.result_filepath = Path("results") / "raw" / "result.jsonl"
@@ -46,7 +46,7 @@ class BenchmarkRunner:
         self._handle_cloud_data()
 
     def _load_queries_specs(self, file_path: str) -> list[QuerySpecification]:
-        """Load query specifications from a JSONL file and filter by selected categories and types."""
+        """Load query specifications from a JSONL file and apply configured filters."""
 
         queries_specs = []
 
@@ -58,10 +58,24 @@ class BenchmarkRunner:
                     continue
 
                 query_spec = QuerySpecification.from_dict(json.loads(line))
-                if query_spec.category in self.query_categories and query_spec.type in self.query_types:
+                if self._query_matches_selection(query_spec):
                     queries_specs.append(query_spec)
 
         return queries_specs
+
+    def _query_matches_selection(self, query_spec: QuerySpecification) -> bool:
+        """Return whether a query passes configured category and type filters."""
+
+        category_matches = (
+            not self.query_categories
+            or query_spec.category in self.query_categories
+        )
+        type_matches = (
+            not self.query_types
+            or query_spec.type in self.query_types
+        )
+
+        return category_matches and type_matches
 
     def _handle_cloud_data(self) -> None:
         """Download data if it is not available locally."""

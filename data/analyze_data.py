@@ -564,7 +564,7 @@ def compute_knn_similarity_coefficient(
             f"Expected a 2D embedding matrix, got shape {embeddings.shape}."
         )
 
-    n_rows = embeddings.shape[0]
+    n_rows, n_dims = embeddings.shape
     if n_rows < 2:
         raise ValueError("At least two embeddings are required for kNN analysis.")
 
@@ -583,25 +583,40 @@ def compute_knn_similarity_coefficient(
     summary: dict[int, dict[str, float]] = {}
     pointwise_min_similarity: dict[int, np.ndarray] = {}
 
-    with log_step(f"Build FAISS IndexFlatIP rows={n_rows:,} dims={embeddings.shape[1]}"):
-        index = faiss.IndexFlatIP(embeddings.shape[1])
+    # 1. Use HNSW for O(N log N) Approximate Search instead of O(N^2) Exact Search
+    # 32 represents the number of bi-directional links in the graph. 
+    # It provides an excellent balance of >95% recall vs speed.
+    with log_step(f"Build FAISS IndexHNSWFlat rows={n_rows:,} dims={n_dims}"):
+        index = faiss.IndexHNSWFlat(n_dims, 32, faiss.METRIC_INNER_PRODUCT)
+        
+        # Optional: Increase efSearch for slightly better accuracy at the cost of speed
+        # index.hnsw.efSearch = 64 
+        
         index.add(embeddings)
 
-    for k in k_values:
+    max_k = max(k_values)
+    if max_k >= n_rows:
+        raise ValueError(
+            f"k={max_k} is invalid for {n_rows} embeddings; k must be smaller "
+            "than the number of rows."
+        )
+
+    # 2. SINGLE SEARCH: Search once for the maximum K needed
+    with log_step(f"FAISS IndexHNSWFlat search max_k={max_k} rows={n_rows:,}"):
+        all_distances, _ = index.search(embeddings, max_k + 1)
+
+    # 3. Slice the results for specific k values
+    for k in sorted(k_values):
         if k < 1:
             raise ValueError(f"k must be at least 1, got {k}.")
-        if k >= n_rows:
-            raise ValueError(
-                f"k={k} is invalid for {n_rows} embeddings; k must be smaller "
-                "than the number of rows."
-            )
-
-        with log_step(f"FAISS IndexFlatIP search k={k} rows={n_rows:,}"):
-            distances, _ = index.search(embeddings, k + 1)
-        cosine_similarities = distances[:, 1:]
-        pointwise_min_similarity[k] = cosine_similarities.min(axis=1)
 
         with log_step(f"Compute kNN summary statistics k={k}"):
+            # Slice the distance matrix up to the current k (ignoring index 0, which is self)
+            k_distances = all_distances[:, 1:k + 1]
+            cosine_similarities = k_distances
+            
+            pointwise_min_similarity[k] = cosine_similarities.min(axis=1)
+
             mean_similarity = cosine_similarities.mean(axis=1)
             mean_similarity_mean = mean_similarity.mean()
 
@@ -620,7 +635,6 @@ def compute_knn_similarity_coefficient(
         "summary": summary,
         "pointwise_min_similarity": pointwise_min_similarity,
     }
-
 
 def load_embedding_column(parquet_file: Path, column: str) -> tuple[np.ndarray, int]:
     """Load one embedding column from parquet into a dense NumPy matrix."""

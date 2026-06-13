@@ -26,7 +26,12 @@ def apply_plot_params(
             "font.size": 11.0,
             "font.family": "serif",
             "axes.titlesize": "medium",
+            "axes.labelsize": "medium",
             "figure.titlesize": "medium",
+            "xtick.labelsize": "medium",
+            "ytick.labelsize": "medium",
+            "legend.fontsize": "medium",
+            "legend.title_fontsize": "medium",
             "text.usetex": True,
             "text.latex.preamble": (
                 r"\usepackage{amsmath}\usepackage{amssymb}"
@@ -58,9 +63,6 @@ class ResultsPlotter:
         # Example: with 2 algorithms and this set to 6,
         # the 2 algorithms appear on the left and the remaining space stays empty.
         self.minimum_visible_algorithm_slots = 8
-
-        self.plot_font_size = 11
-        self.main_title_font_size = 11
 
 
     def plot(self) -> None:
@@ -471,7 +473,6 @@ class ResultsPlotter:
 
         fig.suptitle(
             "Algorithm Performance Comparison",
-            fontsize=self.main_title_font_size,
             fontweight="bold",
             color="#111111",
             y=1.06,
@@ -479,13 +480,7 @@ class ResultsPlotter:
 
         fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.99))
 
-        png_path = self.plot_dir / "algorithm_comparison.png"
         pdf_path = self.plot_dir / "algorithm_comparison.pdf"
-
-        fig.savefig(png_path, dpi=180, bbox_inches="tight")
-        console.print(
-            f"[green]✓[/green] Saved algorithm comparison plot to [bold]{png_path}[/bold]"
-        )
 
         fig.savefig(pdf_path, bbox_inches="tight")
         console.print(
@@ -633,13 +628,10 @@ class ResultsPlotter:
 
         axis.set_yscale("log")
         axis.set_ylim(bottom=lower_y_limit, top=1)
-        axis.set_title(
-            f"{query_type.capitalize()} query selectivity distribution",
-            fontsize=self.plot_font_size,
-        )
+        axis.set_title(f"{query_type.capitalize()} query selectivity distribution")
 
-        axis.set_xlabel(r"\#Predicates", fontsize=self.plot_font_size)
-        axis.set_ylabel("Selectivity", fontsize=self.plot_font_size)
+        axis.set_xlabel(r"\#Predicates")
+        axis.set_ylabel("Selectivity")
         axis.set_xticks(x_values)
         axis.grid(axis="y", alpha=0.55)
         axis.grid(axis="x", visible=False)
@@ -810,15 +802,9 @@ class ResultsPlotter:
         algorithms are plotted.
         """
 
-        axis.set_title(title, fontsize=self.plot_font_size)
-        axis.set_xlabel("", fontsize=self.plot_font_size)
-        axis.set_ylabel(ylabel, fontsize=self.plot_font_size)
-
-        axis.tick_params(
-            axis="both",
-            which="major",
-            labelsize=self.plot_font_size,
-        )
+        axis.set_title(title)
+        axis.set_xlabel("")
+        axis.set_ylabel(ylabel)
 
         algorithm_count = len(algorithms)
         visible_slot_count = max(

@@ -71,6 +71,24 @@ def format_shape(array: np.ndarray) -> str:
     return "x".join(str(dimension) for dimension in array.shape)
 
 
+def log_array_issue(name: str, values: np.ndarray) -> None:
+    """Log compact diagnostics for an array with invalid values."""
+
+    array = np.asarray(values)
+    finite_mask = np.isfinite(array)
+    finite_values = array[finite_mask]
+    nan_count = int(np.isnan(array).sum())
+    posinf_count = int(np.isposinf(array).sum())
+    neginf_count = int(np.isneginf(array).sum())
+    finite_min = float(finite_values.min()) if finite_values.size else None
+    finite_max = float(finite_values.max()) if finite_values.size else None
+    console.log(
+        f"{name}: shape={format_shape(array)} finite={int(finite_mask.sum()):,}/"
+        f"{array.size:,} nan={nan_count:,} +inf={posinf_count:,} "
+        f"-inf={neginf_count:,} finite_min={finite_min} finite_max={finite_max}"
+    )
+
+
 @dataclass
 class ImbalanceReport:
     """Semantic imbalance outputs for one embedding column."""
@@ -203,9 +221,23 @@ def gini(values: np.ndarray) -> float:
     """Compute the Gini coefficient for a vector."""
 
     adjusted_values = values.astype(np.float64, copy=True)
+    finite_mask = np.isfinite(adjusted_values)
+    if not finite_mask.all():
+        log_array_issue("Non-finite values passed to gini; dropping them", adjusted_values)
+        adjusted_values = adjusted_values[finite_mask]
+    if adjusted_values.size == 0:
+        return 0.0
+
     min_value = adjusted_values.min()
     if min_value < 0:
-        adjusted_values = adjusted_values - min_value
+        with np.errstate(over="ignore", invalid="ignore"):
+            adjusted_values = adjusted_values - min_value
+        finite_mask = np.isfinite(adjusted_values)
+        if not finite_mask.all():
+            log_array_issue("Non-finite values after gini shift; dropping them", adjusted_values)
+            adjusted_values = adjusted_values[finite_mask]
+        if adjusted_values.size == 0:
+            return 0.0
 
     sorted_values = np.sort(adjusted_values)
     total = sorted_values.sum()
@@ -237,10 +269,24 @@ def zipf_alpha(cluster_sizes: np.ndarray) -> float:
 def normalize_embeddings(embeddings: np.ndarray) -> np.ndarray:
     """Normalize embeddings to unit length."""
 
-    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
-    if np.any(norms == 0):
-        raise ValueError("Embeddings contain zero vectors; cannot normalize.")
-    return embeddings / norms
+    matrix = np.asarray(embeddings, dtype=np.float64)
+    if not np.isfinite(matrix).all():
+        log_array_issue("Non-finite embeddings before normalization", matrix)
+        raise ValueError("Embeddings contain NaN/Inf values; cannot normalize safely.")
+
+    norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+    if not np.isfinite(norms).all():
+        log_array_issue("Non-finite embedding norms before normalization", norms)
+        raise ValueError("Embedding norms contain NaN/Inf values; cannot normalize safely.")
+
+    zero_norm_rows = np.where(norms.reshape(-1) == 0)[0]
+    if len(zero_norm_rows) > 0:
+        preview = ", ".join(str(index) for index in zero_norm_rows[:10])
+        raise ValueError(
+            "Embeddings contain zero vectors; cannot normalize. "
+            f"zero_vector_rows={len(zero_norm_rows):,} first_rows=[{preview}]"
+        )
+    return matrix / norms
 
 
 def prepare_faiss_matrix(embeddings: np.ndarray) -> np.ndarray:
@@ -568,11 +614,28 @@ def compute_knn_similarity_coefficient(
     if n_rows < 2:
         raise ValueError("At least two embeddings are required for kNN analysis.")
 
+    sorted_k_values = tuple(sorted(k_values))
+    for k in sorted_k_values:
+        if k < 1:
+            raise ValueError(f"k must be at least 1, got {k}.")
+    max_k = max(sorted_k_values)
+    if max_k >= n_rows:
+        raise ValueError(
+            f"k={max_k} is invalid for {n_rows} embeddings; k must be smaller "
+            "than the number of rows."
+        )
+
     console.log(
         "kNN similarity setup "
         f"shape={format_shape(embeddings)} k_values={','.join(str(k) for k in k_values)} "
         f"normalize={normalize}"
     )
+
+    with log_step(f"Validate embedding matrix before FAISS kNN shape={format_shape(embeddings)}"):
+        embeddings = validate_embedding_matrix(embeddings)
+        n_rows, n_dims = embeddings.shape
+        if n_dims == 0:
+            raise ValueError("No embedding dimensions remain after validation.")
 
     if normalize:
         with log_step(f"Normalize embeddings for FAISS kNN shape={format_shape(embeddings)}"):
@@ -586,44 +649,98 @@ def compute_knn_similarity_coefficient(
     # 1. Use HNSW for O(N log N) Approximate Search instead of O(N^2) Exact Search
     # 32 represents the number of bi-directional links in the graph. 
     # It provides an excellent balance of >95% recall vs speed.
-    with log_step(f"Build FAISS IndexHNSWFlat rows={n_rows:,} dims={n_dims}"):
+    ef_search = min(n_rows, max(128, 4 * (max_k + 1)))
+    ef_construction = max(40, min(512, ef_search))
+    with log_step(
+        "Build FAISS IndexHNSWFlat "
+        f"rows={n_rows:,} dims={n_dims} efConstruction={ef_construction} "
+        f"efSearch={ef_search}"
+    ):
         index = faiss.IndexHNSWFlat(n_dims, 32, faiss.METRIC_INNER_PRODUCT)
-        
-        # Optional: Increase efSearch for slightly better accuracy at the cost of speed
-        # index.hnsw.efSearch = 64 
-        
+        index.hnsw.efConstruction = ef_construction
+        index.hnsw.efSearch = ef_search
         index.add(embeddings)
-
-    max_k = max(k_values)
-    if max_k >= n_rows:
-        raise ValueError(
-            f"k={max_k} is invalid for {n_rows} embeddings; k must be smaller "
-            "than the number of rows."
-        )
 
     # 2. SINGLE SEARCH: Search once for the maximum K needed
     with log_step(f"FAISS IndexHNSWFlat search max_k={max_k} rows={n_rows:,}"):
-        all_distances, _ = index.search(embeddings, max_k + 1)
+        all_distances, all_indices = index.search(embeddings, max_k + 1)
+
+    neighbor_distances = all_distances[:, 1:]
+    neighbor_indices = all_indices[:, 1:]
+    invalid_neighbor_mask = (
+        (neighbor_indices < 0)
+        | ~np.isfinite(neighbor_distances)
+        | (neighbor_distances < -1.0001)
+        | (neighbor_distances > 1.0001)
+    )
+    invalid_rows = np.flatnonzero(invalid_neighbor_mask.any(axis=1))
+    if len(invalid_rows) > 0:
+        sentinel_count = int((neighbor_distances <= -1e20).sum())
+        console.log(
+            "Invalid HNSW kNN results detected; falling back to exact search "
+            f"invalid_rows={len(invalid_rows):,}/{n_rows:,} "
+            f"invalid_entries={int(invalid_neighbor_mask.sum()):,} "
+            f"sentinel_like_distances={sentinel_count:,}"
+        )
+        log_array_issue("Invalid HNSW neighbor distances", neighbor_distances[invalid_rows])
+        with log_step(
+            "Exact FAISS IndexFlatIP fallback for invalid HNSW rows "
+            f"rows={len(invalid_rows):,} max_k={max_k}"
+        ):
+            exact_index = faiss.IndexFlatIP(n_dims)
+            exact_index.add(embeddings)
+            fallback_distances, fallback_indices = exact_index.search(
+                embeddings[invalid_rows],
+                max_k + 1,
+            )
+        all_distances[invalid_rows] = fallback_distances
+        all_indices[invalid_rows] = fallback_indices
+
+        neighbor_distances = all_distances[:, 1:]
+        neighbor_indices = all_indices[:, 1:]
+        invalid_neighbor_mask = (
+            (neighbor_indices < 0)
+            | ~np.isfinite(neighbor_distances)
+            | (neighbor_distances < -1.0001)
+            | (neighbor_distances > 1.0001)
+        )
+        if invalid_neighbor_mask.any():
+            log_array_issue("Invalid exact fallback neighbor distances", neighbor_distances)
+            raise ValueError(
+                "FAISS kNN returned invalid neighbor distances even after exact fallback. "
+                "Check the embedding matrix for corrupt rows or incompatible values."
+            )
 
     # 3. Slice the results for specific k values
-    for k in sorted(k_values):
-        if k < 1:
-            raise ValueError(f"k must be at least 1, got {k}.")
-
+    for k in sorted_k_values:
         with log_step(f"Compute kNN summary statistics k={k}"):
             # Slice the distance matrix up to the current k (ignoring index 0, which is self)
-            k_distances = all_distances[:, 1:k + 1]
-            cosine_similarities = k_distances
+            k_distances = all_distances[:, 1:k + 1].astype(np.float64)
+            if not np.isfinite(k_distances).all():
+                log_array_issue(f"Non-finite cosine similarities before summary k={k}", k_distances)
+                raise ValueError(f"Non-finite cosine similarities detected for k={k}.")
+            if ((k_distances < -1.0001) | (k_distances > 1.0001)).any():
+                log_array_issue(f"Out-of-range cosine similarities before summary k={k}", k_distances)
+                raise ValueError(f"Out-of-range cosine similarities detected for k={k}.")
+            cosine_similarities = np.clip(k_distances, -1.0, 1.0)
             
             pointwise_min_similarity[k] = cosine_similarities.min(axis=1)
 
             mean_similarity = cosine_similarities.mean(axis=1)
-            mean_similarity_mean = mean_similarity.mean()
+            if not np.isfinite(mean_similarity).all():
+                log_array_issue(f"Non-finite mean kNN similarities k={k}", mean_similarity)
+                raise ValueError(f"Non-finite mean kNN similarities detected for k={k}.")
+            mean_similarity_mean = float(mean_similarity.mean())
+            similarity_cv = (
+                0.0
+                if np.isclose(mean_similarity_mean, 0.0)
+                else float(mean_similarity.std() / mean_similarity_mean)
+            )
 
             summary[k] = {
                 "similarity_skewness": float(skew(mean_similarity)),
                 "similarity_kurtosis": float(kurtosis(mean_similarity)),
-                "similarity_cv": float(mean_similarity.std() / mean_similarity_mean),
+                "similarity_cv": similarity_cv,
                 "similarity_gini": float(gini(mean_similarity)),
                 "mean_knn_similarity": float(cosine_similarities.mean()),
             }

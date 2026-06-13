@@ -31,28 +31,29 @@ In the end, two tables are created:
 
 ## Setup
 
-To generate the dataset, run the following command from the repository root:
+To generate the dataset, run the following commands:
 
 ```bash
 python src/semceb/data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --category Arts_Crafts_and_Sewing --mode raw_5core
+python src/semceb/data/amazon-reviews/compute_embeddings.py --data-dir Arts_Crafts_and_Sewing__raw_5core
 ```
 
-This writes the processed dataset to:
+The first command downloads large datasets and processes them with DuckDB.
+Make sure to have several gigabytes of free storage space, a good network connection, and a decent amount of memory.
+It also downloads many small images, which takes a bit of time...
 
+The first steps writes datasetes to:
 ```text
-data/amazon-reviews/processed/Arts_Crafts_and_Sewing__raw_5core/
+src/semceb/data/amazon-reviews/processed/Arts_Crafts_and_Sewing__raw_5core/
 ```
 
-To compute image and text embeddings for the filtered product and review tables, run:
+Specifically, `products_filtered.parquet` and `reviews_filtered.parquet` (and a combination thereof in `amazon_reviews.duckdb`) in the `processed` directory are of interest.
 
-```bash
-python src/semceb/data/amazon-reviews/compute_embeddings.py --run-dir Arts_Crafts_and_Sewing__raw_5core
-```
+The second command computes embeddings for text and image columns. Ideally, this should be executed in a machine with a GPU.
 
-The short `--run-dir` value is resolved relative to `data/amazon-reviews/processed/`.
-
-This uses `google/siglip2-base-patch16-224` for images and `Qwen/Qwen3-Embedding-0.6B`
-for the textual product and review columns, auto-selects the available device, and writes:
+This uses `google/siglip2-base-patch16-224` for images and both
+`Qwen/Qwen3-Embedding-0.6B` and `google/siglip2-base-patch16-224` for the textual
+product and review columns, auto-selects the available device, and writes:
 
 ```text
 products_filtered_with_embeddings.parquet

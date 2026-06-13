@@ -12,6 +12,7 @@ import argparse
 import json
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -20,10 +21,15 @@ import duckdb
 from PIL import Image, UnidentifiedImageError
 
 
-DEFAULT_IMAGE_MODEL_NAME = "google/siglip2-base-patch16-224"
-DEFAULT_TEXT_MODEL_NAME = "Qwen/Qwen3-Embedding-0.6B"
+SIGLIP_MODEL_NAME = "google/siglip2-base-patch16-224"
+QWEN_TEXT_MODEL_NAME = "Qwen/Qwen3-Embedding-0.6B"
 DEFAULT_BATCH_SIZE = 32
+DEFAULT_DATA_DIR = "Arts_Crafts_and_Sewing__raw_5core"
 SCRIPT_DIR = Path(__file__).resolve().parent
+TextBatchEmbeddingFn = Callable[
+    [object, object, object, str, list[str]],
+    list[list[float]],
+]
 TEXT_EMBEDDING_COLUMNS = [
     "product_title",
     "description_json",
@@ -43,24 +49,26 @@ class ImageEmbeddingJob:
     image_path: Path
 
 
+@dataclass(frozen=True)
+class TextEmbeddingModelBundle:
+    model_name: str
+    tokenizer: object
+    model: object
+    torch_module: object
+    compute_batch: TextBatchEmbeddingFn
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Compute embeddings for filtered product and review tables"
     )
     parser.add_argument(
-        "--run-dir",
-        required=True,
+        "--data-dir",
+        default=DEFAULT_DATA_DIR,
         help=(
             "Processed dataset directory created by download_and_prepare_amazon_reviews_dataset.py. "
-            "Example: processed/Arts_Crafts_and_Sewing__raw_5core"
-        ),
-    )
-    parser.add_argument(
-        "--model",
-        default=DEFAULT_IMAGE_MODEL_NAME,
-        help=(
-            "Hugging Face model name to use for image embeddings. "
-            f"Default: {DEFAULT_IMAGE_MODEL_NAME}"
+            "Short names are resolved relative to the processed Amazon Reviews data directory. "
+            f"Default: {DEFAULT_DATA_DIR}"
         ),
     )
     parser.add_argument(
@@ -72,19 +80,19 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def resolve_run_dir(run_dir_arg: str) -> Path:
-    run_dir = Path(run_dir_arg)
+def resolve_data_dir(data_dir_arg: str) -> Path:
+    data_dir = Path(data_dir_arg)
 
-    if run_dir.is_absolute():
-        return run_dir
+    if data_dir.is_absolute():
+        return data_dir
 
-    repo_root = SCRIPT_DIR.parents[1]
-    processed_root = repo_root / "data" / "amazon-reviews" / "processed"
+    package_root = SCRIPT_DIR.parents[1]
+    processed_root = package_root / "data" / "amazon-reviews" / "processed"
 
-    if len(run_dir.parts) == 1:
-        return (processed_root / run_dir).resolve()
+    if len(data_dir.parts) == 1:
+        return (processed_root / data_dir).resolve()
 
-    return (repo_root / run_dir).resolve()
+    return (package_root / data_dir).resolve()
 
 
 def sql_string_literal(value: str) -> str:
@@ -99,12 +107,12 @@ def embedding_column_name(reference_column: str, model_name: str) -> str:
     return f"{reference_column}_embeddings_{sanitize_model_name(model_name)}"
 
 
-def output_products_parquet_path(run_dir: Path) -> Path:
-    return run_dir / "products_filtered_with_embeddings.parquet"
+def output_products_parquet_path(data_dir: Path) -> Path:
+    return data_dir / "products_filtered_with_embeddings.parquet"
 
 
-def output_reviews_parquet_path(run_dir: Path) -> Path:
-    return run_dir / "reviews_filtered_with_embeddings.parquet"
+def output_reviews_parquet_path(data_dir: Path) -> Path:
+    return data_dir / "reviews_filtered_with_embeddings.parquet"
 
 
 def image_path_from_url(images_dir: Path, url: str) -> Path | None:
@@ -128,41 +136,47 @@ def resolve_device() -> str:
     return "cpu"
 
 
-def load_image_model_bundle(model_name: str, device: str) -> tuple[object, object, int, object]:
+def load_siglip_model_bundle(device: str) -> tuple[object, object, int, object]:
     import torch
     from transformers import AutoConfig, AutoImageProcessor, AutoModel
 
-    config = AutoConfig.from_pretrained(model_name)
+    config = AutoConfig.from_pretrained(SIGLIP_MODEL_NAME)
     dimension = getattr(getattr(config, "text_config", None), "projection_size", None)
     if dimension is None:
         dimension = getattr(getattr(config, "vision_config", None), "hidden_size", None)
     if dimension is None:
-        raise RuntimeError(f"Could not determine embedding dimension for model {model_name}")
+        raise RuntimeError(f"Could not determine embedding dimension for model {SIGLIP_MODEL_NAME}")
 
-    processor = AutoImageProcessor.from_pretrained(model_name)
-    model = AutoModel.from_pretrained(model_name)
+    processor = AutoImageProcessor.from_pretrained(SIGLIP_MODEL_NAME)
+    model = AutoModel.from_pretrained(SIGLIP_MODEL_NAME)
     model.eval()
     model.to(device)
     return processor, model, int(dimension), torch
 
 
-def load_text_model_bundle(model_name: str, device: str) -> tuple[object, object, object]:
+def load_qwen_text_model_bundle(device: str) -> tuple[object, object, object]:
     import torch
     from transformers import AutoModel, AutoTokenizer
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
-    model = AutoModel.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(QWEN_TEXT_MODEL_NAME, padding_side="left")
+    model = AutoModel.from_pretrained(QWEN_TEXT_MODEL_NAME)
     model.eval()
     model.to(device)
     return tokenizer, model, torch
 
 
-def validate_run_dir(run_dir: Path) -> tuple[Path, Path]:
-    db_path = run_dir / "amazon_reviews.duckdb"
-    images_dir = run_dir / "images"
+def load_siglip_text_tokenizer() -> object:
+    from transformers import AutoTokenizer
 
-    if not run_dir.exists():
-        raise FileNotFoundError(f"Run directory does not exist: {run_dir}")
+    return AutoTokenizer.from_pretrained(SIGLIP_MODEL_NAME)
+
+
+def validate_data_dir(data_dir: Path) -> tuple[Path, Path]:
+    db_path = data_dir / "amazon_reviews.duckdb"
+    images_dir = data_dir / "images"
+
+    if not data_dir.exists():
+        raise FileNotFoundError(f"Data directory does not exist: {data_dir}")
     if not db_path.exists():
         raise FileNotFoundError(f"DuckDB file not found: {db_path}")
     if not images_dir.exists():
@@ -205,21 +219,26 @@ def create_working_table(
     con: duckdb.DuckDBPyConnection,
     image_column_name: str,
     image_dimension: int,
+    text_model_names: list[str],
 ) -> None:
     con.execute("CREATE OR REPLACE TEMP TABLE products_with_embeddings AS SELECT * FROM products_filtered")
     con.execute(
         f"ALTER TABLE products_with_embeddings "
         f"ADD COLUMN {image_column_name} DOUBLE[{image_dimension}]"
     )
-    for source_column in TEXT_EMBEDDING_COLUMNS:
-        text_column_name = embedding_column_name(source_column, DEFAULT_TEXT_MODEL_NAME)
-        con.execute(
-            f"ALTER TABLE products_with_embeddings "
-            f"ADD COLUMN {text_column_name} DOUBLE[]"
-        )
+    for model_name in text_model_names:
+        for source_column in TEXT_EMBEDDING_COLUMNS:
+            text_column_name = embedding_column_name(source_column, model_name)
+            con.execute(
+                f"ALTER TABLE products_with_embeddings "
+                f"ADD COLUMN {text_column_name} DOUBLE[]"
+            )
 
 
-def create_reviews_working_table(con: duckdb.DuckDBPyConnection) -> None:
+def create_reviews_working_table(
+    con: duckdb.DuckDBPyConnection,
+    text_model_names: list[str],
+) -> None:
     con.execute(
         """
         CREATE OR REPLACE TEMP TABLE reviews_with_embeddings AS
@@ -229,12 +248,13 @@ def create_reviews_working_table(con: duckdb.DuckDBPyConnection) -> None:
         FROM reviews_filtered
         """
     )
-    for source_column in REVIEW_TEXT_EMBEDDING_COLUMNS:
-        text_column_name = embedding_column_name(source_column, DEFAULT_TEXT_MODEL_NAME)
-        con.execute(
-            f"ALTER TABLE reviews_with_embeddings "
-            f"ADD COLUMN {text_column_name} DOUBLE[]"
-        )
+    for model_name in text_model_names:
+        for source_column in REVIEW_TEXT_EMBEDDING_COLUMNS:
+            text_column_name = embedding_column_name(source_column, model_name)
+            con.execute(
+                f"ALTER TABLE reviews_with_embeddings "
+                f"ADD COLUMN {text_column_name} DOUBLE[]"
+            )
 
 
 def create_image_embedding_job_table(con: duckdb.DuckDBPyConnection) -> None:
@@ -413,36 +433,7 @@ def compute_image_batch_embeddings(
     inputs = {key: value.to(device) for key, value in inputs.items()}
 
     with torch_module.inference_mode():
-        if hasattr(model, "get_image_features"):
-            image_features = model.get_image_features(**inputs)
-        else:
-            outputs = model(**inputs)
-            if not hasattr(outputs, "image_embeds"):
-                raise RuntimeError("Image model output does not expose image embeddings")
-            image_features = outputs.image_embeds
-
-        if not isinstance(image_features, torch_module.Tensor):
-            if hasattr(image_features, "image_embeds") and isinstance(
-                image_features.image_embeds,
-                torch_module.Tensor,
-            ):
-                image_features = image_features.image_embeds
-            elif hasattr(image_features, "pooler_output") and isinstance(
-                image_features.pooler_output,
-                torch_module.Tensor,
-            ):
-                image_features = image_features.pooler_output
-            elif hasattr(image_features, "last_hidden_state") and isinstance(
-                image_features.last_hidden_state,
-                torch_module.Tensor,
-            ):
-                image_features = image_features.last_hidden_state[:, 0, :]
-            else:
-                raise RuntimeError(
-                    "Image model did not return a tensor embedding; "
-                    f"got {type(image_features).__name__}"
-                )
-
+        image_features = model.get_image_features(**inputs)
         image_features = torch_module.nn.functional.normalize(image_features, p=2, dim=1)
         return image_features.detach().cpu().to(torch_module.float32).tolist()
 
@@ -464,7 +455,7 @@ def last_token_pool(
     ]
 
 
-def compute_text_batch_embeddings(
+def compute_qwen_text_batch_embeddings(
     tokenizer: object,
     model: object,
     torch_module: object,
@@ -484,6 +475,41 @@ def compute_text_batch_embeddings(
         embeddings = last_token_pool(outputs.last_hidden_state, batch["attention_mask"], torch_module)
         embeddings = torch_module.nn.functional.normalize(embeddings, p=2, dim=1)
         return embeddings.detach().cpu().to(torch_module.float32).tolist()
+
+
+def compute_siglip_text_batch_embeddings(
+    tokenizer: object,
+    model: object,
+    torch_module: object,
+    device: str,
+    texts: list[str],
+) -> list[list[float]]:
+    batch = tokenizer(
+        texts,
+        padding="max_length",
+        truncation=True,
+        return_tensors="pt",
+    )
+    batch = {key: value.to(device) for key, value in batch.items()}
+
+    with torch_module.inference_mode():
+        embeddings = model.get_text_features(**batch)
+        embeddings = torch_module.nn.functional.normalize(embeddings, p=2, dim=1)
+        return embeddings.detach().cpu().to(torch_module.float32).tolist()
+
+
+def compute_text_batch_embeddings(
+    text_model_bundle: TextEmbeddingModelBundle,
+    device: str,
+    texts: list[str],
+) -> list[list[float]]:
+    return text_model_bundle.compute_batch(
+        text_model_bundle.tokenizer,
+        text_model_bundle.model,
+        text_model_bundle.torch_module,
+        device,
+        texts,
+    )
 
 
 def write_batch_embeddings(
@@ -581,31 +607,53 @@ def export_reviews_with_embeddings(
 
 
 def run_embeddings(
-    run_dir: Path,
-    image_model_name: str,
+    data_dir: Path,
     batch_size: int,
 ) -> None:
-    db_path, images_dir = validate_run_dir(run_dir)
-    image_column_name = embedding_column_name("main_image_local", image_model_name)
-    products_output_path = output_products_parquet_path(run_dir)
-    reviews_output_path = output_reviews_parquet_path(run_dir)
+    db_path, images_dir = validate_data_dir(data_dir)
+    image_column_name = embedding_column_name("main_image_local", SIGLIP_MODEL_NAME)
+    products_output_path = output_products_parquet_path(data_dir)
+    reviews_output_path = output_reviews_parquet_path(data_dir)
 
     device = resolve_device()
-    print(f"[info] loading image embedding model {image_model_name} on {device}")
-    image_processor, image_model, image_dimension, image_torch = load_image_model_bundle(
-        image_model_name,
-        device,
+    print(f"[info] loading image embedding model {SIGLIP_MODEL_NAME} on {device}")
+    image_processor, image_model, image_dimension, image_torch = load_siglip_model_bundle(device)
+    print(f"[info] loading text embedding model {QWEN_TEXT_MODEL_NAME} on {device}")
+    text_tokenizer, text_model, text_torch = load_qwen_text_model_bundle(device)
+    text_model_bundles = [
+        TextEmbeddingModelBundle(
+            model_name=QWEN_TEXT_MODEL_NAME,
+            tokenizer=text_tokenizer,
+            model=text_model,
+            torch_module=text_torch,
+            compute_batch=compute_qwen_text_batch_embeddings,
+        )
+    ]
+
+    print(
+        f"[info] loading text tokenizer for {SIGLIP_MODEL_NAME} "
+        "and reusing image model for SigLIP text embeddings"
     )
-    print(f"[info] loading text embedding model {DEFAULT_TEXT_MODEL_NAME} on {device}")
-    text_tokenizer, text_model, text_torch = load_text_model_bundle(DEFAULT_TEXT_MODEL_NAME, device)
+    siglip_text_tokenizer = load_siglip_text_tokenizer()
+
+    text_model_bundles.append(
+        TextEmbeddingModelBundle(
+            model_name=SIGLIP_MODEL_NAME,
+            tokenizer=siglip_text_tokenizer,
+            model=image_model,
+            torch_module=image_torch,
+            compute_batch=compute_siglip_text_batch_embeddings,
+        )
+    )
+    text_model_names = [bundle.model_name for bundle in text_model_bundles]
 
     print(f"[info] opening DuckDB database: {db_path}")
     con = duckdb.connect(str(db_path))
     try:
         ensure_products_filtered(con)
         ensure_reviews_filtered(con)
-        create_working_table(con, image_column_name, image_dimension)
-        create_reviews_working_table(con)
+        create_working_table(con, image_column_name, image_dimension, text_model_names)
+        create_reviews_working_table(con, text_model_names)
         create_image_embedding_job_table(con)
 
         image_jobs, missing_url, missing_file = collect_image_jobs(con, images_dir)
@@ -641,62 +689,64 @@ def run_embeddings(
                 f"[info] embedded {image_embedded}/{len(image_jobs)} image rows "
                 f"(batch size={len(batch_rows)})"
             )
+        if failed_decode:
+            print(f"[warn] skipped {failed_decode} image files that could not be decoded")
 
         for source_column in TEXT_EMBEDDING_COLUMNS:
-            text_column_name = embedding_column_name(source_column, DEFAULT_TEXT_MODEL_NAME)
             text_jobs, skipped = collect_text_jobs(con, source_column)
-            print(
-                f"[info] prepared {len(text_jobs)} text embedding jobs for {source_column} "
-                f"({skipped} skipped)"
-            )
-
-            text_embedded = 0
-            for batch_start in range(0, len(text_jobs), batch_size):
-                batch_jobs = text_jobs[batch_start : batch_start + batch_size]
-                batch_parent_asins = [parent_asin for parent_asin, _ in batch_jobs]
-                batch_texts = [text for _, text in batch_jobs]
-                vectors = compute_text_batch_embeddings(
-                    tokenizer=text_tokenizer,
-                    model=text_model,
-                    torch_module=text_torch,
-                    device=device,
-                    texts=batch_texts,
-                )
-                batch_rows = list(zip(batch_parent_asins, vectors, strict=True))
-                write_batch_list_embeddings(con, text_column_name, batch_rows)
-                text_embedded += len(batch_rows)
+            for text_model_bundle in text_model_bundles:
+                text_column_name = embedding_column_name(source_column, text_model_bundle.model_name)
                 print(
-                    f"[info] embedded {text_embedded}/{len(text_jobs)} text rows "
-                    f"for {source_column} (batch size={len(batch_rows)})"
+                    f"[info] prepared {len(text_jobs)} text embedding jobs for {source_column} "
+                    f"with {text_model_bundle.model_name} ({skipped} skipped)"
                 )
+
+                text_embedded = 0
+                for batch_start in range(0, len(text_jobs), batch_size):
+                    batch_jobs = text_jobs[batch_start : batch_start + batch_size]
+                    batch_parent_asins = [parent_asin for parent_asin, _ in batch_jobs]
+                    batch_texts = [text for _, text in batch_jobs]
+                    vectors = compute_text_batch_embeddings(
+                        text_model_bundle=text_model_bundle,
+                        device=device,
+                        texts=batch_texts,
+                    )
+                    batch_rows = list(zip(batch_parent_asins, vectors, strict=True))
+                    write_batch_list_embeddings(con, text_column_name, batch_rows)
+                    text_embedded += len(batch_rows)
+                    print(
+                        f"[info] embedded {text_embedded}/{len(text_jobs)} text rows "
+                        f"for {source_column} with {text_model_bundle.model_name} "
+                        f"(batch size={len(batch_rows)})"
+                    )
 
         for source_column in REVIEW_TEXT_EMBEDDING_COLUMNS:
-            text_column_name = embedding_column_name(source_column, DEFAULT_TEXT_MODEL_NAME)
             text_jobs, skipped = collect_review_text_jobs(con, source_column)
-            print(
-                f"[info] prepared {len(text_jobs)} review text embedding jobs for {source_column} "
-                f"({skipped} skipped)"
-            )
-
-            text_embedded = 0
-            for batch_start in range(0, len(text_jobs), batch_size):
-                batch_jobs = text_jobs[batch_start : batch_start + batch_size]
-                batch_row_ids = [row_id for row_id, _ in batch_jobs]
-                batch_texts = [text for _, text in batch_jobs]
-                vectors = compute_text_batch_embeddings(
-                    tokenizer=text_tokenizer,
-                    model=text_model,
-                    torch_module=text_torch,
-                    device=device,
-                    texts=batch_texts,
-                )
-                batch_rows = list(zip(batch_row_ids, vectors, strict=True))
-                write_review_batch_list_embeddings(con, text_column_name, batch_rows)
-                text_embedded += len(batch_rows)
+            for text_model_bundle in text_model_bundles:
+                text_column_name = embedding_column_name(source_column, text_model_bundle.model_name)
                 print(
-                    f"[info] embedded {text_embedded}/{len(text_jobs)} review text rows "
-                    f"for {source_column} (batch size={len(batch_rows)})"
+                    f"[info] prepared {len(text_jobs)} review text embedding jobs for {source_column} "
+                    f"with {text_model_bundle.model_name} ({skipped} skipped)"
                 )
+
+                text_embedded = 0
+                for batch_start in range(0, len(text_jobs), batch_size):
+                    batch_jobs = text_jobs[batch_start : batch_start + batch_size]
+                    batch_row_ids = [row_id for row_id, _ in batch_jobs]
+                    batch_texts = [text for _, text in batch_jobs]
+                    vectors = compute_text_batch_embeddings(
+                        text_model_bundle=text_model_bundle,
+                        device=device,
+                        texts=batch_texts,
+                    )
+                    batch_rows = list(zip(batch_row_ids, vectors, strict=True))
+                    write_review_batch_list_embeddings(con, text_column_name, batch_rows)
+                    text_embedded += len(batch_rows)
+                    print(
+                        f"[info] embedded {text_embedded}/{len(text_jobs)} review text rows "
+                        f"for {source_column} with {text_model_bundle.model_name} "
+                        f"(batch size={len(batch_rows)})"
+                    )
 
         if products_output_path.exists():
             products_output_path.unlink()
@@ -708,7 +758,8 @@ def run_embeddings(
         print(
             f"[ok] wrote {products_output_path} and {reviews_output_path}; "
             f"product text columns: {', '.join(TEXT_EMBEDDING_COLUMNS)}; "
-            f"review text columns: {', '.join(REVIEW_TEXT_EMBEDDING_COLUMNS)}"
+            f"review text columns: {', '.join(REVIEW_TEXT_EMBEDDING_COLUMNS)}; "
+            f"text models: {', '.join(bundle.model_name for bundle in text_model_bundles)}"
         )
     finally:
         con.close()
@@ -716,7 +767,7 @@ def run_embeddings(
 
 def main() -> int:
     args = parse_args()
-    run_dir = resolve_run_dir(args.run_dir)
+    data_dir = resolve_data_dir(args.data_dir)
 
     if args.batch_size <= 0:
         print("[error] --batch-size must be positive")
@@ -724,8 +775,7 @@ def main() -> int:
 
     try:
         run_embeddings(
-            run_dir=run_dir,
-            image_model_name=args.model,
+            data_dir=data_dir,
             batch_size=args.batch_size,
         )
     except Exception as exc:

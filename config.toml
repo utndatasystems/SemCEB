@@ -11,8 +11,8 @@ scale_factor = 10
 # Number of rows loaded from the main dataset table for joining.
 # Kept separate from scale_factor because join output sizes can grow quickly.
 join_scale_factor = 10
-types = ["Simple Base-Table Predicate", "Simple Join"]
-categories = ["equality"]
+types = []
+categories = []
 
 
 # Mandatory

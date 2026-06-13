@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # Example usage:
 # python analyze_data.py amazon-reviews/processed/Arts_Crafts_and_Sewing__raw_5core/products_filtered_with_embeddings.parquet \
-#   --columns=product_title_embeddings_qwen_qwen3_embedding_0_6b,description_json_embeddings_qwen_qwen3_embedding_0_6b,features_json_embeddings_qwen_qwen3_embedding_0_6b,details_json_embeddings_qwen_qwen3_embedding_0_6b,main_image_local_embeddings_google_siglip2_base_patch16_224
+#   --columns=product_title_embeddings_qwen_qwen3_embedding_0_6b,description_json_embeddings_qwen_qwen3_embedding_0_6b
 #
 # python analyze_data.py amazon-reviews/processed/Arts_Crafts_and_Sewing__raw_5core/reviews_filtered_with_embeddings.parquet \
 #   --columns=review_title_embeddings_qwen_qwen3_embedding_0_6b,review_text_embeddings_qwen_qwen3_embedding_0_6b
@@ -12,9 +12,10 @@ import json
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 try:
+    import faiss
     import hdbscan
     import matplotlib.pyplot as plt
     import numpy as np
@@ -22,15 +23,13 @@ try:
     import pyarrow.parquet as pq
     from rich.console import Console
     from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeElapsedColumn
-    from scipy.sparse import csr_matrix
     from scipy.sparse.csgraph import connected_components
-    from scipy.stats import kurtosis, linregress, skew
+    from scipy.stats import kurtosis, linregress, skew, entropy
     from sklearn.decomposition import PCA
-    from sklearn.neighbors import NearestNeighbors
     import umap.umap_ as umap
 except ModuleNotFoundError as error:
     raise SystemExit(
-        "Missing dependency: hdbscan, matplotlib, numpy, pyarrow, rich, "
+        "Missing dependency: faiss-cpu, hdbscan, matplotlib, numpy, pyarrow, rich, "
         "scipy, scikit-learn, and umap-learn are required to analyze "
         "embedding columns. Install project dependencies again or install "
         "the missing packages manually."
@@ -44,8 +43,7 @@ IMBALANCE_UMAP_COMPONENTS = 20
 IMBALANCE_UMAP_NEIGHBORS = 15
 IMBALANCE_HDBSCAN_MIN_SAMPLES = 5
 IMBALANCE_STABILITY_RUNS = 3
-IMBALANCE_NOISE_RADIUS_PERCENTILE = 30.0
-IMBALANCE_NOISE_KNN_K = 5
+IMBALANCE_HALO_EPSILON = 0.15  # Absolute Euclidean distance in UMAP space for halo absorption
 console = Console()
 
 
@@ -63,6 +61,8 @@ class ImbalanceReport:
     labels: np.ndarray
     label_tiers: np.ndarray
     embedding_2d: np.ndarray
+    shannon_entropy: float
+    normalized_entropy: float
     gini: float
     lir: float
     alpha: float
@@ -219,6 +219,12 @@ def normalize_embeddings(embeddings: np.ndarray) -> np.ndarray:
     return embeddings / norms
 
 
+def prepare_faiss_matrix(embeddings: np.ndarray) -> np.ndarray:
+    """Return a contiguous float32 matrix for FAISS."""
+
+    return np.ascontiguousarray(embeddings, dtype=np.float32)
+
+
 def validate_embedding_matrix(embeddings: np.ndarray) -> np.ndarray:
     """Clean one embedding matrix before downstream analysis."""
 
@@ -266,92 +272,58 @@ def compute_umap_embedding(
 def compute_cluster_sizes(labels: np.ndarray) -> np.ndarray:
     """Return descending cluster sizes."""
 
-    if labels.max() < 0:
+    if len(labels) == 0 or labels.max() < 0:
         return np.array([1], dtype=np.int64)
-    counts = np.bincount(labels)
+    counts = np.bincount(labels[labels >= 0])
     return np.sort(counts[counts > 0])[::-1]
 
 
 def resolve_noise_labels(
     reduced_embeddings: np.ndarray,
     labels: np.ndarray,
-    noise_radius_percentile: float = IMBALANCE_NOISE_RADIUS_PERCENTILE,
-    noise_knn_k: int = IMBALANCE_NOISE_KNN_K,
+    epsilon: float = IMBALANCE_HALO_EPSILON,
 ) -> tuple[np.ndarray, np.ndarray, int, int]:
-    """Resolve HDBSCAN noise into micro-clusters and singletons."""
+    """Resolve HDBSCAN noise into halos (absorbed) and singletons."""
 
     resolved_labels = labels.copy()
     label_tiers = np.where(labels >= 0, np.int8(0), np.int8(-1))
 
     noise_indices = np.where(resolved_labels == -1)[0]
+    clustered_indices = np.where(resolved_labels >= 0)[0]
+
     n_noise = len(noise_indices)
     if n_noise == 0:
         return resolved_labels, label_tiers, 0, 0
 
-    noise_points = reduced_embeddings[noise_indices]
+    # 1. HALO ASSIGNMENT: Map noise to nearest primary cluster
+    if len(clustered_indices) > 0:
+        clustered_embeddings = prepare_faiss_matrix(reduced_embeddings[clustered_indices])
+        noise_embeddings = prepare_faiss_matrix(reduced_embeddings[noise_indices])
+        index = faiss.IndexFlatL2(clustered_embeddings.shape[1])
+        index.add(clustered_embeddings)
 
-    cluster_ids = np.unique(labels[labels >= 0])
-    intra_cluster_distances: list[float] = []
-    for cluster_id in cluster_ids:
-        cluster_points = reduced_embeddings[labels == cluster_id]
-        centroid = cluster_points.mean(axis=0)
-        intra_cluster_distances.extend(
-            np.linalg.norm(cluster_points - centroid, axis=1).tolist()
-        )
+        squared_distances, indices = index.search(noise_embeddings, 1)
+        distances = np.sqrt(squared_distances)
 
-    if intra_cluster_distances:
-        threshold = float(
-            np.percentile(intra_cluster_distances, noise_radius_percentile)
-        )
-    else:
-        fallback_k = min(5, n_noise - 1)
-        if fallback_k > 0:
-            fallback_distances, _ = (
-                NearestNeighbors(n_neighbors=fallback_k)
-                .fit(noise_points)
-                .kneighbors(noise_points)
-            )
-            threshold = float(np.median(fallback_distances[:, -1]))
-        else:
-            threshold = 0.0
+        for i, (dist, neighbor_idx) in enumerate(zip(distances.flatten(), indices.flatten())):
+            if dist <= epsilon:
+                # Inherit the label of the closest core point
+                target_original_idx = clustered_indices[neighbor_idx]
+                resolved_labels[noise_indices[i]] = resolved_labels[target_original_idx]
+                label_tiers[noise_indices[i]] = 0  # Absorbed into primary cluster (Tier 0)
 
-    component_labels = np.arange(n_noise)
-    if n_noise > 1 and threshold > 0:
-        graph_k = min(noise_knn_k, n_noise - 1)
-        distances, indices = (
-            NearestNeighbors(n_neighbors=graph_k)
-            .fit(noise_points)
-            .kneighbors(noise_points)
-        )
+    # 2. SINGLETON DECLARATION
+    remaining_noise_indices = np.where(resolved_labels == -1)[0]
+    n_singletons = len(remaining_noise_indices)
 
-        rows: list[int] = []
-        cols: list[int] = []
-        for row_index in range(n_noise):
-            for neighbor_index in range(graph_k):
-                if distances[row_index, neighbor_index] <= threshold:
-                    target_index = indices[row_index, neighbor_index]
-                    rows.extend([row_index, target_index])
-                    cols.extend([target_index, row_index])
-
-        if rows:
-            adjacency = csr_matrix(
-                (np.ones(len(rows)), (rows, cols)),
-                shape=(n_noise, n_noise),
-            )
-            _, component_labels = connected_components(adjacency, directed=False)
-
-    next_cluster_id = int(resolved_labels.max()) + 1
-    component_sizes = np.bincount(component_labels)
-    n_micro_clusters = int((component_sizes > 1).sum())
-    n_singletons = int((component_sizes == 1).sum())
-
-    for component_id in range(len(component_sizes)):
-        component_mask = component_labels == component_id
-        tier = np.int8(1) if component_sizes[component_id] > 1 else np.int8(2)
-        for original_index in noise_indices[component_mask]:
-            resolved_labels[original_index] = next_cluster_id
-            label_tiers[original_index] = tier
+    next_cluster_id = int(resolved_labels.max()) + 1 if len(resolved_labels) > 0 else 0
+    for idx in remaining_noise_indices:
+        resolved_labels[idx] = next_cluster_id
+        label_tiers[idx] = 2  # Tier 2 = Singleton
         next_cluster_id += 1
+
+    # In a strict database selectivity model, there are no "micro-clusters" bridging unrelated singletons
+    n_micro_clusters = 0
 
     return resolved_labels, label_tiers, n_micro_clusters, n_singletons
 
@@ -364,32 +336,41 @@ def compute_embedding_imbalance_report(
     """Measure semantic class imbalance via UMAP + HDBSCAN."""
 
     matrix = validate_embedding_matrix(embeddings)
-    normalized_embeddings = normalize_embeddings(matrix)
-    n_samples = len(normalized_embeddings)
+    n_samples = len(matrix)
     min_cluster_size = max(10, int(0.01 * n_samples))
 
+    # UMAP natively handles the cosine metric geometry without pre-normalization
     clustering_embedding = compute_umap_embedding(
-        normalized_embeddings,
+        matrix,
         n_components=IMBALANCE_UMAP_COMPONENTS,
         n_neighbors=IMBALANCE_UMAP_NEIGHBORS,
         random_state=random_state,
     )
+
     raw_labels = hdbscan.HDBSCAN(
         min_cluster_size=min_cluster_size,
         min_samples=IMBALANCE_HDBSCAN_MIN_SAMPLES,
         metric="euclidean",
         cluster_selection_method="eom",
     ).fit_predict(clustering_embedding)
+
     n_primary_clusters = int(raw_labels.max()) + 1 if raw_labels.max() >= 0 else 0
     raw_noise_fraction = float((raw_labels == -1).mean())
+
     labels, label_tiers, n_micro_clusters, n_singletons = resolve_noise_labels(
         clustering_embedding,
         raw_labels,
     )
     cluster_sizes = compute_cluster_sizes(labels)
 
+    # Calculate Shannon Entropy for skew tracking
+    probabilities = cluster_sizes / cluster_sizes.sum()
+    shannon_ent = float(entropy(probabilities, base=2))
+    max_ent = np.log2(n_samples) if n_samples > 0 else 0.0
+    normalized_ent = shannon_ent / max_ent if max_ent > 0 else 0.0
+
     visualization_embedding = compute_umap_embedding(
-        normalized_embeddings,
+        matrix,
         n_components=2,
         n_neighbors=IMBALANCE_UMAP_NEIGHBORS,
         random_state=random_state,
@@ -407,15 +388,17 @@ def compute_embedding_imbalance_report(
         labels=labels,
         label_tiers=label_tiers,
         embedding_2d=visualization_embedding,
+        shannon_entropy=shannon_ent,
+        normalized_entropy=normalized_ent,
         gini=float(gini(cluster_sizes)),
-        lir=float(cluster_sizes.max() / cluster_sizes.mean()),
+        lir=float(cluster_sizes.max() / cluster_sizes.mean()) if len(cluster_sizes) > 0 else 0.0,
         alpha=float(zipf_alpha(cluster_sizes)),
-        largest_share=float(cluster_sizes.max() / n_samples),
+        largest_share=float(cluster_sizes.max() / n_samples) if n_samples > 0 else 0.0,
     )
 
     for seed in range(random_state + 1, random_state + 1 + n_stability_runs):
         seeded_embedding = compute_umap_embedding(
-            normalized_embeddings,
+            matrix,
             n_components=IMBALANCE_UMAP_COMPONENTS,
             n_neighbors=IMBALANCE_UMAP_NEIGHBORS,
             random_state=seed,
@@ -454,9 +437,13 @@ def compute_knn_similarity_coefficient(
 
     if normalize:
         embeddings = normalize_embeddings(embeddings)
+    embeddings = prepare_faiss_matrix(embeddings)
 
     summary: dict[int, dict[str, float]] = {}
     pointwise_min_similarity: dict[int, np.ndarray] = {}
+
+    index = faiss.IndexFlatIP(embeddings.shape[1])
+    index.add(embeddings)
 
     for k in k_values:
         if k < 1:
@@ -467,11 +454,8 @@ def compute_knn_similarity_coefficient(
                 "than the number of rows."
             )
 
-        nn = NearestNeighbors(n_neighbors=k + 1, metric="cosine")
-        nn.fit(embeddings)
-        distances, _ = nn.kneighbors(embeddings)
-        cosine_distances = distances[:, 1:]
-        cosine_similarities = 1.0 - cosine_distances
+        distances, _ = index.search(embeddings, k + 1)
+        cosine_similarities = distances[:, 1:]
         pointwise_min_similarity[k] = cosine_similarities.min(axis=1)
 
         mean_similarity = cosine_similarities.mean(axis=1)
@@ -853,6 +837,7 @@ def create_lorenz_curve_plot(report: ImbalanceReport, ax: plt.Axes) -> None:
 def compute_umap_projection(embeddings: np.ndarray) -> np.ndarray:
     """Compute a 2D UMAP projection after PCA preprocessing."""
 
+    # PCA is linear, so pre-normalization is kept here to simulate cosine distances
     normalized_embeddings = normalize_embeddings(embeddings)
 
     n_rows, n_dims = normalized_embeddings.shape
@@ -925,6 +910,8 @@ def prepare_column_cache(
             "n_micro_clusters": imbalance_report.n_micro_clusters,
             "n_singletons": imbalance_report.n_singletons,
             "raw_noise_fraction": imbalance_report.raw_noise_fraction,
+            "shannon_entropy": imbalance_report.shannon_entropy,
+            "normalized_entropy": imbalance_report.normalized_entropy,
             "gini": imbalance_report.gini,
             "gini_std": imbalance_report.gini_std,
             "lir": imbalance_report.lir,
@@ -965,6 +952,8 @@ def load_cached_column_analysis(parquet_file: Path, column: str) -> dict[str, An
         labels=arrays["labels"],
         label_tiers=arrays["label_tiers"],
         embedding_2d=arrays["umap_projection"],
+        shannon_entropy=float(imbalance["shannon_entropy"]),
+        normalized_entropy=float(imbalance["normalized_entropy"]),
         gini=float(imbalance["gini"]),
         lir=float(imbalance["lir"]),
         alpha=float(imbalance["alpha"]),
@@ -1065,6 +1054,8 @@ def analyze_columns(
                 "n_micro_clusters": cached["imbalance_report"].n_micro_clusters,
                 "n_singletons": cached["imbalance_report"].n_singletons,
                 "raw_noise_fraction": cached["imbalance_report"].raw_noise_fraction,
+                "shannon_entropy": cached["imbalance_report"].shannon_entropy,
+                "normalized_entropy": cached["imbalance_report"].normalized_entropy,
                 "gini": cached["imbalance_report"].gini,
                 "gini_std": cached["imbalance_report"].gini_std,
                 "lir": cached["imbalance_report"].lir,
@@ -1095,6 +1086,8 @@ def print_results(results: dict[str, dict[str, Any]]) -> None:
         print(f"  imbalance_n_micro_clusters: {stats['imbalance']['n_micro_clusters']}")
         print(f"  imbalance_n_singletons: {stats['imbalance']['n_singletons']}")
         print(f"  imbalance_raw_noise_fraction: {stats['imbalance']['raw_noise_fraction']:.6f}")
+        print(f"  imbalance_shannon_entropy: {stats['imbalance']['shannon_entropy']:.6f}")
+        print(f"  imbalance_normalized_entropy: {stats['imbalance']['normalized_entropy']:.6f}")
         print(f"  imbalance_gini: {stats['imbalance']['gini']:.6f}")
         print(f"  imbalance_gini_std: {stats['imbalance']['gini_std']:.6f}")
         print(f"  imbalance_lir: {stats['imbalance']['lir']:.6f}")

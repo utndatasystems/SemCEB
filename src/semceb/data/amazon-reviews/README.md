@@ -63,6 +63,9 @@ reviews_filtered_with_embeddings.parquet
 The embedding files are written into the same processed dataset directory. The original
 `products_filtered.parquet` and `reviews_filtered.parquet` remain untouched.
 
+Each embedding column also gets a sibling boolean column named
+`<embedding_column>_input_is_truncated` that indicates whether the text of the source column for which this embedding was computed exceeded the maximum token length for this embedding model and needed to be truncated.
+
 
 ## Schema
 

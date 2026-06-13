@@ -8,7 +8,9 @@ from __future__ import annotations
 #   --columns=review_title_embeddings_qwen_qwen3_embedding_0_6b,review_text_embeddings_qwen_qwen3_embedding_0_6b
 #
 import argparse
+from contextlib import contextmanager
 import json
+from time import perf_counter
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -45,6 +47,28 @@ IMBALANCE_HDBSCAN_MIN_SAMPLES = 5
 IMBALANCE_STABILITY_RUNS = 3
 IMBALANCE_HALO_EPSILON = 0.15  # Absolute Euclidean distance in UMAP space for halo absorption
 console = Console()
+
+
+@contextmanager
+def log_step(message: str):
+    """Log the start and end of a potentially expensive step."""
+
+    start = perf_counter()
+    console.log(f"[bold cyan]START[/bold cyan] {message}")
+    try:
+        yield
+    except Exception:
+        elapsed = perf_counter() - start
+        console.log(f"[bold red]FAILED[/bold red] {message} after {elapsed:.1f}s")
+        raise
+    elapsed = perf_counter() - start
+    console.log(f"[bold green]DONE[/bold green] {message} in {elapsed:.1f}s")
+
+
+def format_shape(array: np.ndarray) -> str:
+    """Format an array shape for progress logs."""
+
+    return "x".join(str(dimension) for dimension in array.shape)
 
 
 @dataclass
@@ -256,17 +280,22 @@ def compute_umap_embedding(
 ) -> np.ndarray:
     """Compute a UMAP embedding with cosine metric."""
 
-    reducer = umap.UMAP(
-        n_components=n_components,
-        n_neighbors=n_neighbors,
-        metric="cosine",
-        min_dist=min_dist,
-        random_state=random_state,
-        verbose=False,
-    )
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        return reducer.fit_transform(embeddings)
+    with log_step(
+        "UMAP fit_transform "
+        f"shape={format_shape(embeddings)} components={n_components} "
+        f"neighbors={n_neighbors} min_dist={min_dist} seed={random_state}"
+    ):
+        reducer = umap.UMAP(
+            n_components=n_components,
+            n_neighbors=n_neighbors,
+            metric="cosine",
+            min_dist=min_dist,
+            random_state=random_state,
+            verbose=False,
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return reducer.fit_transform(embeddings)
 
 
 def compute_cluster_sizes(labels: np.ndarray) -> np.ndarray:
@@ -293,17 +322,29 @@ def resolve_noise_labels(
 
     n_noise = len(noise_indices)
     if n_noise == 0:
+        console.log("No HDBSCAN noise points to resolve")
         return resolved_labels, label_tiers, 0, 0
+
+    console.log(
+        "Resolving HDBSCAN noise "
+        f"noise_points={n_noise:,} clustered_points={len(clustered_indices):,} "
+        f"epsilon={epsilon}"
+    )
 
     # 1. HALO ASSIGNMENT: Map noise to nearest primary cluster
     if len(clustered_indices) > 0:
-        clustered_embeddings = prepare_faiss_matrix(reduced_embeddings[clustered_indices])
-        noise_embeddings = prepare_faiss_matrix(reduced_embeddings[noise_indices])
-        index = faiss.IndexFlatL2(clustered_embeddings.shape[1])
-        index.add(clustered_embeddings)
+        with log_step(
+            "FAISS L2 halo assignment "
+            f"clustered={len(clustered_indices):,} noise={n_noise:,} "
+            f"dims={reduced_embeddings.shape[1]}"
+        ):
+            clustered_embeddings = prepare_faiss_matrix(reduced_embeddings[clustered_indices])
+            noise_embeddings = prepare_faiss_matrix(reduced_embeddings[noise_indices])
+            index = faiss.IndexFlatL2(clustered_embeddings.shape[1])
+            index.add(clustered_embeddings)
 
-        squared_distances, indices = index.search(noise_embeddings, 1)
-        distances = np.sqrt(squared_distances)
+            squared_distances, indices = index.search(noise_embeddings, 1)
+            distances = np.sqrt(squared_distances)
 
         for i, (dist, neighbor_idx) in enumerate(zip(distances.flatten(), indices.flatten())):
             if dist <= epsilon:
@@ -315,6 +356,10 @@ def resolve_noise_labels(
     # 2. SINGLETON DECLARATION
     remaining_noise_indices = np.where(resolved_labels == -1)[0]
     n_singletons = len(remaining_noise_indices)
+    console.log(
+        "Noise resolution summary "
+        f"absorbed={n_noise - n_singletons:,} singletons={n_singletons:,}"
+    )
 
     next_cluster_id = int(resolved_labels.max()) + 1 if len(resolved_labels) > 0 else 0
     for idx in remaining_noise_indices:
@@ -338,6 +383,11 @@ def compute_embedding_imbalance_report(
     matrix = validate_embedding_matrix(embeddings)
     n_samples = len(matrix)
     min_cluster_size = max(10, int(0.01 * n_samples))
+    console.log(
+        "Imbalance analysis setup "
+        f"shape={format_shape(matrix)} min_cluster_size={min_cluster_size} "
+        f"stability_runs={n_stability_runs}"
+    )
 
     # UMAP natively handles the cosine metric geometry without pre-normalization
     clustering_embedding = compute_umap_embedding(
@@ -347,12 +397,18 @@ def compute_embedding_imbalance_report(
         random_state=random_state,
     )
 
-    raw_labels = hdbscan.HDBSCAN(
-        min_cluster_size=min_cluster_size,
-        min_samples=IMBALANCE_HDBSCAN_MIN_SAMPLES,
-        metric="euclidean",
-        cluster_selection_method="eom",
-    ).fit_predict(clustering_embedding)
+    with log_step(
+        "HDBSCAN fit_predict primary "
+        f"shape={format_shape(clustering_embedding)} "
+        f"min_cluster_size={min_cluster_size} "
+        f"min_samples={IMBALANCE_HDBSCAN_MIN_SAMPLES}"
+    ):
+        raw_labels = hdbscan.HDBSCAN(
+            min_cluster_size=min_cluster_size,
+            min_samples=IMBALANCE_HDBSCAN_MIN_SAMPLES,
+            metric="euclidean",
+            cluster_selection_method="eom",
+        ).fit_predict(clustering_embedding)
 
     n_primary_clusters = int(raw_labels.max()) + 1 if raw_labels.max() >= 0 else 0
     raw_noise_fraction = float((raw_labels == -1).mean())
@@ -397,18 +453,24 @@ def compute_embedding_imbalance_report(
     )
 
     for seed in range(random_state + 1, random_state + 1 + n_stability_runs):
+        console.log(f"Starting imbalance stability run seed={seed}")
         seeded_embedding = compute_umap_embedding(
             matrix,
             n_components=IMBALANCE_UMAP_COMPONENTS,
             n_neighbors=IMBALANCE_UMAP_NEIGHBORS,
             random_state=seed,
         )
-        seeded_labels = hdbscan.HDBSCAN(
-            min_cluster_size=min_cluster_size,
-            min_samples=IMBALANCE_HDBSCAN_MIN_SAMPLES,
-            metric="euclidean",
-            cluster_selection_method="eom",
-        ).fit_predict(seeded_embedding)
+        with log_step(
+            "HDBSCAN fit_predict stability "
+            f"seed={seed} shape={format_shape(seeded_embedding)} "
+            f"min_cluster_size={min_cluster_size}"
+        ):
+            seeded_labels = hdbscan.HDBSCAN(
+                min_cluster_size=min_cluster_size,
+                min_samples=IMBALANCE_HDBSCAN_MIN_SAMPLES,
+                metric="euclidean",
+                cluster_selection_method="eom",
+            ).fit_predict(seeded_embedding)
         seeded_labels, _, _, _ = resolve_noise_labels(seeded_embedding, seeded_labels)
         seeded_sizes = compute_cluster_sizes(seeded_labels)
         report.gini_per_seed.append(float(gini(seeded_sizes)))
@@ -435,15 +497,24 @@ def compute_knn_similarity_coefficient(
     if n_rows < 2:
         raise ValueError("At least two embeddings are required for kNN analysis.")
 
+    console.log(
+        "kNN similarity setup "
+        f"shape={format_shape(embeddings)} k_values={','.join(str(k) for k in k_values)} "
+        f"normalize={normalize}"
+    )
+
     if normalize:
-        embeddings = normalize_embeddings(embeddings)
-    embeddings = prepare_faiss_matrix(embeddings)
+        with log_step(f"Normalize embeddings for FAISS kNN shape={format_shape(embeddings)}"):
+            embeddings = normalize_embeddings(embeddings)
+    with log_step(f"Convert embeddings for FAISS shape={format_shape(embeddings)}"):
+        embeddings = prepare_faiss_matrix(embeddings)
 
     summary: dict[int, dict[str, float]] = {}
     pointwise_min_similarity: dict[int, np.ndarray] = {}
 
-    index = faiss.IndexFlatIP(embeddings.shape[1])
-    index.add(embeddings)
+    with log_step(f"Build FAISS IndexFlatIP rows={n_rows:,} dims={embeddings.shape[1]}"):
+        index = faiss.IndexFlatIP(embeddings.shape[1])
+        index.add(embeddings)
 
     for k in k_values:
         if k < 1:
@@ -454,20 +525,22 @@ def compute_knn_similarity_coefficient(
                 "than the number of rows."
             )
 
-        distances, _ = index.search(embeddings, k + 1)
+        with log_step(f"FAISS IndexFlatIP search k={k} rows={n_rows:,}"):
+            distances, _ = index.search(embeddings, k + 1)
         cosine_similarities = distances[:, 1:]
         pointwise_min_similarity[k] = cosine_similarities.min(axis=1)
 
-        mean_similarity = cosine_similarities.mean(axis=1)
-        mean_similarity_mean = mean_similarity.mean()
+        with log_step(f"Compute kNN summary statistics k={k}"):
+            mean_similarity = cosine_similarities.mean(axis=1)
+            mean_similarity_mean = mean_similarity.mean()
 
-        summary[k] = {
-            "similarity_skewness": float(skew(mean_similarity)),
-            "similarity_kurtosis": float(kurtosis(mean_similarity)),
-            "similarity_cv": float(mean_similarity.std() / mean_similarity_mean),
-            "similarity_gini": float(gini(mean_similarity)),
-            "mean_knn_similarity": float(cosine_similarities.mean()),
-        }
+            summary[k] = {
+                "similarity_skewness": float(skew(mean_similarity)),
+                "similarity_kurtosis": float(kurtosis(mean_similarity)),
+                "similarity_cv": float(mean_similarity.std() / mean_similarity_mean),
+                "similarity_gini": float(gini(mean_similarity)),
+                "mean_knn_similarity": float(cosine_similarities.mean()),
+            }
 
         if progress is not None and task_id is not None:
             progress.advance(task_id)
@@ -481,11 +554,14 @@ def compute_knn_similarity_coefficient(
 def load_embedding_column(parquet_file: Path, column: str) -> tuple[np.ndarray, int]:
     """Load one embedding column from parquet into a dense NumPy matrix."""
 
-    table = pq.read_table(parquet_file, columns=[column])
+    with log_step(f"Read parquet column column={column} file={parquet_file}"):
+        table = pq.read_table(parquet_file, columns=[column])
     values = table.column(column)
 
-    embeddings = values.to_pylist()
-    filtered_embeddings = [embedding for embedding in embeddings if embedding is not None]
+    with log_step(f"Materialize Arrow column to Python list column={column}"):
+        embeddings = values.to_pylist()
+    with log_step(f"Filter null embeddings column={column} rows={len(embeddings):,}"):
+        filtered_embeddings = [embedding for embedding in embeddings if embedding is not None]
     dropped_nulls = len(embeddings) - len(filtered_embeddings)
 
     if not filtered_embeddings:
@@ -493,7 +569,8 @@ def load_embedding_column(parquet_file: Path, column: str) -> tuple[np.ndarray, 
             f"Column '{column}' contains no non-null embeddings after filtering."
         )
 
-    matrix = np.asarray(filtered_embeddings, dtype=np.float64)
+    with log_step(f"Convert embeddings to NumPy column={column} rows={len(filtered_embeddings):,}"):
+        matrix = np.asarray(filtered_embeddings, dtype=np.float64)
 
     if matrix.ndim != 2:
         raise ValueError(
@@ -501,6 +578,10 @@ def load_embedding_column(parquet_file: Path, column: str) -> tuple[np.ndarray, 
             f"shape {matrix.shape}."
         )
 
+    console.log(
+        f"Loaded embedding column column={column} shape={format_shape(matrix)} "
+        f"dropped_nulls={dropped_nulls:,}"
+    )
     return matrix, dropped_nulls
 
 
@@ -529,41 +610,46 @@ def create_umap_scatter_plot_figure(
 ) -> None:
     """Create horizontally packed UMAP scatter subplots for all k values."""
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_step(
+        "Create UMAP scatter plot "
+        f"points={len(umap_projection):,} k_values={','.join(str(k) for k in k_values)} "
+        f"output={output_path}"
+    ):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    color_min = min(point_colors_by_k[k].min() for k in k_values)
-    color_max = max(point_colors_by_k[k].max() for k in k_values)
+        color_min = min(point_colors_by_k[k].min() for k in k_values)
+        color_max = max(point_colors_by_k[k].max() for k in k_values)
 
-    fig, axes = plt.subplots(1, len(k_values), figsize=(6 * len(k_values), 6))
-    if len(k_values) == 1:
-        axes = [axes]
+        fig, axes = plt.subplots(1, len(k_values), figsize=(6 * len(k_values), 6))
+        if len(k_values) == 1:
+            axes = [axes]
 
-    scatter = None
-    for index, k in enumerate(k_values):
-        ax = axes[index]
-        scatter = ax.scatter(
-            umap_projection[:, 0],
-            umap_projection[:, 1],
-            c=point_colors_by_k[k],
-            cmap="viridis",
-            vmin=color_min,
-            vmax=color_max,
-            s=8,
-            alpha=0.7,
-            linewidths=0,
-        )
-        ax.set_title(f"k={k}")
-        ax.set_xlabel("UMAP 1")
-        if index == 0:
-            ax.set_ylabel("UMAP 2")
+        scatter = None
+        for index, k in enumerate(k_values):
+            ax = axes[index]
+            scatter = ax.scatter(
+                umap_projection[:, 0],
+                umap_projection[:, 1],
+                c=point_colors_by_k[k],
+                cmap="viridis",
+                vmin=color_min,
+                vmax=color_max,
+                s=8,
+                alpha=0.7,
+                linewidths=0,
+            )
+            ax.set_title(f"k={k}")
+            ax.set_xlabel("UMAP 1")
+            if index == 0:
+                ax.set_ylabel("UMAP 2")
 
-    assert scatter is not None
-    colorbar = fig.colorbar(scatter, ax=axes, shrink=0.9)
-    colorbar.set_label("Min kNN similarity")
-    fig.suptitle(title)
-    fig.tight_layout()
-    fig.savefig(output_path, format="pdf")
-    plt.close(fig)
+        assert scatter is not None
+        colorbar = fig.colorbar(scatter, ax=axes, shrink=0.9)
+        colorbar.set_label("Min kNN similarity")
+        fig.suptitle(title)
+        fig.tight_layout()
+        fig.savefig(output_path, format="pdf")
+        plt.close(fig)
 
 
 def create_sorted_knn_similarity_plot_figure(
@@ -574,30 +660,34 @@ def create_sorted_knn_similarity_plot_figure(
 ) -> None:
     """Create horizontally packed sorted similarity subplots for all k values."""
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_step(
+        "Create sorted kNN similarity plot "
+        f"k_values={','.join(str(k) for k in k_values)} output={output_path}"
+    ):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    y_min = min(np.min(point_similarities_by_k[k]) for k in k_values)
-    y_max = max(np.max(point_similarities_by_k[k]) for k in k_values)
+        y_min = min(np.min(point_similarities_by_k[k]) for k in k_values)
+        y_max = max(np.max(point_similarities_by_k[k]) for k in k_values)
 
-    fig, axes = plt.subplots(1, len(k_values), figsize=(6 * len(k_values), 4.5))
-    if len(k_values) == 1:
-        axes = [axes]
+        fig, axes = plt.subplots(1, len(k_values), figsize=(6 * len(k_values), 4.5))
+        if len(k_values) == 1:
+            axes = [axes]
 
-    for index, k in enumerate(k_values):
-        ax = axes[index]
-        sorted_similarities = np.sort(point_similarities_by_k[k])
-        ax.plot(np.arange(len(sorted_similarities)), sorted_similarities, linewidth=1.5)
-        ax.set_title(f"k={k}")
-        ax.set_xlabel("Point index (sorted)")
-        if index == 0:
-            ax.set_ylabel("Min kNN similarity")
-        ax.set_ylim(y_min, y_max)
-        ax.grid(True, alpha=0.3)
+        for index, k in enumerate(k_values):
+            ax = axes[index]
+            sorted_similarities = np.sort(point_similarities_by_k[k])
+            ax.plot(np.arange(len(sorted_similarities)), sorted_similarities, linewidth=1.5)
+            ax.set_title(f"k={k}")
+            ax.set_xlabel("Point index (sorted)")
+            if index == 0:
+                ax.set_ylabel("Min kNN similarity")
+            ax.set_ylim(y_min, y_max)
+            ax.grid(True, alpha=0.3)
 
-    fig.suptitle(title)
-    fig.tight_layout()
-    fig.savefig(output_path, format="pdf")
-    plt.close(fig)
+        fig.suptitle(title)
+        fig.tight_layout()
+        fig.savefig(output_path, format="pdf")
+        plt.close(fig)
 
 
 def create_imbalance_plot_figure(
@@ -607,17 +697,21 @@ def create_imbalance_plot_figure(
 ) -> None:
     """Create the semantic class imbalance figure."""
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    figure, axes = plt.subplots(1, 3, figsize=(17, 5), facecolor="white")
+    with log_step(
+        "Create imbalance plot "
+        f"samples={report.n_samples:,} clusters={report.n_clusters:,} output={output_path}"
+    ):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        figure, axes = plt.subplots(1, 3, figsize=(17, 5), facecolor="white")
 
-    create_cluster_map_plot(report, axes[0])
-    create_rank_size_plot(report, axes[1])
-    create_lorenz_curve_plot(report, axes[2])
+        create_cluster_map_plot(report, axes[0])
+        create_rank_size_plot(report, axes[1])
+        create_lorenz_curve_plot(report, axes[2])
 
-    figure.suptitle(title)
-    figure.tight_layout()
-    figure.savefig(output_path, format="pdf")
-    plt.close(figure)
+        figure.suptitle(title)
+        figure.tight_layout()
+        figure.savefig(output_path, format="pdf")
+        plt.close(figure)
 
 
 def create_cluster_map_plot(report: ImbalanceReport, ax: plt.Axes) -> None:
@@ -838,29 +932,43 @@ def compute_umap_projection(embeddings: np.ndarray) -> np.ndarray:
     """Compute a 2D UMAP projection after PCA preprocessing."""
 
     # PCA is linear, so pre-normalization is kept here to simulate cosine distances
-    normalized_embeddings = normalize_embeddings(embeddings)
+    with log_step(f"Normalize embeddings before PCA+UMAP shape={format_shape(embeddings)}"):
+        normalized_embeddings = normalize_embeddings(embeddings)
 
     n_rows, n_dims = normalized_embeddings.shape
     n_pca_components = min(50, n_dims, n_rows)
-    reduced_embeddings = PCA(n_components=n_pca_components).fit_transform(
-        normalized_embeddings
-    )
+    with log_step(
+        "PCA fit_transform before UMAP "
+        f"shape={format_shape(normalized_embeddings)} components={n_pca_components}"
+    ):
+        reduced_embeddings = PCA(n_components=n_pca_components).fit_transform(
+            normalized_embeddings
+        )
 
     n_neighbors = min(15, max(2, n_rows - 1))
-    return umap.UMAP(
-        n_components=2,
-        n_neighbors=n_neighbors,
-        random_state=42,
-    ).fit_transform(reduced_embeddings)
+    with log_step(
+        "UMAP fit_transform PCA projection "
+        f"shape={format_shape(reduced_embeddings)} components=2 neighbors={n_neighbors}"
+    ):
+        return umap.UMAP(
+            n_components=2,
+            n_neighbors=n_neighbors,
+            random_state=42,
+        ).fit_transform(reduced_embeddings)
 
 
 def compute_pca_embedding(embeddings: np.ndarray) -> np.ndarray:
     """Compute the cached PCA representation used before UMAP."""
 
-    normalized_embeddings = normalize_embeddings(embeddings)
+    with log_step(f"Normalize embeddings before PCA shape={format_shape(embeddings)}"):
+        normalized_embeddings = normalize_embeddings(embeddings)
     n_rows, n_dims = normalized_embeddings.shape
     n_pca_components = min(50, n_dims, n_rows)
-    return PCA(n_components=n_pca_components).fit_transform(normalized_embeddings)
+    with log_step(
+        "PCA fit_transform cache projection "
+        f"shape={format_shape(normalized_embeddings)} components={n_pca_components}"
+    ):
+        return PCA(n_components=n_pca_components).fit_transform(normalized_embeddings)
 
 
 def prepare_column_cache(
@@ -873,28 +981,37 @@ def prepare_column_cache(
     metadata_path, arrays_path = get_cache_filepaths(parquet_file, column)
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
 
+    console.log(f"Preparing cache for column={column}")
     embeddings, dropped_nulls = load_embedding_column(parquet_file, column)
-    knn_results = compute_knn_similarity_coefficient(embeddings, k_values=k_values)
-    pca_projection = compute_pca_embedding(embeddings)
-    umap_projection = umap.UMAP(
-        n_components=2,
-        n_neighbors=min(15, max(2, len(pca_projection) - 1)),
-        random_state=42,
-    ).fit_transform(pca_projection)
-    imbalance_report = compute_embedding_imbalance_report(embeddings)
+    with log_step(f"Compute kNN density column={column}"):
+        knn_results = compute_knn_similarity_coefficient(embeddings, k_values=k_values)
+    with log_step(f"Compute PCA cache projection column={column}"):
+        pca_projection = compute_pca_embedding(embeddings)
+    with log_step(
+        "UMAP fit_transform cache visualization "
+        f"column={column} shape={format_shape(pca_projection)}"
+    ):
+        umap_projection = umap.UMAP(
+            n_components=2,
+            n_neighbors=min(15, max(2, len(pca_projection) - 1)),
+            random_state=42,
+        ).fit_transform(pca_projection)
+    with log_step(f"Compute semantic imbalance report column={column}"):
+        imbalance_report = compute_embedding_imbalance_report(embeddings)
 
-    np.savez_compressed(
-        arrays_path,
-        pca_projection=pca_projection.astype(np.float32),
-        umap_projection=umap_projection.astype(np.float32),
-        labels=imbalance_report.labels.astype(np.int64),
-        label_tiers=imbalance_report.label_tiers.astype(np.int8),
-        cluster_sizes=imbalance_report.cluster_sizes.astype(np.int64),
-        **{
-            f"pointwise_min_similarity_k{k}": knn_results["pointwise_min_similarity"][k].astype(np.float32)
-            for k in k_values
-        },
-    )
+    with log_step(f"Write compressed NumPy cache arrays output={arrays_path}"):
+        np.savez_compressed(
+            arrays_path,
+            pca_projection=pca_projection.astype(np.float32),
+            umap_projection=umap_projection.astype(np.float32),
+            labels=imbalance_report.labels.astype(np.int64),
+            label_tiers=imbalance_report.label_tiers.astype(np.int8),
+            cluster_sizes=imbalance_report.cluster_sizes.astype(np.int64),
+            **{
+                f"pointwise_min_similarity_k{k}": knn_results["pointwise_min_similarity"][k].astype(np.float32)
+                for k in k_values
+            },
+        )
 
     metadata = {
         "parquet_file": str(parquet_file),
@@ -919,7 +1036,8 @@ def prepare_column_cache(
             "largest_share": imbalance_report.largest_share,
         },
     }
-    metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    with log_step(f"Write cache metadata output={metadata_path}"):
+        metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     return load_cached_column_analysis(parquet_file, column)
 
 
@@ -932,15 +1050,29 @@ def load_cached_column_analysis(parquet_file: Path, column: str) -> dict[str, An
             f"Missing cache for column '{column}'. Expected {metadata_path} and {arrays_path}."
         )
 
-    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-    arrays = np.load(arrays_path)
+    with log_step(f"Read cache metadata path={metadata_path}"):
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    with log_step(f"Open cache arrays path={arrays_path}"):
+        arrays = np.load(arrays_path)
     k_values = tuple(int(k) for k in metadata["k_values"])
-    pointwise_min_similarity = {
-        k: arrays[f"pointwise_min_similarity_k{k}"]
-        for k in k_values
-    }
+    with log_step(f"Load pointwise kNN arrays k_values={','.join(str(k) for k in k_values)}"):
+        pointwise_min_similarity = {
+            k: arrays[f"pointwise_min_similarity_k{k}"]
+            for k in k_values
+        }
 
     imbalance = metadata["imbalance"]
+    cluster_sizes = arrays["cluster_sizes"]
+    probabilities = cluster_sizes / cluster_sizes.sum()
+    cached_shannon_entropy = float(imbalance.get("shannon_entropy", entropy(probabilities, base=2)))
+    cached_normalized_entropy = float(
+        imbalance.get(
+            "normalized_entropy",
+            cached_shannon_entropy / np.log2(int(metadata["num_rows"]))
+            if int(metadata["num_rows"]) > 1
+            else 0.0,
+        )
+    )
     imbalance_report = ImbalanceReport(
         n_samples=int(metadata["num_rows"]),
         n_clusters=int(imbalance["n_clusters"]),
@@ -948,12 +1080,12 @@ def load_cached_column_analysis(parquet_file: Path, column: str) -> dict[str, An
         n_micro_clusters=int(imbalance["n_micro_clusters"]),
         n_singletons=int(imbalance["n_singletons"]),
         raw_noise_fraction=float(imbalance["raw_noise_fraction"]),
-        cluster_sizes=arrays["cluster_sizes"],
+        cluster_sizes=cluster_sizes,
         labels=arrays["labels"],
         label_tiers=arrays["label_tiers"],
         embedding_2d=arrays["umap_projection"],
-        shannon_entropy=float(imbalance["shannon_entropy"]),
-        normalized_entropy=float(imbalance["normalized_entropy"]),
+        shannon_entropy=cached_shannon_entropy,
+        normalized_entropy=cached_normalized_entropy,
         gini=float(imbalance["gini"]),
         lir=float(imbalance["lir"]),
         alpha=float(imbalance["alpha"]),
@@ -982,14 +1114,27 @@ def analyze_columns(
 ) -> dict[str, dict[str, Any]]:
     """Prepare cache if needed, then create plots from cached analysis."""
 
-    validate_embedding_columns(parquet_file, columns)
+    console.log(
+        f"Starting dataset analysis file={parquet_file} "
+        f"columns={','.join(columns)} k_values={','.join(str(k) for k in k_values)}"
+    )
+    with log_step(f"Validate parquet embedding columns file={parquet_file}"):
+        validate_embedding_columns(parquet_file, columns)
 
     results: dict[str, dict[str, Any]] = {}
-    for column in columns:
+    for column_index, column in enumerate(columns, start=1):
+        console.log(f"Analyzing column {column_index}/{len(columns)} column={column}")
         metadata_path, arrays_path = get_cache_filepaths(parquet_file, column)
         if metadata_path.exists() and arrays_path.exists():
-            cached = load_cached_column_analysis(parquet_file, column)
+            console.log(
+                f"Cache hit column={column} metadata={metadata_path} arrays={arrays_path}"
+            )
+            with log_step(f"Load cached analysis column={column}"):
+                cached = load_cached_column_analysis(parquet_file, column)
         else:
+            console.log(
+                f"Cache miss column={column} metadata={metadata_path} arrays={arrays_path}"
+            )
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[bold green]{task.description}"),
@@ -1064,6 +1209,7 @@ def analyze_columns(
             },
             "plot_paths": plot_paths,
         }
+        console.log(f"Finished column {column_index}/{len(columns)} column={column}")
 
     return results
 

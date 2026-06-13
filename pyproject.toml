@@ -26,7 +26,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["duckdb", "pillow", "transformers", "torch"]
+tools = ["duckdb", "pillow", "transformers", "torch"]
 
 [project.scripts]
 semceb = "semceb.run:main"

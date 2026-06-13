@@ -6,8 +6,8 @@ This script supports an iterative workflow:
 2) set up a chosen category locally with compact DuckDB/parquet tables
 
 Examples:
-  python data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --analyze-only
-  python data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --category Arts_Crafts_and_Sewing --mode raw_5core
+  python tools/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --analyze-only
+  python tools/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --category Arts_Crafts_and_Sewing --mode raw_5core
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Base directory for raw downloads, cache, and processed output. "
-            "Defaults to <repo-root>/data/amazon-reviews. "
+            "Defaults to <script-dir>/data. "
             "Relative paths are resolved from the repo root."
         ),
     )
@@ -883,7 +883,7 @@ def run_setup(
 def main() -> int:
     args = parse_args()
     repo_root = SCRIPT_DIR.parents[1]
-    default_data_dir = repo_root / "data" / "amazon-reviews"
+    default_data_dir = SCRIPT_DIR / "data"
 
     if args.base_dir is None:
         base_dir = default_data_dir.resolve()

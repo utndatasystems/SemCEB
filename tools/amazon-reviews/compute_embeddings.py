@@ -4,6 +4,9 @@
 This script reads a processed dataset directory created by ``download_and_prepare_amazon_reviews_dataset.py``,
 computes embeddings for selected columns in the filtered product and review
 tables, and exports new parquet files without modifying the original artifacts.
+
+Example:
+    python tools/amazon-reviews/compute_embeddings.py --run-dir Arts_Crafts_and_Sewing__raw_5core
 """
 
 from __future__ import annotations
@@ -79,7 +82,7 @@ def resolve_run_dir(run_dir_arg: str) -> Path:
         return run_dir
 
     repo_root = SCRIPT_DIR.parents[1]
-    processed_root = repo_root / "data" / "amazon-reviews" / "processed"
+    processed_root = SCRIPT_DIR / "data" / "processed"
 
     if len(run_dir.parts) == 1:
         return (processed_root / run_dir).resolve()

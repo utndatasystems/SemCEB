@@ -1038,7 +1038,6 @@ def compute_umap_projection(embeddings: np.ndarray) -> np.ndarray:
         return umap.UMAP(
             n_components=2,
             n_neighbors=n_neighbors,
-            random_state=42,
         ).fit_transform(reduced_embeddings)
 
 

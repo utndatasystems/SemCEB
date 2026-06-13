@@ -1,19 +1,19 @@
 import sys
-import tomllib
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 from pathlib import Path
 from collections.abc import Callable
 from typing import Any
 import logging
 
-from src.semceb.benchmark.benchmark import BenchmarkRunner
-from src.semceb.reporting.plotter import ResultsPlotter
-from src.semceb.utils.console import console
+from semceb.utils.console import console
 
 
 def configure_logging() -> None:
     logging.basicConfig(level=logging.WARNING, force=True)
     for logger_name in [
-        "weasyprint",
         "fontTools",
         "fontTools.subset",
         "fontTools.ttLib",
@@ -26,6 +26,7 @@ def configure_logging() -> None:
 
 def run_benchmark(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
     """Run the benchmark."""
+    from semceb.benchmark.benchmark import BenchmarkRunner
 
     runner = BenchmarkRunner(
         algorithms=config["algorithms"],
@@ -41,9 +42,42 @@ def run_benchmark(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
 
 def plot_benchmark(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
     """Plot the latest benchmark results."""
+    from semceb.reporting.plotter import ResultsPlotter
+
     plotter = ResultsPlotter()
     plotter.plot()
 
+def print_section(title: str, style: str = "bold cyan") -> None:
+    """Print a formatted CLI section header."""
+    console.print()
+    console.rule(f"[{style}]{title}[/{style}]")
+    console.print()
+
+
+def print_done() -> None:
+    """Print a formatted CLI completion message."""
+    console.print()
+    console.rule("[bold green]Done[/bold green]")
+    console.print()
+
+def print_help() -> None:
+    """Print a short overview of the available SemCEB CLI commands."""
+    print_section("SemCEB Help")
+
+    console.print(
+        """Usage:
+  semceb <command>
+
+Commands:
+  run       Run the benchmark
+  plot      Generate plots and summary tables from benchmark results
+
+Examples:
+  semceb run
+  semceb plot"""
+    )
+
+    print_done()
 
 def parse_args(argv: list[str] | None = None) -> tuple[str, dict[str, Any]]:
     """
@@ -56,10 +90,11 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, dict[str, Any]]:
     if argv is None:
         argv = sys.argv[1:]
 
-    if not argv:
-        mode = "run" # default
-    else: 
-        mode = argv[0]
+    if not argv or argv[0] in {"-h", "--help", "help"}:
+        print_help()
+        sys.exit(0)
+
+    mode = argv[0]
 
     valid_modes = {"run", "plot"}
     if mode not in valid_modes:
@@ -96,7 +131,7 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, dict[str, Any]]:
     return mode, kwargs
 
 
-def load_config(self, file_path: str = "config.toml") -> dict[str, Any]:
+def load_config(file_path: str = "config.toml") -> dict[str, Any]:
     """Loads config from a TOML file."""
 
     config_path = Path(file_path)
@@ -114,9 +149,11 @@ def main() -> None:
     configure_logging()
 
     mode, kwargs = parse_args()
-    console.print()
-    console.rule(f"[bold cyan]Active mode: {mode}[/bold cyan]")
-    console.print()
+
+    print_section(f"Active mode: {mode}")
+    
+    from dotenv import load_dotenv
+    load_dotenv()
 
     config = load_config("config.toml")
 
@@ -130,9 +167,7 @@ def main() -> None:
 
     commands[mode](config, kwargs)
 
-    console.print()
-    console.rule("[bold green]Done[/bold green]")
-    console.print()
+    print_done()
 
 
 if __name__ == "__main__":

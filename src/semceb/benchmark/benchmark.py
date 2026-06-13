@@ -8,13 +8,13 @@ import time
 import pandas as pd
 from typing import Any
 from rich.prompt import Confirm
-from src.semceb.utils.progress import create_benchmark_progress, suspend_progress
-from src.semceb.utils.console import console
-from src.semceb.data.downloader import DataDownloader
-from src.semceb.data.loader import DataLoader
-from src.semceb.algorithms.interface import AlgorithmInterface
-from src.semceb.llm_backends.lotus_backend import LotusBackend
-from src.semceb.queries.query_specification import QuerySpecification
+from semceb.utils.progress import create_benchmark_progress, suspend_progress
+from semceb.utils.console import console
+from semceb.data.downloader import DataDownloader
+from semceb.data.loader import DataLoader
+from semceb.algorithms.interface import AlgorithmInterface
+from semceb.llm_backends.lotus_backend import LotusBackend
+from semceb.queries.query_specification import QuerySpecification
 
 class BenchmarkRunner:
     """Run benchmark queries and collect algorithm evaluation results."""
@@ -89,7 +89,7 @@ class BenchmarkRunner:
 
         filename = algorithm_config["filename"]
         module_stem = Path(filename).stem
-        module_name = f"src.semceb.algorithms.{module_stem}"
+        module_name = f"semceb.algorithms.{module_stem}"
 
         module = importlib.import_module(module_name)
 
@@ -125,6 +125,9 @@ class BenchmarkRunner:
 
         self._clear_result_file()
         query_groups = self._build_query_groups()
+
+        self._confirm_join_benchmark_run_if_required(query_groups)
+
         total_runs = sum(
             len(self.algorithms) * len(group["query_specs"])
             for group in query_groups
@@ -167,6 +170,31 @@ class BenchmarkRunner:
             },
         ]
 
+    def _confirm_join_benchmark_run_if_required(
+        self,
+        query_groups: list[dict[str, Any]],
+    ) -> None:
+        """Ask for confirmation before any benchmark queries run if join queries are selected."""
+
+        join_group = next(
+            (
+                query_group
+                for query_group in query_groups
+                if query_group["name"] == "join" and query_group["query_specs"]
+            ),
+            None,
+        )
+
+        if join_group is None:
+            return
+
+        data_dfs = self._load_required_datasets(
+            query_specs=join_group["query_specs"],
+            scale_factor=join_group["scale_factor"],
+        )
+
+        self._confirm_join_benchmark_run(data_dfs)
+
     def _run_query_group(
         self,
         query_group: dict[str, Any],
@@ -184,9 +212,6 @@ class BenchmarkRunner:
                 query_specs=query_specs,
                 scale_factor=query_group["scale_factor"],
             )
-
-            if query_group["name"] == "join":
-                self._confirm_join_benchmark_run(data_dfs)
 
         for algorithm_config in self.algorithms:
             self._run_algorithm_for_query_group(

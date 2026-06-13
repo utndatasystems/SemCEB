@@ -1,7 +1,7 @@
 from pathlib import Path
 from rich.prompt import Confirm
 import pandas as pd
-from src.semceb.utils.console import console
+from semceb.utils.console import console
 
 
 class DataLoader:

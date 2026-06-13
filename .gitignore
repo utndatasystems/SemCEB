@@ -8,3 +8,5 @@ __pycache__/
 
 .*
 data/datasets/*
+
+*.egg-info/

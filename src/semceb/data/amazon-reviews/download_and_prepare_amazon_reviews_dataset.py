@@ -67,10 +67,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--base-dir",
-        default=".",
+        default=None,
         help=(
             "Base directory for raw downloads, cache, and processed output. "
-            "Relative paths are resolved from this script's directory."
+            "Defaults to <repo-root>/data/amazon-reviews. "
+            "Relative paths are resolved from the repo root."
         ),
     )
     parser.add_argument(
@@ -881,11 +882,17 @@ def run_setup(
 
 def main() -> int:
     args = parse_args()
-    base_dir_arg = Path(args.base_dir)
-    if base_dir_arg.is_absolute():
-        base_dir = base_dir_arg
+    repo_root = SCRIPT_DIR.parents[1]
+    default_data_dir = repo_root / "data" / "amazon-reviews"
+
+    if args.base_dir is None:
+        base_dir = default_data_dir.resolve()
     else:
-        base_dir = (SCRIPT_DIR / base_dir_arg).resolve()
+        base_dir_arg = Path(args.base_dir)
+        if base_dir_arg.is_absolute():
+            base_dir = base_dir_arg
+        else:
+            base_dir = (repo_root / base_dir_arg).resolve()
 
     tree_cache = base_dir / "cache" / "hf_tree_main.json"
     fetch_tree_json(tree_cache, force_refresh=args.force_refresh_tree)

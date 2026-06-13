@@ -1,14 +1,16 @@
 import zipfile
+import ssl
 from pathlib import Path
 from urllib.parse import urljoin
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
+import certifi
 from rich.progress import Progress
 from rich.prompt import Confirm
 
-from src.semceb.utils.console import console
-from src.semceb.utils.progress import create_download_progress
+from semceb.utils.console import console
+from semceb.utils.progress import create_download_progress
 
 
 class DataDownloader:
@@ -28,6 +30,7 @@ class DataDownloader:
         ]
 
         self.local_data_folderpath = Path("data") / "datasets"
+        self.ssl_context = ssl.create_default_context(cafile=certifi.where())
 
     def ensure_files_available(self) -> bool:
         """Ensure configured files exist locally, downloading if needed."""
@@ -160,7 +163,7 @@ class DataDownloader:
         """Return the remote file size in bytes."""
 
         try:
-            with urlopen(remote_url) as response:
+            with self._open_url(remote_url, method="HEAD") as response:
                 size = response.headers.get("Content-Length")
 
                 if size is None:
@@ -195,7 +198,7 @@ class DataDownloader:
         local_filepath.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            with urlopen(remote_url) as response:
+            with self._open_url(remote_url) as response:
                 with open(local_filepath, "wb") as file:
                     while True:
                         chunk = response.read(1024 * 1024)
@@ -220,6 +223,14 @@ class DataDownloader:
             )
             console.print(f"[dim]{remote_url}[/dim]")
             raise
+
+    def _open_url(self, remote_url: str, method: str = "GET"):
+        """Open a URL using certifi's CA bundle instead of local Python certs."""
+
+        return urlopen(
+            Request(remote_url, method=method),
+            context=self.ssl_context,
+        )
 
     def _extract_zip_next_to_file(
         self,

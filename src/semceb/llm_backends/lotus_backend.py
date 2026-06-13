@@ -5,9 +5,9 @@ from pathlib import Path
 
 import lotus.settings
 from lotus.models.lm import LM
-from src.semceb.queries.template_parser import QueryTemplatePartType
-from src.semceb.queries.query_specification import QuerySpecification
-from src.semceb.queries.template_parser import ColumnRef
+from semceb.queries.template_parser import QueryTemplatePartType
+from semceb.queries.query_specification import QuerySpecification
+from semceb.queries.template_parser import ColumnRef
 
 
 class LotusBackend():

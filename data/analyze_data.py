@@ -271,20 +271,33 @@ def validate_embedding_matrix(embeddings: np.ndarray) -> np.ndarray:
     return matrix
 
 
+import warnings
+import numpy as np
+import umap.umap_ as umap
+
+try:
+    import faiss
+except ImportError:
+    faiss = None
+
 def compute_umap_embedding(
     embeddings: np.ndarray,
     n_components: int,
     n_neighbors: int,
     random_state: int,
     min_dist: float = 0.0,
+    max_fit_samples: int = 50000,
 ) -> np.ndarray:
-    """Compute a UMAP embedding with cosine metric."""
+    """
+    Compute UMAP embedding, automatically scaling to millions of rows 
+    via FAISS Stratified Coreset Sampling if N > max_fit_samples.
+    """
+    n_samples, n_dims = embeddings.shape
 
-    with log_step(
-        "UMAP fit_transform "
-        f"shape={format_shape(embeddings)} components={n_components} "
-        f"neighbors={n_neighbors} min_dist={min_dist} seed={random_state}"
-    ):
+    # ---------------------------------------------------------
+    # Base Case: Dataset is small enough for standard UMAP
+    # ---------------------------------------------------------
+    if n_samples <= max_fit_samples:
         reducer = umap.UMAP(
             n_components=n_components,
             n_neighbors=n_neighbors,
@@ -296,6 +309,64 @@ def compute_umap_embedding(
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             return reducer.fit_transform(embeddings)
+
+    # ---------------------------------------------------------
+    # Scalable Case: FAISS Stratified Coreset Subsampling
+    # ---------------------------------------------------------
+    if faiss is None:
+        raise ImportError(
+            "The 'faiss' library is required to scale UMAP beyond 50,000 points. "
+            "Please run `pip install faiss-cpu` or `faiss-gpu`."
+        )
+
+    # We want ~50,000 points. K-Means with k=10,000 taking the top 5 points 
+    # per centroid is a highly optimal balance of speed vs. topological coverage.
+    k_centroids = min(10000, max_fit_samples)
+    points_per_centroid = max(1, max_fit_samples // k_centroids)
+
+    # UMAP uses Cosine similarity, so we must L2-normalize the data purely 
+    # for the FAISS sampling step to ensure the geometry matches.
+    norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+    norms[norms == 0] = 1.0  # Prevent division by zero
+    data_normalized = (embeddings / norms).astype(np.float32)
+
+    # 1. Train Spherical K-Means to find topological anchors
+    kmeans = faiss.Kmeans(
+        d=n_dims, 
+        k=k_centroids, 
+        niter=20, 
+        verbose=False, 
+        spherical=True, # Optimizes centroids for Cosine/Inner Product space
+        seed=random_state
+    )
+    kmeans.train(data_normalized)
+
+    # 2. Find the original embeddings closest to these topological anchors
+    index = faiss.IndexFlatIP(n_dims) # Exact Inner Product
+    index.add(data_normalized)
+    _, indices = index.search(kmeans.centroids, points_per_centroid)
+
+    # Flatten and deduplicate indices (in case centroids overlap neighbors)
+    sample_indices = np.unique(indices.flatten())
+
+    # 3. Fit UMAP ONLY on the topologically representative sample
+    reducer = umap.UMAP(
+        n_components=n_components,
+        n_neighbors=n_neighbors,
+        metric="cosine",
+        min_dist=min_dist,
+        random_state=random_state,
+        verbose=False,
+    )
+    
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        
+        # Learn the manifold skeleton
+        reducer.fit(embeddings[sample_indices])
+        
+        # Transform the full 1M+ dataset into the learned space in O(N) time
+        return reducer.transform(embeddings)
 
 
 def compute_cluster_sizes(labels: np.ndarray) -> np.ndarray:

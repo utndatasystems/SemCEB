@@ -11,7 +11,9 @@ from __future__ import annotations
 import argparse
 import gc
 import json
+import pickle
 import re
+import sqlite3
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -28,6 +30,7 @@ QWEN_TEXT_MAX_LENGTH = 32768
 SIGLIP_TEXT_MAX_LENGTH = 64
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_DATA_DIR = "Arts_Crafts_and_Sewing__raw_5core"
+CACHE_DB_FILENAME = "embedding_cache.sqlite3"
 SCRIPT_DIR = Path(__file__).resolve().parent
 TextBatchEmbeddingFn = Callable[
     [object, object, object, str, list[str]],
@@ -190,6 +193,120 @@ def validate_data_dir(data_dir: Path) -> tuple[Path, Path]:
         raise FileNotFoundError(f"Images directory not found: {images_dir}")
 
     return db_path, images_dir
+
+
+def embedding_cache_path(data_dir: Path) -> Path:
+    return data_dir / CACHE_DB_FILENAME
+
+
+def open_embedding_cache(data_dir: Path) -> sqlite3.Connection:
+    cache_conn = sqlite3.connect(str(embedding_cache_path(data_dir)))
+    cache_conn.execute("PRAGMA journal_mode=WAL")
+    cache_conn.execute("PRAGMA synchronous=NORMAL")
+    cache_conn.execute("PRAGMA temp_store=MEMORY")
+    cache_conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS embedding_cache (
+            cache_key TEXT PRIMARY KEY,
+            table_name TEXT NOT NULL,
+            key_column_name TEXT NOT NULL,
+            key_value TEXT NOT NULL,
+            embedding_column_name TEXT NOT NULL,
+            embedding BLOB NOT NULL,
+            input_is_truncated INTEGER NOT NULL
+        )
+        """
+    )
+    cache_conn.execute(
+        "CREATE INDEX IF NOT EXISTS embedding_cache_column_idx "
+        "ON embedding_cache(embedding_column_name)"
+    )
+    return cache_conn
+
+
+def cache_key_for_embedding(
+    table_name: str,
+    embedding_column_name_value: str,
+    key_value: object,
+) -> str:
+    return f"{table_name}|{embedding_column_name_value}|{key_value}"
+
+
+def fetch_cached_embeddings(
+    cache_conn: sqlite3.Connection,
+    cache_keys: list[str],
+) -> dict[str, tuple[list[float], bool]]:
+    if not cache_keys:
+        return {}
+
+    cached: dict[str, tuple[list[float], bool]] = {}
+    for start in range(0, len(cache_keys), 900):
+        chunk = cache_keys[start : start + 900]
+        placeholders = ", ".join("?" for _ in chunk)
+        rows = cache_conn.execute(
+            f"""
+            SELECT cache_key, embedding, input_is_truncated
+            FROM embedding_cache
+            WHERE cache_key IN ({placeholders})
+            """,
+            chunk,
+        ).fetchall()
+        for cache_key, embedding_blob, input_is_truncated in rows:
+            cached[cache_key] = (pickle.loads(embedding_blob), bool(input_is_truncated))
+
+    return cached
+
+
+def store_cached_embeddings(
+    cache_conn: sqlite3.Connection,
+    rows: list[tuple[str, str, str, str, str, list[float], bool]],
+) -> None:
+    if not rows:
+        return
+
+    payload_rows = [
+        (
+            cache_key,
+            table_name,
+            key_column_name,
+            key_value,
+            embedding_column_name_value,
+            sqlite3.Binary(pickle.dumps(embedding, protocol=pickle.HIGHEST_PROTOCOL)),
+            int(input_is_truncated),
+        )
+        for (
+            cache_key,
+            table_name,
+            key_column_name,
+            key_value,
+            embedding_column_name_value,
+            embedding,
+            input_is_truncated,
+        ) in rows
+    ]
+    cache_conn.executemany(
+        """
+        INSERT INTO embedding_cache (
+            cache_key,
+            table_name,
+            key_column_name,
+            key_value,
+            embedding_column_name,
+            embedding,
+            input_is_truncated
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(cache_key) DO UPDATE SET
+            table_name = excluded.table_name,
+            key_column_name = excluded.key_column_name,
+            key_value = excluded.key_value,
+            embedding_column_name = excluded.embedding_column_name,
+            embedding = excluded.embedding,
+            input_is_truncated = excluded.input_is_truncated
+        """,
+        payload_rows,
+    )
+    cache_conn.commit()
 
 
 def add_embedding_columns(
@@ -695,6 +812,7 @@ def run_embeddings(
     batch_size: int,
 ) -> None:
     db_path, images_dir = validate_data_dir(data_dir)
+    cache_conn = open_embedding_cache(data_dir)
     image_column_name = embedding_column_name("main_image_local", SIGLIP_MODEL_NAME)
     products_output_path = output_products_parquet_path(data_dir)
     reviews_output_path = output_reviews_parquet_path(data_dir)
@@ -731,9 +849,10 @@ def run_embeddings(
     )
     text_model_names = [bundle.model_name for bundle in text_model_bundles]
 
-    print(f"[info] opening DuckDB database: {db_path}")
-    con = duckdb.connect(str(db_path))
+    con: duckdb.DuckDBPyConnection | None = None
     try:
+        print(f"[info] opening DuckDB database: {db_path}")
+        con = duckdb.connect(str(db_path))
         ensure_products_filtered(con)
         ensure_reviews_filtered(con)
         create_working_table(con, image_column_name, image_dimension, text_model_names)
@@ -755,23 +874,75 @@ def run_embeddings(
             def process_image_batch(batch_items: list[object]) -> tuple[int, int]:
                 nonlocal failed_decode, image_truncated
 
-                images, valid_jobs, failed_in_batch = load_images(batch_items)  # type: ignore[arg-type]
-                failed_decode += failed_in_batch
-                if not valid_jobs:
+                batch_keys = [
+                    cache_key_for_embedding("products_with_embeddings", image_column_name, job.parent_asin)
+                    for job in batch_items
+                ]
+                cached_by_key = fetch_cached_embeddings(cache_conn, batch_keys)
+
+                cached_rows: list[tuple[object, list[float], bool]] = []
+                missing_jobs: list[ImageEmbeddingJob] = []
+                decode_failed_batch = 0
+                for job, cache_key in zip(batch_items, batch_keys, strict=True):  # type: ignore[arg-type]
+                    cached = cached_by_key.get(cache_key)
+                    if cached is None:
+                        missing_jobs.append(job)
+                    else:
+                        embedding, input_is_truncated = cached
+                        cached_rows.append((job.parent_asin, embedding, input_is_truncated))
+
+                computed_rows: list[tuple[object, list[float], bool]] = []
+                if missing_jobs:
+                    images, valid_jobs, failed_in_batch = load_images(missing_jobs)
+                    decode_failed_batch = failed_in_batch
+                    if valid_jobs:
+                        vectors, input_is_truncated = compute_image_batch_embeddings(
+                            processor=image_processor,
+                            model=image_model,
+                            torch_module=image_torch,
+                            device=device,
+                            images=images,
+                        )
+                        computed_rows = [
+                            (job.parent_asin, vector, truncated)
+                            for job, vector, truncated in zip(
+                                valid_jobs,
+                                vectors,
+                                input_is_truncated,
+                                strict=True,
+                            )
+                        ]
+                        store_cached_embeddings(
+                            cache_conn,
+                            [
+                                (
+                                    cache_key_for_embedding(
+                                        "products_with_embeddings",
+                                        image_column_name,
+                                        job.parent_asin,
+                                    ),
+                                    "products_with_embeddings",
+                                    "parent_asin",
+                                    str(job.parent_asin),
+                                    image_column_name,
+                                    vector,
+                                    truncated,
+                                )
+                                for job, vector, truncated in zip(
+                                    valid_jobs,
+                                    vectors,
+                                    input_is_truncated,
+                                    strict=True,
+                                )
+                            ],
+                        )
+
+                batch_rows = cached_rows + computed_rows
+                if not batch_rows:
+                    failed_decode += decode_failed_batch
                     return 0, 0
 
-                vectors, input_is_truncated = compute_image_batch_embeddings(
-                    processor=image_processor,
-                    model=image_model,
-                    torch_module=image_torch,
-                    device=device,
-                    images=images,
-                )
-                batch_rows = [
-                    (job.parent_asin, vector, truncated)
-                    for job, vector, truncated in zip(valid_jobs, vectors, input_is_truncated, strict=True)
-                ]
-                image_truncated_in_batch = sum(input_is_truncated)
+                batch_truncated = sum(truncated for _, _, truncated in batch_rows)
                 write_embedding_batch(
                     con,
                     table_name="products_with_embeddings",
@@ -781,7 +952,8 @@ def run_embeddings(
                     batch_rows=batch_rows,
                     embedding_type=f"DOUBLE[{image_dimension}]",
                 )
-                image_truncated += image_truncated_in_batch
+                failed_decode += decode_failed_batch
+                image_truncated += batch_truncated
                 return len(batch_rows), 0
 
             embedded_in_batch, _ = process_batch_with_oom_retry(
@@ -817,16 +989,64 @@ def run_embeddings(
                     def process_text_batch(batch_items: list[object]) -> tuple[int, int]:
                         nonlocal text_truncated
 
-                        batch_parent_asins = [parent_asin for parent_asin, _ in batch_items]  # type: ignore[misc]
-                        batch_texts = [text for _, text in batch_items]  # type: ignore[misc]
-                        vectors, input_is_truncated = compute_text_batch_embeddings(
-                            text_model_bundle=text_model_bundle,
-                            device=device,
-                            texts=batch_texts,
-                        )
-                        batch_rows = list(
-                            zip(batch_parent_asins, vectors, input_is_truncated, strict=True)
-                        )
+                        batch_keys = [
+                            cache_key_for_embedding("products_with_embeddings", text_column_name, parent_asin)
+                            for parent_asin, _ in batch_items  # type: ignore[misc]
+                        ]
+                        cached_by_key = fetch_cached_embeddings(cache_conn, batch_keys)
+
+                        cached_rows: list[tuple[object, list[float], bool]] = []
+                        missing_items: list[tuple[str, str]] = []
+                        for (parent_asin, text), cache_key in zip(batch_items, batch_keys, strict=True):  # type: ignore[misc]
+                            cached = cached_by_key.get(cache_key)
+                            if cached is None:
+                                missing_items.append((parent_asin, text))
+                            else:
+                                embedding, input_is_truncated = cached
+                                cached_rows.append((parent_asin, embedding, input_is_truncated))
+
+                        computed_rows: list[tuple[object, list[float], bool]] = []
+                        if missing_items:
+                            batch_parent_asins = [parent_asin for parent_asin, _ in missing_items]
+                            batch_texts = [text for _, text in missing_items]
+                            vectors, input_is_truncated = compute_text_batch_embeddings(
+                                text_model_bundle=text_model_bundle,
+                                device=device,
+                                texts=batch_texts,
+                            )
+                            computed_rows = list(
+                                zip(batch_parent_asins, vectors, input_is_truncated, strict=True)
+                            )
+                            store_cached_embeddings(
+                                cache_conn,
+                                [
+                                    (
+                                        cache_key_for_embedding(
+                                            "products_with_embeddings",
+                                            text_column_name,
+                                            parent_asin,
+                                        ),
+                                        "products_with_embeddings",
+                                        "parent_asin",
+                                        str(parent_asin),
+                                        text_column_name,
+                                        vector,
+                                        truncated,
+                                    )
+                                    for parent_asin, vector, truncated in zip(
+                                        batch_parent_asins,
+                                        vectors,
+                                        input_is_truncated,
+                                        strict=True,
+                                    )
+                                ],
+                            )
+
+                        batch_rows = cached_rows + computed_rows
+                        if not batch_rows:
+                            return 0, 0
+
+                        batch_truncated = sum(truncated for _, _, truncated in batch_rows)
                         write_embedding_batch(
                             con,
                             table_name="products_with_embeddings",
@@ -836,7 +1056,7 @@ def run_embeddings(
                             batch_rows=batch_rows,
                             embedding_type="DOUBLE[]",
                         )
-                        text_truncated += sum(input_is_truncated)
+                        text_truncated += batch_truncated
                         return len(batch_rows), 0
 
                     embedded_in_batch, _ = process_batch_with_oom_retry(
@@ -874,16 +1094,64 @@ def run_embeddings(
                     def process_review_text_batch(batch_items: list[object]) -> tuple[int, int]:
                         nonlocal text_truncated
 
-                        batch_row_ids = [row_id for row_id, _ in batch_items]  # type: ignore[misc]
-                        batch_texts = [text for _, text in batch_items]  # type: ignore[misc]
-                        vectors, input_is_truncated = compute_text_batch_embeddings(
-                            text_model_bundle=text_model_bundle,
-                            device=device,
-                            texts=batch_texts,
-                        )
-                        batch_rows = list(
-                            zip(batch_row_ids, vectors, input_is_truncated, strict=True)
-                        )
+                        batch_keys = [
+                            cache_key_for_embedding("reviews_with_embeddings", text_column_name, row_id)
+                            for row_id, _ in batch_items  # type: ignore[misc]
+                        ]
+                        cached_by_key = fetch_cached_embeddings(cache_conn, batch_keys)
+
+                        cached_rows: list[tuple[object, list[float], bool]] = []
+                        missing_items: list[tuple[int, str]] = []
+                        for (row_id, text), cache_key in zip(batch_items, batch_keys, strict=True):  # type: ignore[misc]
+                            cached = cached_by_key.get(cache_key)
+                            if cached is None:
+                                missing_items.append((row_id, text))
+                            else:
+                                embedding, input_is_truncated = cached
+                                cached_rows.append((row_id, embedding, input_is_truncated))
+
+                        computed_rows: list[tuple[object, list[float], bool]] = []
+                        if missing_items:
+                            batch_row_ids = [row_id for row_id, _ in missing_items]
+                            batch_texts = [text for _, text in missing_items]
+                            vectors, input_is_truncated = compute_text_batch_embeddings(
+                                text_model_bundle=text_model_bundle,
+                                device=device,
+                                texts=batch_texts,
+                            )
+                            computed_rows = list(
+                                zip(batch_row_ids, vectors, input_is_truncated, strict=True)
+                            )
+                            store_cached_embeddings(
+                                cache_conn,
+                                [
+                                    (
+                                        cache_key_for_embedding(
+                                            "reviews_with_embeddings",
+                                            text_column_name,
+                                            row_id,
+                                        ),
+                                        "reviews_with_embeddings",
+                                        "embedding_row_id",
+                                        str(row_id),
+                                        text_column_name,
+                                        vector,
+                                        truncated,
+                                    )
+                                    for row_id, vector, truncated in zip(
+                                        batch_row_ids,
+                                        vectors,
+                                        input_is_truncated,
+                                        strict=True,
+                                    )
+                                ],
+                            )
+
+                        batch_rows = cached_rows + computed_rows
+                        if not batch_rows:
+                            return 0, 0
+
+                        batch_truncated = sum(truncated for _, _, truncated in batch_rows)
                         write_embedding_batch(
                             con,
                             table_name="reviews_with_embeddings",
@@ -893,7 +1161,7 @@ def run_embeddings(
                             batch_rows=batch_rows,
                             embedding_type="DOUBLE[]",
                         )
-                        text_truncated += sum(input_is_truncated)
+                        text_truncated += batch_truncated
                         return len(batch_rows), 0
 
                     embedded_in_batch, _ = process_batch_with_oom_retry(
@@ -928,7 +1196,9 @@ def run_embeddings(
             f"text models: {', '.join(bundle.model_name for bundle in text_model_bundles)}"
         )
     finally:
-        con.close()
+        if con is not None:
+            con.close()
+        cache_conn.close()
 
 
 def main() -> int:

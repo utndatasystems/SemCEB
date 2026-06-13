@@ -62,6 +62,8 @@ reviews_filtered_with_embeddings.parquet
 
 The embedding files are written into the same processed dataset directory. The original
 `products_filtered.parquet` and `reviews_filtered.parquet` remain untouched.
+The script also keeps a small SQLite cache file in that directory so reruns can resume
+without recomputing rows that already finished successfully.
 
 Each embedding column also gets a sibling boolean column named
 `<embedding_column>_input_is_truncated` that indicates whether the text of the source column for which this embedding was computed exceeded the maximum token length for this embedding model and needed to be truncated.

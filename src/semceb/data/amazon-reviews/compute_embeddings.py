@@ -9,6 +9,7 @@ tables, and exports new parquet files without modifying the original artifacts.
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import re
 import sys
@@ -575,6 +576,65 @@ def select_primary_text_inputs(
     return primary_batch, input_is_truncated
 
 
+def clear_cuda_memory(torch_module: object) -> None:
+    cuda_module = getattr(torch_module, "cuda", None)
+    if cuda_module is not None and cuda_module.is_available():
+        cuda_module.empty_cache()
+    gc.collect()
+
+
+def is_cuda_oom_error(exc: BaseException, torch_module: object) -> bool:
+    cuda_oom_error = getattr(getattr(torch_module, "cuda", None), "OutOfMemoryError", None)
+    if cuda_oom_error is not None and isinstance(exc, cuda_oom_error):
+        return True
+
+    message = str(exc).lower()
+    return "cuda out of memory" in message or "cudnn_status_alloc_failed" in message
+
+
+def process_batch_with_oom_retry(
+    batch_items: list[object],
+    process_batch: Callable[[list[object]], tuple[int, int]],
+    torch_module: object,
+    description: str,
+) -> tuple[int, int]:
+    if not batch_items:
+        return 0, 0
+
+    try:
+        return process_batch(batch_items)
+    except Exception as exc:
+        if not is_cuda_oom_error(exc, torch_module):
+            raise
+
+        clear_cuda_memory(torch_module)
+        if len(batch_items) == 1:
+            print(f"[warn] skipped 1 {description} row after CUDA OOM")
+            return 0, 1
+
+        midpoint = len(batch_items) // 2
+        left_items = batch_items[:midpoint]
+        right_items = batch_items[midpoint:]
+        print(
+            f"[warn] {description} batch of {len(batch_items)} hit CUDA OOM; "
+            f"retrying as {len(left_items)} + {len(right_items)}"
+        )
+
+        left_embedded, left_skipped = process_batch_with_oom_retry(
+            left_items,
+            process_batch,
+            torch_module,
+            description,
+        )
+        right_embedded, right_skipped = process_batch_with_oom_retry(
+            right_items,
+            process_batch,
+            torch_module,
+            description,
+        )
+        return left_embedded + right_embedded, left_skipped + right_skipped
+
+
 def write_embedding_batch(
     con: duckdb.DuckDBPyConnection,
     table_name: str,
@@ -691,37 +751,49 @@ def run_embeddings(
         image_truncated = 0
         for batch_start in range(0, len(image_jobs), batch_size):
             batch_jobs = image_jobs[batch_start : batch_start + batch_size]
-            images, valid_jobs, failed_in_batch = load_images(batch_jobs)
-            failed_decode += failed_in_batch
 
-            if not valid_jobs:
-                continue
+            def process_image_batch(batch_items: list[object]) -> tuple[int, int]:
+                nonlocal failed_decode, image_truncated
 
-            vectors, input_is_truncated = compute_image_batch_embeddings(
-                processor=image_processor,
-                model=image_model,
-                torch_module=image_torch,
-                device=device,
-                images=images,
+                images, valid_jobs, failed_in_batch = load_images(batch_items)  # type: ignore[arg-type]
+                failed_decode += failed_in_batch
+                if not valid_jobs:
+                    return 0, 0
+
+                vectors, input_is_truncated = compute_image_batch_embeddings(
+                    processor=image_processor,
+                    model=image_model,
+                    torch_module=image_torch,
+                    device=device,
+                    images=images,
+                )
+                batch_rows = [
+                    (job.parent_asin, vector, truncated)
+                    for job, vector, truncated in zip(valid_jobs, vectors, input_is_truncated, strict=True)
+                ]
+                image_truncated_in_batch = sum(input_is_truncated)
+                write_embedding_batch(
+                    con,
+                    table_name="products_with_embeddings",
+                    key_column_name="parent_asin",
+                    key_column_type="VARCHAR",
+                    embedding_column_name_value=image_column_name,
+                    batch_rows=batch_rows,
+                    embedding_type=f"DOUBLE[{image_dimension}]",
+                )
+                image_truncated += image_truncated_in_batch
+                return len(batch_rows), 0
+
+            embedded_in_batch, _ = process_batch_with_oom_retry(
+                batch_jobs,
+                process_image_batch,
+                image_torch,
+                "image",
             )
-            batch_rows = [
-                (job.parent_asin, vector, truncated)
-                for job, vector, truncated in zip(valid_jobs, vectors, input_is_truncated, strict=True)
-            ]
-            image_truncated += sum(input_is_truncated)
-            write_embedding_batch(
-                con,
-                table_name="products_with_embeddings",
-                key_column_name="parent_asin",
-                key_column_type="VARCHAR",
-                embedding_column_name_value=image_column_name,
-                batch_rows=batch_rows,
-                embedding_type=f"DOUBLE[{image_dimension}]",
-            )
-            image_embedded += len(batch_rows)
+            image_embedded += embedded_in_batch
             print(
                 f"[info] embedded {image_embedded}/{len(image_jobs)} image rows "
-                f"(batch size={len(batch_rows)})"
+                f"(batch size={embedded_in_batch})"
             )
         if failed_decode:
             print(f"[warn] skipped {failed_decode} image files that could not be decoded")
@@ -741,29 +813,43 @@ def run_embeddings(
                 text_truncated = 0
                 for batch_start in range(0, len(text_jobs), batch_size):
                     batch_jobs = text_jobs[batch_start : batch_start + batch_size]
-                    batch_parent_asins = [parent_asin for parent_asin, _ in batch_jobs]
-                    batch_texts = [text for _, text in batch_jobs]
-                    vectors, input_is_truncated = compute_text_batch_embeddings(
-                        text_model_bundle=text_model_bundle,
-                        device=device,
-                        texts=batch_texts,
+
+                    def process_text_batch(batch_items: list[object]) -> tuple[int, int]:
+                        nonlocal text_truncated
+
+                        batch_parent_asins = [parent_asin for parent_asin, _ in batch_items]  # type: ignore[misc]
+                        batch_texts = [text for _, text in batch_items]  # type: ignore[misc]
+                        vectors, input_is_truncated = compute_text_batch_embeddings(
+                            text_model_bundle=text_model_bundle,
+                            device=device,
+                            texts=batch_texts,
+                        )
+                        batch_rows = list(
+                            zip(batch_parent_asins, vectors, input_is_truncated, strict=True)
+                        )
+                        write_embedding_batch(
+                            con,
+                            table_name="products_with_embeddings",
+                            key_column_name="parent_asin",
+                            key_column_type="VARCHAR",
+                            embedding_column_name_value=text_column_name,
+                            batch_rows=batch_rows,
+                            embedding_type="DOUBLE[]",
+                        )
+                        text_truncated += sum(input_is_truncated)
+                        return len(batch_rows), 0
+
+                    embedded_in_batch, _ = process_batch_with_oom_retry(
+                        batch_jobs,
+                        process_text_batch,
+                        text_model_bundle.torch_module,
+                        f"text for {source_column} with {text_model_bundle.model_name}",
                     )
-                    batch_rows = list(zip(batch_parent_asins, vectors, input_is_truncated, strict=True))
-                    text_truncated += sum(input_is_truncated)
-                    write_embedding_batch(
-                        con,
-                        table_name="products_with_embeddings",
-                        key_column_name="parent_asin",
-                        key_column_type="VARCHAR",
-                        embedding_column_name_value=text_column_name,
-                        batch_rows=batch_rows,
-                        embedding_type="DOUBLE[]",
-                    )
-                    text_embedded += len(batch_rows)
+                    text_embedded += embedded_in_batch
                     print(
                         f"[info] embedded {text_embedded}/{len(text_jobs)} text rows "
                         f"for {source_column} with {text_model_bundle.model_name} "
-                        f"(batch size={len(batch_rows)})"
+                        f"(batch size={embedded_in_batch})"
                     )
                 if text_truncated:
                     print(
@@ -784,29 +870,43 @@ def run_embeddings(
                 text_truncated = 0
                 for batch_start in range(0, len(text_jobs), batch_size):
                     batch_jobs = text_jobs[batch_start : batch_start + batch_size]
-                    batch_row_ids = [row_id for row_id, _ in batch_jobs]
-                    batch_texts = [text for _, text in batch_jobs]
-                    vectors, input_is_truncated = compute_text_batch_embeddings(
-                        text_model_bundle=text_model_bundle,
-                        device=device,
-                        texts=batch_texts,
+
+                    def process_review_text_batch(batch_items: list[object]) -> tuple[int, int]:
+                        nonlocal text_truncated
+
+                        batch_row_ids = [row_id for row_id, _ in batch_items]  # type: ignore[misc]
+                        batch_texts = [text for _, text in batch_items]  # type: ignore[misc]
+                        vectors, input_is_truncated = compute_text_batch_embeddings(
+                            text_model_bundle=text_model_bundle,
+                            device=device,
+                            texts=batch_texts,
+                        )
+                        batch_rows = list(
+                            zip(batch_row_ids, vectors, input_is_truncated, strict=True)
+                        )
+                        write_embedding_batch(
+                            con,
+                            table_name="reviews_with_embeddings",
+                            key_column_name="embedding_row_id",
+                            key_column_type="BIGINT",
+                            embedding_column_name_value=text_column_name,
+                            batch_rows=batch_rows,
+                            embedding_type="DOUBLE[]",
+                        )
+                        text_truncated += sum(input_is_truncated)
+                        return len(batch_rows), 0
+
+                    embedded_in_batch, _ = process_batch_with_oom_retry(
+                        batch_jobs,
+                        process_review_text_batch,
+                        text_model_bundle.torch_module,
+                        f"review text for {source_column} with {text_model_bundle.model_name}",
                     )
-                    batch_rows = list(zip(batch_row_ids, vectors, input_is_truncated, strict=True))
-                    text_truncated += sum(input_is_truncated)
-                    write_embedding_batch(
-                        con,
-                        table_name="reviews_with_embeddings",
-                        key_column_name="embedding_row_id",
-                        key_column_type="BIGINT",
-                        embedding_column_name_value=text_column_name,
-                        batch_rows=batch_rows,
-                        embedding_type="DOUBLE[]",
-                    )
-                    text_embedded += len(batch_rows)
+                    text_embedded += embedded_in_batch
                     print(
                         f"[info] embedded {text_embedded}/{len(text_jobs)} review text rows "
                         f"for {source_column} with {text_model_bundle.model_name} "
-                        f"(batch size={len(batch_rows)})"
+                        f"(batch size={embedded_in_batch})"
                     )
                 if text_truncated:
                     print(

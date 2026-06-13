@@ -375,9 +375,13 @@ class BenchmarkRunner:
             for table_ref, data_df in data_dfs.items()
         }
 
-        potential_join_combinations = 1
-        for row_count in row_counts.values():
-            potential_join_combinations *= row_count
+        largest_table_ref, largest_row_count = max(
+            row_counts.items(),
+            key=lambda item: item[1],
+        )
+
+        biggest_join_combination = largest_row_count * largest_row_count
+        biggest_join_pair = (largest_table_ref, largest_table_ref)
 
         console.print()
         console.print("[bold yellow]Join benchmark input size[/bold yellow]")
@@ -386,8 +390,18 @@ class BenchmarkRunner:
             console.print(f"  [cyan]{table_ref}[/cyan]: [bold]{row_count:,}[/bold] rows")
 
         console.print(
-            "  [magenta]Potential join combinations[/magenta]: "
-            f"[bold]{potential_join_combinations:,}[/bold]"
+            "  [magenta]Biggest possible pairwise join combination[/magenta]: "
+            f"[cyan]{biggest_join_pair[0]}[/cyan] × [cyan]{biggest_join_pair[1]}[/cyan] = "
+            f"[bold]{biggest_join_combination:,}[/bold]"
+        )
+        console.print()
+        console.print(
+            "  [yellow]Warning[/yellow]: uncached ground-truth cardinality or pairwise "
+            "join algorithms may trigger many LLM calls."
+        )
+        console.print(
+            f"  Worst case for this input size: [bold]{biggest_join_combination:,}[/bold] "
+            "LLM calls."
         )
         console.print()
 

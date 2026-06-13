@@ -1,15 +1,17 @@
+#!/usr/bin/env python3
 from __future__ import annotations
 
 # Example usage:
-# python analyze_data.py amazon-reviews/processed/Arts_Crafts_and_Sewing__raw_5core/products_filtered_with_embeddings.parquet \
+# python analyze_data.py ../../../data/amazon-reviews/processed/Arts_Crafts_and_Sewing__raw_5core/products_filtered_with_embeddings.parquet \
 #   --columns=product_title_embeddings_qwen_qwen3_embedding_0_6b,description_json_embeddings_qwen_qwen3_embedding_0_6b
 #
-# python analyze_data.py amazon-reviews/processed/Arts_Crafts_and_Sewing__raw_5core/reviews_filtered_with_embeddings.parquet \
+# python analyze_data.py ../../../data/amazon-reviews/processed/Arts_Crafts_and_Sewing__raw_5core/reviews_filtered_with_embeddings.parquet \
 #   --columns=review_title_embeddings_qwen_qwen3_embedding_0_6b,review_text_embeddings_qwen_qwen3_embedding_0_6b
 #
 import argparse
 from contextlib import contextmanager
 import json
+import sys
 from time import perf_counter
 import warnings
 from dataclasses import dataclass, field
@@ -17,36 +19,101 @@ from pathlib import Path
 from typing import Any
 
 try:
-    import faiss
-    import hdbscan
     import matplotlib.pyplot as plt
     import numpy as np
+    import duckdb
     import pyarrow as pa
     import pyarrow.parquet as pq
     from rich.console import Console
     from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn, TimeElapsedColumn
-    from scipy.sparse.csgraph import connected_components
-    from scipy.stats import kurtosis, linregress, skew, entropy
-    from sklearn.decomposition import PCA
-    import umap.umap_ as umap
 except ModuleNotFoundError as error:
     raise SystemExit(
-        "Missing dependency: faiss-cpu, hdbscan, matplotlib, numpy, pyarrow, rich, "
-        "scipy, scikit-learn, and umap-learn are required to analyze "
-        "embedding columns. Install project dependencies again or install "
-        "the missing packages manually."
+        "Missing dependency: duckdb, matplotlib, numpy, pyarrow, rich are "
+        "required for the CLI. The optional 'skew' plot suite also requires "
+        "faiss-cpu, hdbscan, umap-learn, scipy, and scikit-learn."
     ) from error
 
 
 DEFAULT_K_VALUES = (1, 5, 10, 100)
-PLOT_OUTPUT_DIR = Path("results") / "plots" / "dataset_analysis"
-CACHE_OUTPUT_DIR = Path("data") / "amazon-reviews" / "cache" / "dataset_analysis"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+PLOT_OUTPUT_DIR = REPO_ROOT / "results" / "plots" / "dataset_analysis"
+CACHE_OUTPUT_DIR = REPO_ROOT / "data" / "amazon-reviews" / "cache" / "dataset_analysis"
 IMBALANCE_UMAP_COMPONENTS = 20
 IMBALANCE_UMAP_NEIGHBORS = 15
 IMBALANCE_HDBSCAN_MIN_SAMPLES = 5
 IMBALANCE_STABILITY_RUNS = 3
 IMBALANCE_HALO_EPSILON = 0.15  # Absolute Euclidean distance in UMAP space for halo absorption
+# Plot suites are selected by a leading CLI subcommand. "skew" keeps the existing
+# embedding-analysis plots; "strlen" adds the text-length distribution plots.
+PLOT_SUITE_STRLEN = "strlen"
+PLOT_SUITE_SKEW = "skew"
+DEFAULT_PLOT_SUITES = frozenset({PLOT_SUITE_STRLEN, PLOT_SUITE_SKEW})
 console = Console()
+
+
+def import_hdbscan() -> Any:
+    """Import HDBSCAN only when the skew plot suite needs it."""
+
+    try:
+        import hdbscan as hdbscan_module
+    except ModuleNotFoundError as error:
+        raise SystemExit(
+            "The 'skew' plot suite requires the optional dependency "
+            "'hdbscan'. Install it or run the 'strlen' suite instead."
+        ) from error
+    return hdbscan_module
+
+
+def import_faiss() -> Any:
+    """Import FAISS only when the skew plot suite needs it."""
+
+    try:
+        import faiss as faiss_module
+    except Exception as error:
+        raise SystemExit(
+            "The 'skew' plot suite requires the optional dependency "
+            "'faiss-cpu'. Install it or run the 'strlen' suite instead."
+        ) from error
+    return faiss_module
+
+
+def import_umap() -> Any:
+    """Import UMAP only when the skew plot suite needs it."""
+
+    try:
+        import umap.umap_ as umap_module
+    except ModuleNotFoundError as error:
+        raise SystemExit(
+            "The 'skew' plot suite requires the optional dependency "
+            "'umap-learn'. Install it or run the 'strlen' suite instead."
+        ) from error
+    return umap_module
+
+
+def import_scipy_stats() -> tuple[Any, Any, Any, Any]:
+    """Import the SciPy statistics helpers used by the skew plot suite."""
+
+    try:
+        from scipy.stats import kurtosis, linregress, skew, entropy
+    except Exception as error:
+        raise SystemExit(
+            "The 'skew' plot suite requires the optional dependency "
+            "'scipy'. Install it or run the 'strlen' suite instead."
+        ) from error
+    return kurtosis, linregress, skew, entropy
+
+
+def import_pca() -> Any:
+    """Import PCA only when the skew plot suite needs it."""
+
+    try:
+        from sklearn.decomposition import PCA as pca_module
+    except Exception as error:
+        raise SystemExit(
+            "The 'skew' plot suite requires the optional dependency "
+            "'scikit-learn'. Install it or run the 'strlen' suite instead."
+        ) from error
+    return pca_module
 
 
 @contextmanager
@@ -124,22 +191,79 @@ class ImbalanceReport:
 def parse_args() -> argparse.Namespace:
     """Parse CLI arguments."""
 
-    parser = argparse.ArgumentParser(
-        description="Validate that selected parquet columns contain embeddings.",
+    argv = sys.argv[1:]
+
+    def build_parser(
+        *,
+        prog: str,
+        description: str,
+        epilog: str,
+    ) -> argparse.ArgumentParser:
+        """Build the shared CLI parser.
+
+        The script keeps the historical invocation style (`parquet_file`
+        first) when no plot-suite subcommand is given, but the same parser is
+        reused for the `strlen` and `skew` subcommands.
+        """
+
+        parser = argparse.ArgumentParser(
+            prog=prog,
+            description=description,
+            epilog=epilog,
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
+        parser.add_argument(
+            "parquet_file",
+            type=Path,
+            help="Path to a parquet file.",
+        )
+        parser.add_argument(
+            "--columns",
+            help=(
+                "Comma-separated list of one or more column names to validate. "
+                "If omitted, all embedding columns are detected automatically."
+            ),
+        )
+        return parser
+
+    shared_description = (
+        "Validate selected parquet columns and generate analysis plots.\n\n"
+        "Plot-suite subcommands:\n"
+        f"  {PLOT_SUITE_STRLEN}  Generate only string-length distribution plots.\n"
+        f"  {PLOT_SUITE_SKEW}     Generate only the existing embedding skew plots.\n\n"
+        "If no subcommand is given, both plot suites are generated."
     )
-    parser.add_argument(
-        "parquet_file",
-        type=Path,
-        help="Path to a parquet file.",
+    shared_epilog = (
+        "Examples:\n"
+        f"  {Path(sys.argv[0]).name} data.parquet\n"
+        f"  {Path(sys.argv[0]).name} {PLOT_SUITE_STRLEN} data.parquet\n"
+        f"  {Path(sys.argv[0]).name} {PLOT_SUITE_SKEW} data.parquet"
     )
-    parser.add_argument(
-        "--columns",
-        help=(
-            "Comma-separated list of one or more column names to validate. "
-            "If omitted, all embedding columns are detected automatically."
-        ),
+
+    # Manual dispatch keeps the historical CLI (`parquet_file` first) while
+    # adding subcommand-style plot-suite selection.
+    if argv and argv[0] in {PLOT_SUITE_STRLEN, PLOT_SUITE_SKEW}:
+        plot_suite = argv[0]
+        parser = build_parser(
+            prog=f"{Path(sys.argv[0]).name} {plot_suite}",
+            description=(
+                f"Generate only the {plot_suite} plot suite for selected "
+                "embedding columns."
+            ),
+            epilog=shared_epilog,
+        )
+        args = parser.parse_args(argv[1:])
+        args.plot_suites = frozenset({plot_suite})
+        return args
+
+    parser = build_parser(
+        prog=Path(sys.argv[0]).name,
+        description=shared_description,
+        epilog=shared_epilog,
     )
-    return parser.parse_args()
+    args = parser.parse_args(argv)
+    args.plot_suites = DEFAULT_PLOT_SUITES
+    return args
 
 
 def parse_columns(raw_columns: str) -> list[str]:
@@ -168,6 +292,12 @@ def is_embedding_type(data_type: pa.DataType) -> bool:
     return pa.types.is_float32(value_type) or pa.types.is_float64(value_type)
 
 
+def is_text_type(data_type: pa.DataType) -> bool:
+    """Return whether an Arrow type is a string-like text column."""
+
+    return pa.types.is_string(data_type) or pa.types.is_large_string(data_type)
+
+
 def infer_embedding_columns(parquet_file: Path) -> list[str]:
     """Infer embedding columns from the parquet schema."""
 
@@ -185,6 +315,47 @@ def infer_embedding_columns(parquet_file: Path) -> list[str]:
         )
 
     return columns
+
+
+def embedding_source_column_name(embedding_column: str) -> str:
+    """Resolve an embedding column name back to its source text column."""
+
+    return embedding_column.split("_embeddings", 1)[0]
+
+
+def infer_text_columns(
+    parquet_file: Path,
+    embedding_columns: list[str],
+) -> list[str]:
+    """Infer unique string columns that produced the given embedding columns."""
+
+    schema = pq.read_schema(parquet_file)
+    text_columns: list[str] = []
+    seen_columns: set[str] = set()
+
+    for embedding_column in embedding_columns:
+        source_column = embedding_source_column_name(embedding_column)
+        if source_column in seen_columns:
+            continue
+        if source_column not in schema.names:
+            console.log(
+                f"Skipping source column={source_column} derived from embedding "
+                f"column={embedding_column}: column not found in parquet schema"
+            )
+            continue
+
+        source_type = schema.field(source_column).type
+        if not is_text_type(source_type):
+            console.log(
+                f"Skipping source column={source_column} derived from embedding "
+                f"column={embedding_column}: expected string/varchar type, got {source_type}"
+            )
+            continue
+
+        seen_columns.add(source_column)
+        text_columns.append(source_column)
+
+    return text_columns
 
 
 def validate_embedding_columns(
@@ -215,6 +386,12 @@ def validate_embedding_columns(
             "Expected embedding columns to have Arrow type ARRAY<FLOAT> or "
             f"ARRAY<DOUBLE>. Invalid column(s): {invalid}"
         )
+
+
+def quote_duckdb_identifier(name: str) -> str:
+    """Quote a column name for use in a DuckDB SQL statement."""
+
+    return '"' + name.replace('"', '""') + '"'
 
 
 def gini(values: np.ndarray) -> float:
@@ -255,6 +432,7 @@ def gini(values: np.ndarray) -> float:
 def zipf_alpha(cluster_sizes: np.ndarray) -> float:
     """Fit a Zipf exponent on descending cluster sizes."""
 
+    _, linregress, _, _ = import_scipy_stats()
     sizes = np.sort(cluster_sizes.astype(np.float64))[::-1]
     sizes = sizes[sizes > 0]
     if len(sizes) < 2:
@@ -316,16 +494,6 @@ def validate_embedding_matrix(embeddings: np.ndarray) -> np.ndarray:
 
     return matrix
 
-
-import warnings
-import numpy as np
-import umap.umap_ as umap
-
-try:
-    import faiss
-except ImportError:
-    faiss = None
-
 def compute_umap_embedding(
     embeddings: np.ndarray,
     n_components: int,
@@ -338,6 +506,8 @@ def compute_umap_embedding(
     Compute UMAP embedding, automatically scaling to millions of rows 
     via FAISS Stratified Coreset Sampling if N > max_fit_samples.
     """
+    faiss = import_faiss()
+    umap = import_umap()
     n_samples, n_dims = embeddings.shape
 
     # ---------------------------------------------------------
@@ -431,6 +601,7 @@ def resolve_noise_labels(
 ) -> tuple[np.ndarray, np.ndarray, int, int]:
     """Resolve HDBSCAN noise into halos (absorbed) and singletons."""
 
+    faiss = import_faiss()
     resolved_labels = labels.copy()
     label_tiers = np.where(labels >= 0, np.int8(0), np.int8(-1))
 
@@ -497,6 +668,8 @@ def compute_embedding_imbalance_report(
 ) -> ImbalanceReport:
     """Measure semantic class imbalance via UMAP + HDBSCAN."""
 
+    hdbscan = import_hdbscan()
+    _, _, _, entropy = import_scipy_stats()
     matrix = validate_embedding_matrix(embeddings)
     n_samples = len(matrix)
     min_cluster_size = max(10, int(0.01 * n_samples))
@@ -605,6 +778,7 @@ def compute_knn_similarity_coefficient(
 ) -> dict[str, Any]:
     """Compute cosine-similarity-based kNN statistics for multiple k values."""
 
+    kurtosis, _, skew, _ = import_scipy_stats()
     if embeddings.ndim != 2:
         raise ValueError(
             f"Expected a 2D embedding matrix, got shape {embeddings.shape}."
@@ -787,6 +961,30 @@ def load_embedding_column(parquet_file: Path, column: str) -> tuple[np.ndarray, 
     return matrix, dropped_nulls
 
 
+def load_text_length_distribution(
+    connection: duckdb.DuckDBPyConnection,
+    parquet_file: Path,
+    column: str,
+) -> list[tuple[int, int]]:
+    """Load a text-length histogram for one string column from parquet."""
+
+    quoted_column = quote_duckdb_identifier(column)
+    query = f"""
+        SELECT len({quoted_column}) AS text_length, count(*) AS row_count
+        FROM read_parquet(?)
+        WHERE {quoted_column} IS NOT NULL
+        GROUP BY 1
+        ORDER BY 1
+    """
+
+    with log_step(
+        f"Query text length histogram column={column} file={parquet_file}"
+    ):
+        rows = connection.execute(query, [str(parquet_file)]).fetchall()
+
+    return [(int(text_length), int(row_count)) for text_length, row_count in rows]
+
+
 def sanitize_filename(name: str) -> str:
     """Convert a column name into a filesystem-safe filename stem."""
 
@@ -890,6 +1088,95 @@ def create_sorted_knn_similarity_plot_figure(
         fig.tight_layout()
         fig.savefig(output_path, format="pdf")
         plt.close(fig)
+
+
+def create_text_length_distribution_plot(
+    length_counts: list[tuple[int, int]],
+    output_path: Path,
+    title: str,
+) -> None:
+    """Create a bar plot for a string column's text-length distribution."""
+
+    with log_step(
+        f"Create text length distribution plot output={output_path} "
+        f"bins={len(length_counts):,}"
+    ):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        fig, ax = plt.subplots(figsize=(9, 5), facecolor="white")
+
+        if length_counts:
+            lengths = np.asarray([length for length, _ in length_counts], dtype=np.int64)
+            counts = np.asarray([count for _, count in length_counts], dtype=np.int64)
+            max_length = int(lengths.max())
+            ax.bar(
+                lengths,
+                counts,
+                width=0.9,
+                color="#378ADD",
+                edgecolor="#1f4f7a",
+                linewidth=0.6,
+            )
+            ax.set_xlim(lengths.min() - 0.5, lengths.max() + 0.5)
+            ax.annotate(
+                f"max: {max_length}",
+                xy=(0.98, 0.96),
+                xycoords="axes fraction",
+                ha="right",
+                va="top",
+                fontsize=7,
+                color="black",
+            )
+        else:
+            ax.text(
+                0.5,
+                0.5,
+                "No non-null text values found",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+            )
+            ax.set_xticks([])
+
+        ax.set_xlabel("Characters", fontsize=8)
+        ax.set_ylabel("Number of Strings", fontsize=8)
+        ax.set_title(title, fontsize=10, fontweight="medium", pad=6)
+        ax.grid(True, axis="y", alpha=0.25)
+        ax.tick_params(labelsize=7)
+        fig.tight_layout()
+        fig.savefig(output_path, format="pdf")
+        plt.close(fig)
+
+
+def create_text_length_distribution_plots(
+    parquet_file: Path,
+    embedding_columns: list[str],
+) -> dict[str, str]:
+    """Create text-length plots for string columns that underlie embeddings."""
+
+    text_columns = infer_text_columns(parquet_file, embedding_columns)
+    if not text_columns:
+        console.log("No string/varchar source columns found for text-length plots.")
+        return {}
+
+    plot_paths: dict[str, str] = {}
+    connection = duckdb.connect()
+    try:
+        for column in text_columns:
+            length_counts = load_text_length_distribution(connection, parquet_file, column)
+            output_path = PLOT_OUTPUT_DIR / (
+                f"{parquet_file.stem}__{sanitize_filename(column)}_text_length_dist.pdf"
+            )
+            create_text_length_distribution_plot(
+                length_counts=length_counts,
+                output_path=output_path,
+                title=column,
+            )
+            plot_paths[column] = str(output_path)
+    finally:
+        connection.close()
+
+    return plot_paths
 
 
 def create_imbalance_plot_figure(
@@ -1024,6 +1311,7 @@ def create_cluster_map_plot(report: ImbalanceReport, ax: plt.Axes) -> None:
 def create_rank_size_plot(report: ImbalanceReport, ax: plt.Axes) -> None:
     """Plot the cluster rank-size curve with a Zipf fit."""
 
+    _, linregress, _, _ = import_scipy_stats()
     sizes = report.cluster_sizes
     ranks = np.arange(1, len(sizes) + 1)
 
@@ -1133,6 +1421,7 @@ def create_lorenz_curve_plot(report: ImbalanceReport, ax: plt.Axes) -> None:
 def compute_umap_projection(embeddings: np.ndarray) -> np.ndarray:
     """Compute a 2D UMAP projection after PCA preprocessing."""
 
+    umap = import_umap()
     # PCA is linear, so pre-normalization is kept here to simulate cosine distances
     with log_step(f"Normalize embeddings before PCA+UMAP shape={format_shape(embeddings)}"):
         normalized_embeddings = normalize_embeddings(embeddings)
@@ -1161,6 +1450,7 @@ def compute_umap_projection(embeddings: np.ndarray) -> np.ndarray:
 def compute_pca_embedding(embeddings: np.ndarray) -> np.ndarray:
     """Compute the cached PCA representation used before UMAP."""
 
+    PCA = import_pca()
     with log_step(f"Normalize embeddings before PCA shape={format_shape(embeddings)}"):
         normalized_embeddings = normalize_embeddings(embeddings)
     n_rows, n_dims = normalized_embeddings.shape
@@ -1179,6 +1469,7 @@ def prepare_column_cache(
 ) -> dict[str, Any]:
     """Compute expensive analysis artifacts once and write them to cache."""
 
+    umap = import_umap()
     metadata_path, arrays_path = get_cache_filepaths(parquet_file, column)
     metadata_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -1244,6 +1535,7 @@ def prepare_column_cache(
 def load_cached_column_analysis(parquet_file: Path, column: str) -> dict[str, Any]:
     """Load cached arrays and metadata for one parquet/column pair."""
 
+    _, _, _, entropy = import_scipy_stats()
     metadata_path, arrays_path = get_cache_filepaths(parquet_file, column)
     if not metadata_path.exists() or not arrays_path.exists():
         raise FileNotFoundError(
@@ -1310,105 +1602,135 @@ def load_cached_column_analysis(parquet_file: Path, column: str) -> dict[str, An
 def analyze_columns(
     parquet_file: Path,
     columns: list[str],
+    plot_suites: frozenset[str] = DEFAULT_PLOT_SUITES,
     k_values: tuple[int, ...] = DEFAULT_K_VALUES,
 ) -> dict[str, dict[str, Any]]:
     """Prepare cache if needed, then create plots from cached analysis."""
 
+    generate_strlen_plots = PLOT_SUITE_STRLEN in plot_suites
+    generate_skew_plots = PLOT_SUITE_SKEW in plot_suites
     console.log(
         f"Starting dataset analysis file={parquet_file} "
-        f"columns={','.join(columns)} k_values={','.join(str(k) for k in k_values)}"
+        f"columns={','.join(columns)} k_values={','.join(str(k) for k in k_values)} "
+        f"plot_suites={','.join(sorted(plot_suites))}"
     )
     with log_step(f"Validate parquet embedding columns file={parquet_file}"):
         validate_embedding_columns(parquet_file, columns)
 
+    text_length_plot_paths: dict[str, str] = {}
+    if generate_strlen_plots:
+        text_length_plot_paths = create_text_length_distribution_plots(parquet_file, columns)
+    else:
+        console.log("Skipping strlen plot suite by request.")
+
     results: dict[str, dict[str, Any]] = {}
     for column_index, column in enumerate(columns, start=1):
         console.log(f"Analyzing column {column_index}/{len(columns)} column={column}")
-        metadata_path, arrays_path = get_cache_filepaths(parquet_file, column)
-        if metadata_path.exists() and arrays_path.exists():
-            console.log(
-                f"Cache hit column={column} metadata={metadata_path} arrays={arrays_path}"
-            )
-            with log_step(f"Load cached analysis column={column}"):
-                cached = load_cached_column_analysis(parquet_file, column)
-        else:
-            console.log(
-                f"Cache miss column={column} metadata={metadata_path} arrays={arrays_path}"
-            )
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[bold green]{task.description}"),
-                BarColumn(),
-                TaskProgressColumn(),
-                TimeElapsedColumn(),
-                console=console,
-            ) as progress:
-                task_id = progress.add_task(
-                    f"Preparing cache for [cyan]{column}[/cyan]",
-                    total=1,
-                )
-                cached = prepare_column_cache(
-                    parquet_file=parquet_file,
-                    column=column,
-                    k_values=k_values,
-                )
-                progress.advance(task_id)
-
+        source_column = embedding_source_column_name(column)
         plot_paths: dict[str, str] = {}
-        scatter_plot_path = PLOT_OUTPUT_DIR / (
-            f"{parquet_file.stem}__{sanitize_filename(column)}__scatter.pdf"
-        )
-        create_umap_scatter_plot_figure(
-            umap_projection=cached["umap_projection"],
-            point_colors_by_k=cached["pointwise_min_similarity"],
-            output_path=scatter_plot_path,
-            title=f"{column} ({parquet_file.stem})",
-            k_values=cached["k_values"],
-        )
-        sorted_plot_path = PLOT_OUTPUT_DIR / (
-            f"{parquet_file.stem}__{sanitize_filename(column)}__sorted.pdf"
-        )
-        create_sorted_knn_similarity_plot_figure(
-            point_similarities_by_k=cached["pointwise_min_similarity"],
-            output_path=sorted_plot_path,
-            title=f"{column} ({parquet_file.stem}) sorted similarities",
-            k_values=cached["k_values"],
-        )
-        plot_paths["scatter"] = str(scatter_plot_path)
-        plot_paths["sorted"] = str(sorted_plot_path)
-        imbalance_plot_path = PLOT_OUTPUT_DIR / (
-            f"{parquet_file.stem}__{sanitize_filename(column)}__imbalance.pdf"
-        )
-        create_imbalance_plot_figure(
-            report=cached["imbalance_report"],
-            output_path=imbalance_plot_path,
-            title=f"{column} ({parquet_file.stem}) semantic imbalance",
-        )
-        plot_paths["imbalance"] = str(imbalance_plot_path)
+        cached: dict[str, Any] | None = None
+        metadata_path: Path | None = None
+        arrays_path: Path | None = None
 
-        results[column] = {
-            "num_rows": cached["num_rows"],
-            "embedding_dim": cached["embedding_dim"],
-            "dropped_null_embeddings": cached["dropped_null_embeddings"],
-            "cache_metadata_path": str(metadata_path),
-            "cache_arrays_path": str(arrays_path),
-            "knn_density": cached["knn_density"],
-            "imbalance": {
-                "n_clusters": cached["imbalance_report"].n_clusters,
-                "n_primary_clusters": cached["imbalance_report"].n_primary_clusters,
-                "n_micro_clusters": cached["imbalance_report"].n_micro_clusters,
-                "n_singletons": cached["imbalance_report"].n_singletons,
-                "raw_noise_fraction": cached["imbalance_report"].raw_noise_fraction,
-                "shannon_entropy": cached["imbalance_report"].shannon_entropy,
-                "normalized_entropy": cached["imbalance_report"].normalized_entropy,
-                "gini": cached["imbalance_report"].gini,
-                "gini_std": cached["imbalance_report"].gini_std,
-                "lir": cached["imbalance_report"].lir,
-                "alpha": cached["imbalance_report"].alpha,
-                "largest_share": cached["imbalance_report"].largest_share,
-            },
+        if generate_skew_plots:
+            metadata_path, arrays_path = get_cache_filepaths(parquet_file, column)
+            if metadata_path.exists() and arrays_path.exists():
+                console.log(
+                    f"Cache hit column={column} metadata={metadata_path} arrays={arrays_path}"
+                )
+                with log_step(f"Load cached analysis column={column}"):
+                    cached = load_cached_column_analysis(parquet_file, column)
+            else:
+                console.log(
+                    f"Cache miss column={column} metadata={metadata_path} arrays={arrays_path}"
+                )
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[bold green]{task.description}"),
+                    BarColumn(),
+                    TaskProgressColumn(),
+                    TimeElapsedColumn(),
+                    console=console,
+                ) as progress:
+                    task_id = progress.add_task(
+                        f"Preparing cache for [cyan]{column}[/cyan]",
+                        total=1,
+                    )
+                    cached = prepare_column_cache(
+                        parquet_file=parquet_file,
+                        column=column,
+                        k_values=k_values,
+                    )
+                    progress.advance(task_id)
+
+            assert cached is not None
+            # The "skew" suite keeps the existing embedding-centric plots.
+            scatter_plot_path = PLOT_OUTPUT_DIR / (
+                f"{parquet_file.stem}__{sanitize_filename(column)}__scatter.pdf"
+            )
+            create_umap_scatter_plot_figure(
+                umap_projection=cached["umap_projection"],
+                point_colors_by_k=cached["pointwise_min_similarity"],
+                output_path=scatter_plot_path,
+                title=f"{column} ({parquet_file.stem})",
+                k_values=cached["k_values"],
+            )
+            sorted_plot_path = PLOT_OUTPUT_DIR / (
+                f"{parquet_file.stem}__{sanitize_filename(column)}__sorted.pdf"
+            )
+            create_sorted_knn_similarity_plot_figure(
+                point_similarities_by_k=cached["pointwise_min_similarity"],
+                output_path=sorted_plot_path,
+                title=f"{column} ({parquet_file.stem}) sorted similarities",
+                k_values=cached["k_values"],
+            )
+            plot_paths["scatter"] = str(scatter_plot_path)
+            plot_paths["sorted"] = str(sorted_plot_path)
+            imbalance_plot_path = PLOT_OUTPUT_DIR / (
+                f"{parquet_file.stem}__{sanitize_filename(column)}__imbalance.pdf"
+            )
+            create_imbalance_plot_figure(
+                report=cached["imbalance_report"],
+                output_path=imbalance_plot_path,
+                title=f"{column} ({parquet_file.stem}) semantic imbalance",
+            )
+            plot_paths["imbalance"] = str(imbalance_plot_path)
+        if source_column in text_length_plot_paths:
+            plot_paths["text_length_dist"] = text_length_plot_paths[source_column]
+
+        result: dict[str, Any] = {
+            "source_column": source_column,
             "plot_paths": plot_paths,
         }
+        if generate_skew_plots:
+            assert cached is not None
+            assert metadata_path is not None
+            assert arrays_path is not None
+            result.update(
+                {
+                    "num_rows": cached["num_rows"],
+                    "embedding_dim": cached["embedding_dim"],
+                    "dropped_null_embeddings": cached["dropped_null_embeddings"],
+                    "cache_metadata_path": str(metadata_path),
+                    "cache_arrays_path": str(arrays_path),
+                    "knn_density": cached["knn_density"],
+                    "imbalance": {
+                        "n_clusters": cached["imbalance_report"].n_clusters,
+                        "n_primary_clusters": cached["imbalance_report"].n_primary_clusters,
+                        "n_micro_clusters": cached["imbalance_report"].n_micro_clusters,
+                        "n_singletons": cached["imbalance_report"].n_singletons,
+                        "raw_noise_fraction": cached["imbalance_report"].raw_noise_fraction,
+                        "shannon_entropy": cached["imbalance_report"].shannon_entropy,
+                        "normalized_entropy": cached["imbalance_report"].normalized_entropy,
+                        "gini": cached["imbalance_report"].gini,
+                        "gini_std": cached["imbalance_report"].gini_std,
+                        "lir": cached["imbalance_report"].lir,
+                        "alpha": cached["imbalance_report"].alpha,
+                        "largest_share": cached["imbalance_report"].largest_share,
+                    },
+                }
+            )
+        results[column] = result
         console.log(f"Finished column {column_index}/{len(columns)} column={column}")
 
     return results
@@ -1419,31 +1741,34 @@ def print_results(results: dict[str, dict[str, Any]]) -> None:
 
     for column, stats in results.items():
         print(f"Column: {column}")
-        print(f"  rows: {stats['num_rows']}")
-        print(f"  embedding_dim: {stats['embedding_dim']}")
-        print(f"  dropped_null_embeddings: {stats['dropped_null_embeddings']}")
-        print(f"  cache_metadata_path: {stats['cache_metadata_path']}")
-        print(f"  cache_arrays_path: {stats['cache_arrays_path']}")
-        print(f"  scatter_plot_path: {stats['plot_paths']['scatter']}")
-        print(f"  sorted_plot_path: {stats['plot_paths']['sorted']}")
-        print(f"  imbalance_plot_path: {stats['plot_paths']['imbalance']}")
-        print(f"  imbalance_n_clusters: {stats['imbalance']['n_clusters']}")
-        print(f"  imbalance_n_primary_clusters: {stats['imbalance']['n_primary_clusters']}")
-        print(f"  imbalance_n_micro_clusters: {stats['imbalance']['n_micro_clusters']}")
-        print(f"  imbalance_n_singletons: {stats['imbalance']['n_singletons']}")
-        print(f"  imbalance_raw_noise_fraction: {stats['imbalance']['raw_noise_fraction']:.6f}")
-        print(f"  imbalance_shannon_entropy: {stats['imbalance']['shannon_entropy']:.6f}")
-        print(f"  imbalance_normalized_entropy: {stats['imbalance']['normalized_entropy']:.6f}")
-        print(f"  imbalance_gini: {stats['imbalance']['gini']:.6f}")
-        print(f"  imbalance_gini_std: {stats['imbalance']['gini_std']:.6f}")
-        print(f"  imbalance_lir: {stats['imbalance']['lir']:.6f}")
-        print(f"  imbalance_alpha: {stats['imbalance']['alpha']:.6f}")
-        print(f"  imbalance_largest_share: {stats['imbalance']['largest_share']:.6f}")
-
-        for k, metrics in stats["knn_density"].items():
-            print(f"  k={k}")
-            for name, value in metrics.items():
-                print(f"    {name}: {value:.6f}")
+        print(f"  source_column: {stats['source_column']}")
+        if "num_rows" in stats:
+            print(f"  rows: {stats['num_rows']}")
+            print(f"  embedding_dim: {stats['embedding_dim']}")
+            print(f"  dropped_null_embeddings: {stats['dropped_null_embeddings']}")
+            print(f"  cache_metadata_path: {stats['cache_metadata_path']}")
+            print(f"  cache_arrays_path: {stats['cache_arrays_path']}")
+        for plot_key in ("scatter", "sorted", "imbalance", "text_length_dist"):
+            if plot_key in stats["plot_paths"]:
+                print(f"  {plot_key}_plot_path: {stats['plot_paths'][plot_key]}")
+        if "imbalance" in stats:
+            print(f"  imbalance_n_clusters: {stats['imbalance']['n_clusters']}")
+            print(f"  imbalance_n_primary_clusters: {stats['imbalance']['n_primary_clusters']}")
+            print(f"  imbalance_n_micro_clusters: {stats['imbalance']['n_micro_clusters']}")
+            print(f"  imbalance_n_singletons: {stats['imbalance']['n_singletons']}")
+            print(f"  imbalance_raw_noise_fraction: {stats['imbalance']['raw_noise_fraction']:.6f}")
+            print(f"  imbalance_shannon_entropy: {stats['imbalance']['shannon_entropy']:.6f}")
+            print(f"  imbalance_normalized_entropy: {stats['imbalance']['normalized_entropy']:.6f}")
+            print(f"  imbalance_gini: {stats['imbalance']['gini']:.6f}")
+            print(f"  imbalance_gini_std: {stats['imbalance']['gini_std']:.6f}")
+            print(f"  imbalance_lir: {stats['imbalance']['lir']:.6f}")
+            print(f"  imbalance_alpha: {stats['imbalance']['alpha']:.6f}")
+            print(f"  imbalance_largest_share: {stats['imbalance']['largest_share']:.6f}")
+        if "knn_density" in stats:
+            for k, metrics in stats["knn_density"].items():
+                print(f"  k={k}")
+                for name, value in metrics.items():
+                    print(f"    {name}: {value:.6f}")
 
 
 def main() -> None:
@@ -1458,7 +1783,7 @@ def main() -> None:
             "Detected embedding columns: "
             + ", ".join(columns)
         )
-    results = analyze_columns(args.parquet_file, columns)
+    results = analyze_columns(args.parquet_file, columns, plot_suites=args.plot_suites)
     print_results(results)
 
 

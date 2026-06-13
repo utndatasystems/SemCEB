@@ -284,9 +284,9 @@ def compute_umap_embedding(
     embeddings: np.ndarray,
     n_components: int,
     n_neighbors: int,
-    random_state: int,
     min_dist: float = 0.0,
     max_fit_samples: int = 50000,
+    sampling_seed: int | None = None,
 ) -> np.ndarray:
     """
     Compute UMAP embedding, automatically scaling to millions of rows 
@@ -303,7 +303,6 @@ def compute_umap_embedding(
             n_neighbors=n_neighbors,
             metric="cosine",
             min_dist=min_dist,
-            random_state=random_state,
             verbose=False,
         )
         with warnings.catch_warnings():
@@ -331,14 +330,16 @@ def compute_umap_embedding(
     data_normalized = (embeddings / norms).astype(np.float32)
 
     # 1. Train Spherical K-Means to find topological anchors
-    kmeans = faiss.Kmeans(
-        d=n_dims, 
-        k=k_centroids, 
-        niter=20, 
-        verbose=False, 
-        spherical=True, # Optimizes centroids for Cosine/Inner Product space
-        seed=random_state
-    )
+    kmeans_kwargs = {
+        "d": n_dims,
+        "k": k_centroids,
+        "niter": 20,
+        "verbose": False,
+        "spherical": True,  # Optimizes centroids for Cosine/Inner Product space
+    }
+    if sampling_seed is not None:
+        kmeans_kwargs["seed"] = sampling_seed
+    kmeans = faiss.Kmeans(**kmeans_kwargs)
     kmeans.train(data_normalized)
 
     # 2. Find the original embeddings closest to these topological anchors
@@ -355,7 +356,6 @@ def compute_umap_embedding(
         n_neighbors=n_neighbors,
         metric="cosine",
         min_dist=min_dist,
-        random_state=random_state,
         verbose=False,
     )
     
@@ -446,7 +446,7 @@ def resolve_noise_labels(
 
 def compute_embedding_imbalance_report(
     embeddings: np.ndarray,
-    random_state: int = 42,
+    sampling_seed: int = 42,
     n_stability_runs: int = IMBALANCE_STABILITY_RUNS,
 ) -> ImbalanceReport:
     """Measure semantic class imbalance via UMAP + HDBSCAN."""
@@ -465,7 +465,7 @@ def compute_embedding_imbalance_report(
         matrix,
         n_components=IMBALANCE_UMAP_COMPONENTS,
         n_neighbors=IMBALANCE_UMAP_NEIGHBORS,
-        random_state=random_state,
+        sampling_seed=sampling_seed,
     )
 
     with log_step(
@@ -500,8 +500,8 @@ def compute_embedding_imbalance_report(
         matrix,
         n_components=2,
         n_neighbors=IMBALANCE_UMAP_NEIGHBORS,
-        random_state=random_state,
         min_dist=0.1,
+        sampling_seed=sampling_seed,
     )
 
     report = ImbalanceReport(
@@ -523,17 +523,17 @@ def compute_embedding_imbalance_report(
         largest_share=float(cluster_sizes.max() / n_samples) if n_samples > 0 else 0.0,
     )
 
-    for seed in range(random_state + 1, random_state + 1 + n_stability_runs):
-        console.log(f"Starting imbalance stability run seed={seed}")
+    for seed in range(sampling_seed + 1, sampling_seed + 1 + n_stability_runs):
+        console.log(f"Starting imbalance stability run sampling_seed={seed}")
         seeded_embedding = compute_umap_embedding(
             matrix,
             n_components=IMBALANCE_UMAP_COMPONENTS,
             n_neighbors=IMBALANCE_UMAP_NEIGHBORS,
-            random_state=seed,
+            sampling_seed=seed,
         )
         with log_step(
             "HDBSCAN fit_predict stability "
-            f"seed={seed} shape={format_shape(seeded_embedding)} "
+            f"sampling_seed={seed} shape={format_shape(seeded_embedding)} "
             f"min_cluster_size={min_cluster_size}"
         ):
             seeded_labels = hdbscan.HDBSCAN(
@@ -1078,7 +1078,6 @@ def prepare_column_cache(
         umap_projection = umap.UMAP(
             n_components=2,
             n_neighbors=min(15, max(2, len(pca_projection) - 1)),
-            random_state=42,
         ).fit_transform(pca_projection)
     with log_step(f"Compute semantic imbalance report column={column}"):
         imbalance_report = compute_embedding_imbalance_report(embeddings)

@@ -74,9 +74,17 @@ def parse_args() -> argparse.Namespace:
 
 def resolve_run_dir(run_dir_arg: str) -> Path:
     run_dir = Path(run_dir_arg)
-    if not run_dir.is_absolute():
-        run_dir = (SCRIPT_DIR / run_dir).resolve()
-    return run_dir
+
+    if run_dir.is_absolute():
+        return run_dir
+
+    repo_root = SCRIPT_DIR.parents[1]
+    processed_root = repo_root / "data" / "amazon-reviews" / "processed"
+
+    if len(run_dir.parts) == 1:
+        return (processed_root / run_dir).resolve()
+
+    return (repo_root / run_dir).resolve()
 
 
 def sql_string_literal(value: str) -> str:

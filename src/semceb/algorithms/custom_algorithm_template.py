@@ -2,13 +2,20 @@ from typing import Any
 
 import pandas as pd
 
-from src.semceb.algorithms.interface import AlgorithmInterface
-from src.semceb.queries.query_specification import QuerySpecification
+from semceb.algorithms.interface import AlgorithmInterface
+from semceb.queries.query_specification import QuerySpecification
 
 
 class CustomAlgorithmTemplate(AlgorithmInterface):
+    """Template algorithm implementation for development and prototyping.
+
+    This class provides a minimal algorithm stub that satisfies the
+    benchmark algorithm interface. It should be replaced with a real
+    cardinality estimation algorithm implementation.
+    """
 
     def __init__(self, name: str, version: str):
+        """Initialize a prototype algorithm with default metadata values."""
         self.name = name
         self.version = version
 
@@ -34,7 +41,7 @@ class CustomAlgorithmTemplate(AlgorithmInterface):
         return self.cost_stats
 
     def reset_cost_stats(self) -> None:
-        """Reset tracked algorithm cost."""
+        """Reset internal algorithm cost statistics to default values."""
         ...
 
     def preparation(self, data_dfs: dict[str, pd.DataFrame], algorithm_kwargs: dict) -> None:
@@ -49,6 +56,11 @@ class CustomAlgorithmTemplate(AlgorithmInterface):
         ...
 
     def run(self, query_spec: QuerySpecification) -> int:
-        """Run the algorithm and return the estimated output cardinality for the given query."""
+        """Estimate the output cardinality for a single query.
+
+        Use the algorithm state prepared in `preparation` to approximate how
+        many rows should be produced by `query_spec` without loading the full
+        dataset again.
+        """
         ...
         return 1

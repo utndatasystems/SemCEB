@@ -3,17 +3,20 @@ from enum import Enum
 
 
 class QueryTemplatePartType(Enum):
+    """Types of parts present in a parsed query template."""
     TEXT = "text"
     COLUMN_REF = "column_ref"
 
 
 @dataclass(frozen=True)
 class ColumnRef:
+    """Represents a referenced column and optional dataset alias in a query template."""
     column_name: str
     dataset_ref: str | None = None
 
     @staticmethod
     def parse(raw: str) -> "ColumnRef":
+        """Parse a raw column reference from template syntax."""
         raw = raw.strip()
 
         if not raw:
@@ -48,6 +51,7 @@ class ColumnRef:
         )
 
     def to_dict(self) -> dict:
+        """Serialize the column reference to a JSON-safe dictionary."""
         return {
             "dataset_ref": self.dataset_ref,
             "column_name": self.column_name,
@@ -56,10 +60,12 @@ class ColumnRef:
 
 @dataclass(frozen=True)
 class QueryTemplatePart:
+    """A single parsed part of a query template, either text or a column reference."""
     type: QueryTemplatePartType
     value: str | ColumnRef
 
     def to_dict(self) -> dict:
+        """Convert the parsed template part to JSON-serializable form."""
         return {
             "type": self.type.value,
             "value": (
@@ -72,10 +78,12 @@ class QueryTemplatePart:
 
 @dataclass(frozen=True)
 class QueryTemplate:
+    """Parsed representation of a query filter template."""
     raw: str
     parts: list[QueryTemplatePart]
 
     def to_dict(self) -> dict:
+        """Serialize the parsed query template to a dictionary."""
         return {
             "raw": self.raw,
             "parts": [part.to_dict() for part in self.parts],
@@ -83,8 +91,11 @@ class QueryTemplate:
 
 
 class QueryTemplateParser:
+    """Parse raw query templates into structured template parts."""
+
     @staticmethod
     def parse(template: str) -> QueryTemplate:
+        """Parse template text containing `{column}` or `{dataset.column}` references."""
         parts: list[QueryTemplatePart] = []
         current_text: list[str] = []
         current_column: list[str] | None = None
@@ -96,10 +107,7 @@ class QueryTemplateParser:
 
                 if current_text:
                     parts.append(
-                        QueryTemplatePart(
-                            QueryTemplatePartType.TEXT,
-                            "".join(current_text),
-                        )
+                        QueryTemplateParser._create_text_part("".join(current_text))
                     )
                     current_text = []
 
@@ -109,13 +117,9 @@ class QueryTemplateParser:
                 if current_column is None:
                     raise ValueError("Found '}' without matching '{'.")
 
-                raw_column_ref = "".join(current_column)
-                column_ref = ColumnRef.parse(raw_column_ref)
-
                 parts.append(
-                    QueryTemplatePart(
-                        QueryTemplatePartType.COLUMN_REF,
-                        column_ref,
+                    QueryTemplateParser._create_column_ref_part(
+                        "".join(current_column)
                     )
                 )
 
@@ -139,3 +143,20 @@ class QueryTemplateParser:
             )
 
         return QueryTemplate(raw=template, parts=parts)
+
+    @staticmethod
+    def _create_text_part(text: str) -> QueryTemplatePart:
+        """Create a parsed text part from raw template text."""
+        return QueryTemplatePart(
+            QueryTemplatePartType.TEXT,
+            text,
+        )
+
+    @staticmethod
+    def _create_column_ref_part(raw_column_ref: str) -> QueryTemplatePart:
+        """Create a parsed column reference part from raw template contents."""
+        column_ref = ColumnRef.parse(raw_column_ref)
+        return QueryTemplatePart(
+            QueryTemplatePartType.COLUMN_REF,
+            column_ref,
+        )

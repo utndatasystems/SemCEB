@@ -5,15 +5,16 @@ from pathlib import Path
 
 import lotus.settings
 from lotus.models.lm import LM
-from src.semceb.queries.template_parser import QueryTemplatePartType
-from src.semceb.queries.query_specification import QuerySpecification
-from src.semceb.queries.template_parser import ColumnRef
+from semceb.queries.template_parser import QueryTemplatePartType
+from semceb.queries.query_specification import QuerySpecification
+from semceb.queries.template_parser import ColumnRef
 
 
 class LotusBackend():
-    """Model wrapper using LOTUS for ground-truth cardinality."""
+    """LOTUS backend for ground-truth cardinality estimation and caching."""
 
     def __init__(self, model_name: str, system_prompt: str, scale_factor: int):
+        """Initialize the LOTUS backend, cache, and model instance."""
         
         safe_model_name = self._safe_cache_name(model_name)
         self.cache_path = Path("benchmark_queries") / f"ground_truth_cache_{safe_model_name}.json"
@@ -31,6 +32,7 @@ class LotusBackend():
         lotus.settings.configure(lm=self.lm)
 
     def _safe_cache_name(self, model_name: str) -> str:
+        """Return a filesystem-safe name for the model cache file."""
         return (
             model_name
             .replace("/", "__")
@@ -98,10 +100,11 @@ class LotusBackend():
 
         return int(value["cardinality"])
 
-    def _set_cached_cardinality(self, cache_key: str, cardinality: int) -> None:
+    def _set_cached_cardinality(self, cache_key: str, cardinality: int, selectivity: float) -> None:
         """Store cardinality in the cache."""
         self.cache[cache_key] = {
             "cardinality": int(cardinality),
+            "selectivity": float(selectivity),
         }
         self._save_cache()
 
@@ -123,7 +126,7 @@ class LotusBackend():
             user_instruction=query_str,
         ).shape[0]
 
-        self._set_cached_cardinality(cache_key, cardinality)
+        self._set_cached_cardinality(cache_key, cardinality, selectivity=cardinality / df.shape[0])
         return cardinality  
 
     def _format_filtering_query(self, query_spec: QuerySpecification, df: pd.DataFrame) -> str:
@@ -140,6 +143,7 @@ class LotusBackend():
         return query_str
     
     def _validate_filtering_query(self, query_spec: QuerySpecification, df: pd.DataFrame) -> None:
+        """Validate that the filter query is well-formed for a single dataset."""
 
         if len(query_spec.datasets) != 1:
             raise ValueError("Filtering query must contain exactly one dataset.")
@@ -172,7 +176,7 @@ class LotusBackend():
             query_str,
         ).shape[0]
 
-        self._set_cached_cardinality(cache_key, cardinality)
+        self._set_cached_cardinality(cache_key, cardinality, selectivity=cardinality / (data_left_df.shape[0] * data_right_df.shape[0]))
         return cardinality
     
     def _format_joining_query(
@@ -214,6 +218,7 @@ class LotusBackend():
     
 
     def _format_lotus_join_column(self, column_ref: ColumnRef, dataset_side: dict[str, str]) -> str:
+        """Format a Lotus join column reference using the dataset side mapping."""
 
         if column_ref.value.dataset_ref not in dataset_side:
             raise ValueError(
@@ -229,6 +234,7 @@ class LotusBackend():
         data_left_df: pd.DataFrame,
         data_right_df: pd.DataFrame,
     ) -> None:
+        """Validate that a joining query references both datasets and valid columns."""
 
         if len(query_spec.datasets) != 2:
             raise ValueError("Joining query must contain exactly two datasets.")

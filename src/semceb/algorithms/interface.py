@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 import pandas as pd
-from src.semceb.queries.query_specification import QuerySpecification
+from semceb.queries.query_specification import QuerySpecification
 
 class AlgorithmInterface(ABC):
     """Abstract interface for algorithms."""
@@ -24,7 +24,7 @@ class AlgorithmInterface(ABC):
 
     @abstractmethod
     def reset_cost_stats(self) -> None:
-        """Reset tracked algorithm cost."""
+        """Reset all accumulated runtime and cost statistics for the algorithm."""
         pass
 
     @abstractmethod
@@ -41,5 +41,5 @@ class AlgorithmInterface(ABC):
 
     @abstractmethod
     def run(self, query_spec: QuerySpecification) -> int:
-        """Run the algorithm and return the estimated output cardinality for the given query."""
+        """Estimate the output cardinality for the provided query specification."""
         pass

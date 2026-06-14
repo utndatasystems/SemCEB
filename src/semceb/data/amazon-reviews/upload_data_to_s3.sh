@@ -28,6 +28,12 @@ done
 [[ -d "$DATASET_DIR" ]] || fail "Dataset directory not found: $DATASET_DIR"
 [[ -d "$IMAGES_SRC_DIR" ]] || fail "Images source directory not found: $IMAGES_SRC_DIR"
 
+# Verify AWS credentials before performing any zipping or uploads
+log "Verifying AWS credentials via STS..."
+aws sts get-caller-identity --no-cli-pager >/dev/null 2>&1 \
+  || fail "AWS CLI is not authenticated or lacks STS permissions"
+log "AWS credentials look valid. Proceeding."
+
 # Create images.zip from the contents of the images folder (not the folder itself)
 log "Creating zip archive from $IMAGES_SRC_DIR"
 rm -f "$IMAGES_ZIP"

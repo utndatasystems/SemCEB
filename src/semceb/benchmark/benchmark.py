@@ -468,13 +468,11 @@ class BenchmarkRunner:
         """Calcualte q error. Higher is worse."""
         if cardinality_estimation == cardinality_ground_truth:
             return 1.0
-        elif cardinality_estimation == 0 or cardinality_ground_truth == 0:
-            return math.inf
-        else:
-            return max(
-                cardinality_estimation / cardinality_ground_truth,
-                cardinality_ground_truth / cardinality_estimation,
-            )
+        if cardinality_estimation == 0 or cardinality_ground_truth == 0:
+            return -math.inf if cardinality_estimation < cardinality_ground_truth else math.inf
+        if cardinality_estimation < cardinality_ground_truth:
+            return -(cardinality_ground_truth / cardinality_estimation)
+        return cardinality_estimation / cardinality_ground_truth
     
     def _calculate_selectivity(self, cardinality_estimation: int, query_spec: QuerySpecification, data_dfs: dict[str, pd.DataFrame]) -> float:
         """Calculate selectivity based on cardinality estimation and number of input rows."""

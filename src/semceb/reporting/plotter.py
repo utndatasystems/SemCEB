@@ -2,12 +2,45 @@ from pathlib import Path
 from typing import Any
 import json
 import math
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 import pandas as pd
 from semceb.utils.console import console
 from rich.table import Table
 import seaborn as sns
+
+
+def apply_plot_params(
+    fig_height: float,
+    scale: float = 1.0,
+    double_column: bool = False,
+) -> None:
+    mpl.rcParams.update(
+        {
+            "figure.figsize": (
+                (7.00697 if double_column else 3.3374) * scale,
+                fig_height * scale,
+            ),
+            "figure.dpi": 300,
+            "font.size": 11.0,
+            "font.family": "serif",
+            "axes.titlesize": "medium",
+            "axes.labelsize": "medium",
+            "figure.titlesize": "medium",
+            "xtick.labelsize": "medium",
+            "ytick.labelsize": "medium",
+            "legend.fontsize": "medium",
+            "legend.title_fontsize": "medium",
+            "text.usetex": True,
+            "text.latex.preamble": (
+                r"\usepackage{amsmath}\usepackage{amssymb}"
+                r"\usepackage{siunitx}[=v2]"
+            ),
+            "pgf.rcfonts": False,
+            "pgf.texsystem": "pdflatex",
+        }
+    )
 
 
 class ResultsPlotter:
@@ -30,9 +63,6 @@ class ResultsPlotter:
         # Example: with 2 algorithms and this set to 6,
         # the 2 algorithms appear on the left and the remaining space stays empty.
         self.minimum_visible_algorithm_slots = 8
-
-        self.plot_font_size = 12
-        self.main_title_font_size = 18
 
 
     def plot(self) -> None:
@@ -60,6 +90,7 @@ class ResultsPlotter:
         self._save_summary_table(summary)
         self._save_algorithm_summary_csv(summary)
         self._plot_algorithm_comparison(df)
+        self._plot_ground_truth_selectivity_distributions()
         self._save_per_query_report(df)
         self._save_per_query_statistics_csv(df)
 
@@ -279,7 +310,11 @@ class ResultsPlotter:
     def _plot_algorithm_comparison(self, df: pd.DataFrame) -> None:
         """Plot one metric as total bars while preserving empty algorithm slots."""
         
-        self._configure_plot_style()
+        self._configure_plot_style(
+            fig_height=5.5,
+            scale=2.0,
+            double_column=True,
+        )
 
         algorithms = self._get_algorithms_for_comparison(df)
         algorithm_styles = self._get_algorithm_styles(algorithms)
@@ -306,24 +341,18 @@ class ResultsPlotter:
             algorithm_styles=algorithm_styles,
         )
 
-    def _configure_plot_style(self) -> None:
+    def _configure_plot_style(
+        self,
+        fig_height: float,
+        scale: float = 1.0,
+        double_column: bool = False,
+    ) -> None:
         """Configure Matplotlib and Seaborn style settings for consistent plots."""
-        plt.rcParams["font.family"] = "serif"
-        plt.rcParams["font.serif"] = ["DejaVu Serif"]
-        plt.rcParams["mathtext.fontset"] = "dejavuserif"
-
         sns.set_theme(
             context="paper",
             style="whitegrid",
             font_scale=1.0,
             rc={
-                "font.size": self.plot_font_size,
-                "axes.titlesize": self.plot_font_size,
-                "axes.labelsize": self.plot_font_size,
-                "xtick.labelsize": self.plot_font_size,
-                "ytick.labelsize": self.plot_font_size,
-                "legend.fontsize": self.plot_font_size,
-                "legend.title_fontsize": self.plot_font_size,
                 "axes.facecolor": "white",
                 "figure.facecolor": "white",
                 "grid.color": "#d0d0d0",
@@ -334,9 +363,12 @@ class ResultsPlotter:
                 "axes.labelcolor": "#222222",
                 "xtick.color": "#222222",
                 "ytick.color": "#222222",
-                "font.family": "serif",
-                "font.serif": ["DejaVu Serif"],
             },
+        )
+        apply_plot_params(
+            fig_height=fig_height,
+            scale=scale,
+            double_column=double_column,
         )
 
     def _get_algorithms_for_comparison(self, df: pd.DataFrame) -> list[str]:
@@ -348,7 +380,7 @@ class ResultsPlotter:
 
     def _create_comparison_figure(self):
         """Create a fixed subplot grid for algorithm comparison charts."""
-        fig, axes = plt.subplots(2, 3, figsize=(20, 11))
+        fig, axes = plt.subplots(2, 3)
         return fig, axes.flatten()
 
     def _build_comparison_plot_specs(self) -> list[tuple[str, str, str]]:
@@ -441,7 +473,6 @@ class ResultsPlotter:
 
         fig.suptitle(
             "Algorithm Performance Comparison",
-            fontsize=self.main_title_font_size,
             fontweight="bold",
             color="#111111",
             y=1.06,
@@ -449,13 +480,7 @@ class ResultsPlotter:
 
         fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.99))
 
-        png_path = self.plot_dir / "algorithm_comparison.png"
         pdf_path = self.plot_dir / "algorithm_comparison.pdf"
-
-        fig.savefig(png_path, dpi=180, bbox_inches="tight")
-        console.print(
-            f"[green]✓[/green] Saved algorithm comparison plot to [bold]{png_path}[/bold]"
-        )
 
         fig.savefig(pdf_path, bbox_inches="tight")
         console.print(
@@ -463,6 +488,197 @@ class ResultsPlotter:
         )
 
         plt.close(fig)
+
+    def _plot_ground_truth_selectivity_distributions(self) -> None:
+        """Plot filter and join selectivity distributions from ground-truth caches."""
+
+        benchmark_queries_dir = Path("benchmark_queries")
+
+        if not benchmark_queries_dir.exists():
+            console.print(
+                "[bold yellow]Warning:[/bold yellow] "
+                f"Benchmark query directory not found: {benchmark_queries_dir}"
+            )
+            return
+
+        cache_paths = sorted(benchmark_queries_dir.glob("ground_truth_cache_*"))
+
+        if not cache_paths:
+            console.print(
+                "[bold yellow]Warning:[/bold yellow] "
+                f"No ground-truth cache files found in {benchmark_queries_dir}"
+            )
+            return
+
+        ground_truth_caches = [
+            (cache_path, self._load_ground_truth_cache(cache_path))
+            for cache_path in cache_paths
+            if cache_path.is_file()
+        ]
+
+        self._configure_plot_style(
+            fig_height=2.8,
+            scale=1.2,
+            double_column=False,
+        )
+
+        for cache_path, cache_object in ground_truth_caches:
+            selectivities_by_query_type = (
+                self._collect_ground_truth_selectivities_by_query_type(cache_object)
+            )
+
+            for query_type, selectivities in selectivities_by_query_type.items():
+                self._plot_ground_truth_selectivity_distribution(
+                    cache_path=cache_path,
+                    query_type=query_type,
+                    selectivities=selectivities,
+                )
+
+    def _load_ground_truth_cache(self, cache_path: Path) -> dict[str, Any]:
+        """Load a single ground-truth cache JSON object."""
+
+        with open(cache_path, "r", encoding="utf-8") as file:
+            cache_object = json.load(file)
+
+        if not isinstance(cache_object, dict):
+            raise ValueError(f"Expected JSON object in {cache_path}")
+
+        return cache_object
+
+    def _collect_ground_truth_selectivities_by_query_type(
+        self,
+        cache_object: dict[str, Any],
+    ) -> dict[str, list[float]]:
+        """Collect selectivity values for filter and join entries."""
+
+        selectivities_by_query_type = {
+            "filter": [],
+            "join": [],
+        }
+
+        for cache_key, cache_value in cache_object.items():
+            query_type = self._extract_ground_truth_query_type(cache_key)
+
+            if query_type is None:
+                continue
+
+            if not isinstance(cache_value, dict) or "selectivity" not in cache_value:
+                continue
+
+            selectivity = pd.to_numeric(cache_value["selectivity"], errors="coerce")
+
+            if pd.isna(selectivity):
+                continue
+
+            selectivities_by_query_type[query_type].append(float(selectivity))
+
+        return selectivities_by_query_type
+
+    def _extract_ground_truth_query_type(self, cache_key: str) -> str | None:
+        """Extract the query type encoded in a ground-truth cache key."""
+
+        if "query_type='filter'" in cache_key:
+            return "filter"
+
+        if "query_type='join'" in cache_key:
+            return "join"
+
+        return None
+
+    def _plot_ground_truth_selectivity_distribution(
+        self,
+        cache_path: Path,
+        query_type: str,
+        selectivities: list[float],
+    ) -> None:
+        """Plot a sorted workload selectivity distribution for one query type."""
+
+        if not selectivities:
+            console.print(
+                "[bold yellow]Warning:[/bold yellow] "
+                f"No {query_type} selectivities found in {cache_path}"
+            )
+            return
+
+        sorted_selectivities = sorted(selectivities)
+        plot_selectivities, nonpositive_floor = (
+            self._prepare_selectivities_for_log_plot(sorted_selectivities)
+        )
+
+        x_values = list(range(1, len(plot_selectivities) + 1))
+        lower_y_limit = 0.0001
+
+        fig, axis = plt.subplots()
+        axis.plot(
+            x_values,
+            plot_selectivities,
+            color="#222222",
+            marker="x",
+            markersize=4,
+            linewidth=1.5,
+        )
+        axis.fill_between(
+            x_values,
+            plot_selectivities,
+            y2=lower_y_limit,
+            color="#777777",
+            alpha=0.25,
+            linewidth=0,
+        )
+
+        axis.set_yscale("log")
+        axis.set_ylim(bottom=lower_y_limit, top=1)
+        axis.set_title(f"{query_type.capitalize()} query selectivity distribution")
+
+        axis.set_xlabel(r"\#Predicates")
+        axis.set_ylabel("Selectivity")
+        axis.set_xticks(x_values)
+        axis.grid(axis="y", alpha=0.55)
+        axis.grid(axis="x", visible=False)
+
+        sns.despine(
+            ax=axis,
+            top=True,
+            right=True,
+            left=False,
+            bottom=False,
+        )
+
+        fig.tight_layout()
+
+        pdf_path = (
+            self.plot_dir
+            / (
+                "query_selectivity_distribution_"
+                f"{cache_path.stem}_{query_type}.pdf"
+            )
+        )
+
+        fig.savefig(pdf_path, bbox_inches="tight")
+        console.print(
+            f"[green]✓[/green] Saved {query_type} selectivity distribution plot "
+            f"to [bold]{pdf_path}[/bold]"
+        )
+
+        plt.close(fig)
+
+    def _prepare_selectivities_for_log_plot(
+        self,
+        selectivities: list[float],
+    ) -> tuple[list[float], float | None]:
+        """Replace non-positive values with a positive floor for log-scale plotting."""
+
+        nonpositive_floor = 0.0001
+
+        plot_selectivities = [
+            value if value > 0 else nonpositive_floor
+            for value in selectivities
+        ]
+
+        if all(value > 0 for value in selectivities):
+            return plot_selectivities, None
+
+        return plot_selectivities, nonpositive_floor
 
 
     def _plot_box_metric(
@@ -586,15 +802,9 @@ class ResultsPlotter:
         algorithms are plotted.
         """
 
-        axis.set_title(title, fontsize=self.plot_font_size)
-        axis.set_xlabel("", fontsize=self.plot_font_size)
-        axis.set_ylabel(ylabel, fontsize=self.plot_font_size)
-
-        axis.tick_params(
-            axis="both",
-            which="major",
-            labelsize=self.plot_font_size,
-        )
+        axis.set_title(title)
+        axis.set_xlabel("")
+        axis.set_ylabel(ylabel)
 
         algorithm_count = len(algorithms)
         visible_slot_count = max(

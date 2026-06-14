@@ -11,9 +11,12 @@ from rich.table import Table
 import seaborn as sns
 from semceb.reporting.plot_params import apply_plot_params
 from semceb.reporting.plot_query_selectivities import QuerySelectivityPlotMixin
+from semceb.reporting.plot_strlen_distribution import (
+    StringLengthDistributionPlotMixin,
+)
 
 
-class ResultsPlotter(QuerySelectivityPlotMixin):
+class ResultsPlotter(QuerySelectivityPlotMixin, StringLengthDistributionPlotMixin):
     """Plots benchmark run results."""
 
     def __init__(self):
@@ -61,6 +64,7 @@ class ResultsPlotter(QuerySelectivityPlotMixin):
         self._save_algorithm_summary_csv(summary)
         self._plot_algorithm_comparison(df)
         self._plot_ground_truth_selectivity_distributions()
+        self._plot_string_length_distributions()
         self._save_per_query_report(df)
         self._save_per_query_statistics_csv(df)
 

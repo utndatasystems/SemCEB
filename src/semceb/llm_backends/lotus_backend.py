@@ -13,11 +13,20 @@ from semceb.queries.template_parser import ColumnRef
 class LotusBackend():
     """LOTUS backend for ground-truth cardinality estimation and caching."""
 
-    def __init__(self, model_name: str, system_prompt: str, scale_factor: int):
+    def __init__(
+        self,
+        model_name: str,
+        system_prompt: str,
+        scale_factor: int | None,
+    ):
         """Initialize the LOTUS backend, cache, and model instance."""
         
         safe_model_name = self._safe_cache_name(model_name)
-        self.cache_path = Path("benchmark_queries") / f"ground_truth_cache_{safe_model_name}.json"
+        safe_scale_factor = self._safe_scale_factor_name(scale_factor)
+        self.cache_path = (
+            Path("benchmark_queries")
+            / f"ground_truth_cache_{safe_model_name}_{safe_scale_factor}.json"
+        )
         self.cache = self._load_cache()
 
         self.name = model_name
@@ -39,6 +48,13 @@ class LotusBackend():
             .replace(":", "_")
             .replace(" ", "_")
         )
+
+    def _safe_scale_factor_name(self, scale_factor: int | None) -> str:
+        """Return a filesystem-safe name for the scale-factor cache file suffix."""
+        if scale_factor is None:
+            return "sf_full"
+
+        return f"sf{scale_factor}"
 
     def _make_cache_key(
         self,

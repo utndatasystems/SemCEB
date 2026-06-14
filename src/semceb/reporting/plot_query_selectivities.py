@@ -3,6 +3,7 @@ from typing import Any
 import json
 
 import matplotlib.pyplot as plt
+from matplotlib.ticker import LogLocator, MaxNLocator, NullFormatter
 import pandas as pd
 import seaborn as sns
 from rich.prompt import Prompt
@@ -51,8 +52,8 @@ class QuerySelectivityPlotMixin:
         ]
 
         apply_plot_params(
-            fig_height=2.8,
-            scale=1.2,
+            fig_height=2.3,
+            scale=1,
             double_column=False,
         )
 
@@ -246,33 +247,69 @@ class QuerySelectivityPlotMixin:
 
         x_values = list(range(1, len(plot_selectivities) + 1))
         lower_y_limit = 0.0001
+        line_color = "#D67D00"
+        fill_color = "#DEA555"
 
         fig, axis = plt.subplots()
         axis.plot(
             x_values,
             plot_selectivities,
-            color="#222222",
+            color=line_color,
             marker="x",
-            markersize=4,
-            linewidth=1.5,
+            markersize=4.5,
+            linewidth=1.6,
+            markeredgecolor=line_color,
+            markeredgewidth=1.0,
+            zorder=3,
+            clip_on=False,
         )
         axis.fill_between(
             x_values,
             plot_selectivities,
             y2=lower_y_limit,
-            color="#777777",
-            alpha=0.25,
+            color=fill_color,
+            alpha=0.35,
             linewidth=0,
+            zorder=1,
         )
 
         axis.set_yscale("log")
         axis.set_ylim(bottom=lower_y_limit, top=1)
-        axis.set_title(f"{query_type.capitalize()} query selectivity distribution")
+        axis.set_title(f"{query_type.capitalize()} Queries")
 
         axis.set_xlabel(r"\#Predicates")
         axis.set_ylabel("Selectivity")
-        axis.set_xticks(x_values)
+        axis.xaxis.set_major_locator(MaxNLocator(nbins=8, integer=True))
+        axis.set_xlim(1, max(x_values))
+        axis.minorticks_on()
+        axis.yaxis.set_minor_locator(LogLocator(base=10.0, subs=range(2, 10), numticks=100))
+        axis.yaxis.set_minor_formatter(NullFormatter())
+        axis.tick_params(
+            axis="both",
+            which="major",
+            bottom=True,
+            left=True,
+            top=False,
+            right=False,
+            length=6,
+            width=1.0,
+            color="#222222",
+            direction="out",
+            labelbottom=True,
+            labelleft=True,
+        )
+        axis.tick_params(
+            axis="y",
+            which="minor",
+            left=True,
+            right=False,
+            length=5,
+            width=0.9,
+            color="#666666",
+            direction="out",
+        )
         axis.grid(axis="y", alpha=0.55)
+        axis.grid(axis="y", which="minor", alpha=0.22)
         axis.grid(axis="x", visible=False)
 
         sns.despine(
@@ -293,7 +330,7 @@ class QuerySelectivityPlotMixin:
             )
         )
 
-        fig.savefig(pdf_path, bbox_inches="tight")
+        fig.savefig(pdf_path, bbox_inches="tight", pad_inches=0)
         console.print(
             f"[green]✓[/green] Saved {query_type} selectivity distribution plot "
             f"to [bold]{pdf_path}[/bold]"

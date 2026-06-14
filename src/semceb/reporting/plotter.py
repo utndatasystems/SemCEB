@@ -9,8 +9,8 @@ import pandas as pd
 from semceb.utils.console import console
 from rich.table import Table
 import seaborn as sns
-from .plot_params import apply_plot_params
-from .plot_query_selectivities import QuerySelectivityPlotMixin
+from semceb.reporting.plot_params import apply_plot_params
+from semceb.reporting.plot_query_selectivities import QuerySelectivityPlotMixin
 
 
 class ResultsPlotter(QuerySelectivityPlotMixin):
@@ -280,7 +280,7 @@ class ResultsPlotter(QuerySelectivityPlotMixin):
     def _plot_algorithm_comparison(self, df: pd.DataFrame) -> None:
         """Plot one metric as total bars while preserving empty algorithm slots."""
         
-        self._configure_plot_style(
+        apply_plot_params(
             fig_height=5.5,
             scale=2.0,
             double_column=True,
@@ -309,36 +309,6 @@ class ResultsPlotter(QuerySelectivityPlotMixin):
             fig=fig,
             algorithms=algorithms,
             algorithm_styles=algorithm_styles,
-        )
-
-    def _configure_plot_style(
-        self,
-        fig_height: float,
-        scale: float = 1.0,
-        double_column: bool = False,
-    ) -> None:
-        """Configure Matplotlib and Seaborn style settings for consistent plots."""
-        sns.set_theme(
-            context="paper",
-            style="whitegrid",
-            font_scale=1.0,
-            rc={
-                "axes.facecolor": "white",
-                "figure.facecolor": "white",
-                "grid.color": "#d0d0d0",
-                "grid.linewidth": 0.8,
-                "axes.edgecolor": "#666666",
-                "axes.linewidth": 0.8,
-                "axes.titleweight": "bold",
-                "axes.labelcolor": "#222222",
-                "xtick.color": "#222222",
-                "ytick.color": "#222222",
-            },
-        )
-        apply_plot_params(
-            fig_height=fig_height,
-            scale=scale,
-            double_column=double_column,
         )
 
     def _get_algorithms_for_comparison(self, df: pd.DataFrame) -> list[str]:

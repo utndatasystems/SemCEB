@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
+from semceb.reporting.plot_params import apply_plot_params
 from semceb.utils.console import console
 
 
@@ -39,7 +40,7 @@ class QuerySelectivityPlotMixin:
             if cache_path.is_file()
         ]
 
-        self._configure_plot_style(
+        apply_plot_params(
             fig_height=2.8,
             scale=1.2,
             double_column=False,

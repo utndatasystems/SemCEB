@@ -711,12 +711,12 @@ def is_cuda_oom_error(exc: BaseException, torch_module: object) -> bool:
 
 def process_batch_with_oom_retry(
     batch_items: list[object],
-    process_batch: Callable[[list[object]], tuple[int, int]],
+    process_batch: Callable[[list[object]], tuple[int, int, int]],
     torch_module: object,
     description: str,
-) -> tuple[int, int]:
+) -> tuple[int, int, int]:
     if not batch_items:
-        return 0, 0
+        return 0, 0, 0
 
     try:
         return process_batch(batch_items)
@@ -727,7 +727,7 @@ def process_batch_with_oom_retry(
         clear_cuda_memory(torch_module)
         if len(batch_items) == 1:
             print(f"[warn] skipped 1 {description} row after CUDA OOM")
-            return 0, 1
+            return 0, 1, 0
 
         midpoint = len(batch_items) // 2
         left_items = batch_items[:midpoint]
@@ -737,19 +737,23 @@ def process_batch_with_oom_retry(
             f"retrying as {len(left_items)} + {len(right_items)}"
         )
 
-        left_embedded, left_skipped = process_batch_with_oom_retry(
+        left_embedded, left_skipped, left_cached = process_batch_with_oom_retry(
             left_items,
             process_batch,
             torch_module,
             description,
         )
-        right_embedded, right_skipped = process_batch_with_oom_retry(
+        right_embedded, right_skipped, right_cached = process_batch_with_oom_retry(
             right_items,
             process_batch,
             torch_module,
             description,
         )
-        return left_embedded + right_embedded, left_skipped + right_skipped
+        return (
+            left_embedded + right_embedded,
+            left_skipped + right_skipped,
+            left_cached + right_cached,
+        )
 
 
 def write_embedding_batch(
@@ -871,7 +875,7 @@ def run_embeddings(
         for batch_start in range(0, len(image_jobs), batch_size):
             batch_jobs = image_jobs[batch_start : batch_start + batch_size]
 
-            def process_image_batch(batch_items: list[object]) -> tuple[int, int]:
+            def process_image_batch(batch_items: list[object]) -> tuple[int, int, int]:
                 nonlocal failed_decode, image_truncated
 
                 batch_keys = [
@@ -940,7 +944,7 @@ def run_embeddings(
                 batch_rows = cached_rows + computed_rows
                 if not batch_rows:
                     failed_decode += decode_failed_batch
-                    return 0, 0
+                    return 0, 0, 0
 
                 batch_truncated = sum(truncated for _, _, truncated in batch_rows)
                 write_embedding_batch(
@@ -954,9 +958,9 @@ def run_embeddings(
                 )
                 failed_decode += decode_failed_batch
                 image_truncated += batch_truncated
-                return len(batch_rows), 0
+                return len(batch_rows), 0, len(cached_rows)
 
-            embedded_in_batch, _ = process_batch_with_oom_retry(
+            embedded_in_batch, _, cached_in_batch = process_batch_with_oom_retry(
                 batch_jobs,
                 process_image_batch,
                 image_torch,
@@ -965,7 +969,7 @@ def run_embeddings(
             image_embedded += embedded_in_batch
             print(
                 f"[info] embedded {image_embedded}/{len(image_jobs)} image rows "
-                f"(batch size={embedded_in_batch})"
+                f"(batch size={embedded_in_batch}, cache hits={cached_in_batch})"
             )
         if failed_decode:
             print(f"[warn] skipped {failed_decode} image files that could not be decoded")
@@ -986,7 +990,7 @@ def run_embeddings(
                 for batch_start in range(0, len(text_jobs), batch_size):
                     batch_jobs = text_jobs[batch_start : batch_start + batch_size]
 
-                    def process_text_batch(batch_items: list[object]) -> tuple[int, int]:
+                    def process_text_batch(batch_items: list[object]) -> tuple[int, int, int]:
                         nonlocal text_truncated
 
                         batch_keys = [
@@ -1044,7 +1048,7 @@ def run_embeddings(
 
                         batch_rows = cached_rows + computed_rows
                         if not batch_rows:
-                            return 0, 0
+                            return 0, 0, 0
 
                         batch_truncated = sum(truncated for _, _, truncated in batch_rows)
                         write_embedding_batch(
@@ -1057,9 +1061,9 @@ def run_embeddings(
                             embedding_type="DOUBLE[]",
                         )
                         text_truncated += batch_truncated
-                        return len(batch_rows), 0
+                        return len(batch_rows), 0, len(cached_rows)
 
-                    embedded_in_batch, _ = process_batch_with_oom_retry(
+                    embedded_in_batch, _, cached_in_batch = process_batch_with_oom_retry(
                         batch_jobs,
                         process_text_batch,
                         text_model_bundle.torch_module,
@@ -1069,7 +1073,7 @@ def run_embeddings(
                     print(
                         f"[info] embedded {text_embedded}/{len(text_jobs)} text rows "
                         f"for {source_column} with {text_model_bundle.model_name} "
-                        f"(batch size={embedded_in_batch})"
+                        f"(batch size={embedded_in_batch}, cache hits={cached_in_batch})"
                     )
                 if text_truncated:
                     print(
@@ -1091,7 +1095,7 @@ def run_embeddings(
                 for batch_start in range(0, len(text_jobs), batch_size):
                     batch_jobs = text_jobs[batch_start : batch_start + batch_size]
 
-                    def process_review_text_batch(batch_items: list[object]) -> tuple[int, int]:
+                    def process_review_text_batch(batch_items: list[object]) -> tuple[int, int, int]:
                         nonlocal text_truncated
 
                         batch_keys = [
@@ -1149,7 +1153,7 @@ def run_embeddings(
 
                         batch_rows = cached_rows + computed_rows
                         if not batch_rows:
-                            return 0, 0
+                            return 0, 0, 0
 
                         batch_truncated = sum(truncated for _, _, truncated in batch_rows)
                         write_embedding_batch(
@@ -1162,9 +1166,9 @@ def run_embeddings(
                             embedding_type="DOUBLE[]",
                         )
                         text_truncated += batch_truncated
-                        return len(batch_rows), 0
+                        return len(batch_rows), 0, len(cached_rows)
 
-                    embedded_in_batch, _ = process_batch_with_oom_retry(
+                    embedded_in_batch, _, cached_in_batch = process_batch_with_oom_retry(
                         batch_jobs,
                         process_review_text_batch,
                         text_model_bundle.torch_module,
@@ -1174,7 +1178,7 @@ def run_embeddings(
                     print(
                         f"[info] embedded {text_embedded}/{len(text_jobs)} review text rows "
                         f"for {source_column} with {text_model_bundle.model_name} "
-                        f"(batch size={embedded_in_batch})"
+                        f"(batch size={embedded_in_batch}, cache hits={cached_in_batch})"
                     )
                 if text_truncated:
                     print(

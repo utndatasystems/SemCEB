@@ -66,5 +66,29 @@
   "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p1:amazon-reviews/products_filtered, p2:amazon-reviews/products_filtered' | scale_factor='100' | query='The two products are intended to accomplish essentially the same crafting task. The first product is: {description_json:left}. The second product is: {description_json:right}.'": {
     "cardinality": 197,
     "selectivity": 0.0197
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p1:amazon-reviews/products_filtered, p2:amazon-reviews/products_filtered' | scale_factor='100' | query='The first product primarily provides crafting materials and the second product primarily provides tools that could be used with those materials. The first product is: {description_json:left}. The second product is: {description_json:right}.'": {
+    "cardinality": 4239,
+    "selectivity": 0.4239
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p1:amazon-reviews/products_filtered, p2:amazon-reviews/products_filtered' | scale_factor='100' | query='The first product description is more detailed and specific than the second product description. The first product is: {description_json:left}. The second product is: {description_json:right}.'": {
+    "cardinality": 8785,
+    "selectivity": 0.8785
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p:amazon-reviews/products_filtered, r:amazon-reviews/reviews_filtered' | scale_factor='100' | query='The reviewer mentions a quantity they received that differs from the quantity advertised in the product listing (either more or fewer). Review: {review_text:right}. Title: {product_title:left}. Product features: {features_json:left}'": {
+    "cardinality": 2959,
+    "selectivity": 0.0324807903402854
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p1:amazon-reviews/products_filtered, p2:amazon-reviews/products_filtered' | scale_factor='100' | query='The second product appears at first to be an upgrade or more complete version of the first product, but the product information suggests it lacks an important capability, material, or component that the first product has. First product: {product_title:left}. {description_json:left}. {features_json:left}. {details_json:left}. Second product: {product_title:right}. {description_json:right}. {features_json:right}. {details_json:right}.'": {
+    "cardinality": 10,
+    "selectivity": 0.001
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p1:amazon-reviews/products_filtered, p2:amazon-reviews/products_filtered' | scale_factor='100' | query='The first product is a consumable or refill that is specifically designed to be used with the second product (e.g., ink for a pen, thread for a needle, powder for a marker). First product: {product_title:left}, {features_json:left}. Second product: {product_title:right}, {features_json:right}'": {
+    "cardinality": 5,
+    "selectivity": 0.0005
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p1:amazon-reviews/products_filtered, p2:amazon-reviews/products_filtered' | scale_factor='100' | query='The first product description describes the same product as the second product description, but the first product comes with fewer pieces. The first product's description is: {description_json:left}. {details_json:left}. The second product's description is: {description_json:right}. {details_json:right}.'": {
+    "cardinality": 58,
+    "selectivity": 0.0058
   }
 }

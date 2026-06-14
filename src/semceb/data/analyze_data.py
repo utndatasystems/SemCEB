@@ -41,6 +41,10 @@ CACHE_OUTPUT_DIR = REPO_ROOT / "data" / "amazon-reviews" / "cache" / "dataset_an
 IMBALANCE_UMAP_COMPONENTS = 20
 IMBALANCE_UMAP_NEIGHBORS = 15
 IMBALANCE_HDBSCAN_MIN_SAMPLES = 5
+IMBALANCE_MICRO_CLUSTER_FRACTION = 0.0005
+IMBALANCE_MICRO_CLUSTER_MIN_SIZE = 5
+IMBALANCE_MICRO_HDBSCAN_MIN_SAMPLES = 2
+IMBALANCE_ASSIGNMENT_VERSION = 2
 IMBALANCE_STABILITY_RUNS = 3
 IMBALANCE_HALO_EPSILON = 0.15  # Absolute Euclidean distance in UMAP space for halo absorption
 # Plot suites are selected by a leading CLI subcommand. "skew" keeps the existing
@@ -594,6 +598,15 @@ def compute_cluster_sizes(labels: np.ndarray) -> np.ndarray:
     return np.sort(counts[counts > 0])[::-1]
 
 
+def compute_micro_cluster_min_size(n_samples: int) -> int:
+    """Return the HDBSCAN size threshold for second-pass tail clusters."""
+
+    return max(
+        IMBALANCE_MICRO_CLUSTER_MIN_SIZE,
+        int(IMBALANCE_MICRO_CLUSTER_FRACTION * n_samples),
+    )
+
+
 def resolve_noise_labels(
     reduced_embeddings: np.ndarray,
     labels: np.ndarray,
@@ -601,7 +614,6 @@ def resolve_noise_labels(
 ) -> tuple[np.ndarray, np.ndarray, int, int]:
     """Resolve HDBSCAN noise into halos (absorbed) and singletons."""
 
-    faiss = import_faiss()
     resolved_labels = labels.copy()
     label_tiers = np.where(labels >= 0, np.int8(0), np.int8(-1))
 
@@ -621,6 +633,7 @@ def resolve_noise_labels(
 
     # 1. HALO ASSIGNMENT: Map noise to nearest primary cluster
     if len(clustered_indices) > 0:
+        faiss = import_faiss()
         with log_step(
             "FAISS L2 halo assignment "
             f"clustered={len(clustered_indices):,} noise={n_noise:,} "
@@ -641,12 +654,52 @@ def resolve_noise_labels(
                 resolved_labels[noise_indices[i]] = resolved_labels[target_original_idx]
                 label_tiers[noise_indices[i]] = 0  # Absorbed into primary cluster (Tier 0)
 
-    # 2. SINGLETON DECLARATION
+    # 2. MICRO-CLUSTER ASSIGNMENT: recover coherent small tail classes before
+    # declaring anything a singleton.
+    remaining_noise_indices = np.where(resolved_labels == -1)[0]
+    micro_min_cluster_size = compute_micro_cluster_min_size(len(resolved_labels))
+    n_micro_clusters = 0
+    if len(remaining_noise_indices) >= micro_min_cluster_size:
+        hdbscan = import_hdbscan()
+        console.log(
+            "Resolving remaining noise with second-pass HDBSCAN "
+            f"noise_points={len(remaining_noise_indices):,} "
+            f"min_cluster_size={micro_min_cluster_size} "
+            f"min_samples={IMBALANCE_MICRO_HDBSCAN_MIN_SAMPLES}"
+        )
+        with log_step(
+            "HDBSCAN fit_predict micro "
+            f"shape={format_shape(reduced_embeddings[remaining_noise_indices])} "
+            f"min_cluster_size={micro_min_cluster_size} "
+            f"min_samples={IMBALANCE_MICRO_HDBSCAN_MIN_SAMPLES}"
+        ):
+            micro_labels = hdbscan.HDBSCAN(
+                min_cluster_size=micro_min_cluster_size,
+                min_samples=IMBALANCE_MICRO_HDBSCAN_MIN_SAMPLES,
+                metric="euclidean",
+                cluster_selection_method="eom",
+            ).fit_predict(reduced_embeddings[remaining_noise_indices])
+
+        micro_cluster_ids = sorted(label for label in set(micro_labels) if label >= 0)
+        n_micro_clusters = len(micro_cluster_ids)
+        if n_micro_clusters > 0:
+            next_cluster_id = int(resolved_labels.max()) + 1 if len(resolved_labels) > 0 else 0
+            for local_label in micro_cluster_ids:
+                micro_mask = micro_labels == local_label
+                target_indices = remaining_noise_indices[micro_mask]
+                resolved_labels[target_indices] = next_cluster_id
+                label_tiers[target_indices] = 1  # Tier 1 = micro-cluster
+                next_cluster_id += 1
+
+    # 3. SINGLETON DECLARATION
     remaining_noise_indices = np.where(resolved_labels == -1)[0]
     n_singletons = len(remaining_noise_indices)
     console.log(
         "Noise resolution summary "
-        f"absorbed={n_noise - n_singletons:,} singletons={n_singletons:,}"
+        f"absorbed={n_noise - n_singletons - int((label_tiers == 1).sum()):,} "
+        f"micro_clusters={n_micro_clusters:,} "
+        f"micro_points={int((label_tiers == 1).sum()):,} "
+        f"singletons={n_singletons:,}"
     )
 
     next_cluster_id = int(resolved_labels.max()) + 1 if len(resolved_labels) > 0 else 0
@@ -654,9 +707,6 @@ def resolve_noise_labels(
         resolved_labels[idx] = next_cluster_id
         label_tiers[idx] = 2  # Tier 2 = Singleton
         next_cluster_id += 1
-
-    # In a strict database selectivity model, there are no "micro-clusters" bridging unrelated singletons
-    n_micro_clusters = 0
 
     return resolved_labels, label_tiers, n_micro_clusters, n_singletons
 
@@ -1000,6 +1050,21 @@ def get_cache_filepaths(parquet_file: Path, column: str) -> tuple[Path, Path]:
         CACHE_OUTPUT_DIR / f"{stem}.json",
         CACHE_OUTPUT_DIR / f"{stem}.npz",
     )
+
+
+def is_column_cache_current(metadata_path: Path, arrays_path: Path) -> bool:
+    """Return whether cached analysis artifacts match the current logic."""
+
+    if not metadata_path.exists() or not arrays_path.exists():
+        return False
+
+    try:
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        console.log(f"Ignoring unreadable cache metadata path={metadata_path}: {error}")
+        return False
+
+    return metadata.get("imbalance_assignment_version") == IMBALANCE_ASSIGNMENT_VERSION
 
 
 def create_umap_scatter_plot_figure(
@@ -1512,6 +1577,7 @@ def prepare_column_cache(
         "num_rows": int(embeddings.shape[0]),
         "embedding_dim": int(embeddings.shape[1]),
         "dropped_null_embeddings": int(dropped_nulls),
+        "imbalance_assignment_version": IMBALANCE_ASSIGNMENT_VERSION,
         "knn_density": knn_results["summary"],
         "imbalance": {
             "n_clusters": imbalance_report.n_clusters,
@@ -1635,16 +1701,21 @@ def analyze_columns(
 
         if generate_skew_plots:
             metadata_path, arrays_path = get_cache_filepaths(parquet_file, column)
-            if metadata_path.exists() and arrays_path.exists():
+            if is_column_cache_current(metadata_path, arrays_path):
                 console.log(
                     f"Cache hit column={column} metadata={metadata_path} arrays={arrays_path}"
                 )
                 with log_step(f"Load cached analysis column={column}"):
                     cached = load_cached_column_analysis(parquet_file, column)
             else:
-                console.log(
-                    f"Cache miss column={column} metadata={metadata_path} arrays={arrays_path}"
-                )
+                if metadata_path.exists() or arrays_path.exists():
+                    console.log(
+                        f"Cache stale column={column} metadata={metadata_path} arrays={arrays_path}"
+                    )
+                else:
+                    console.log(
+                        f"Cache miss column={column} metadata={metadata_path} arrays={arrays_path}"
+                    )
                 with Progress(
                     SpinnerColumn(),
                     TextColumn("[bold green]{task.description}"),

@@ -14,6 +14,11 @@ import sys
 from pathlib import Path
 
 try:
+    import pyarrow.parquet as pq
+except ImportError:  # pragma: no cover - environment-specific
+    pq = None
+
+try:
     import duckdb
 except ImportError as exc:  # pragma: no cover - environment-specific
     raise SystemExit(
@@ -95,6 +100,14 @@ def sql_string_literal(value: str) -> str:
 
 
 def embedding_columns(con: duckdb.DuckDBPyConnection, parquet_path: Path) -> list[str]:
+    if pq is not None:
+        schema = pq.ParquetFile(parquet_path).schema_arrow
+        return [
+            name
+            for name in schema.names
+            if EMBEDDING_SUFFIX in name and not name.endswith("_input_is_truncated")
+        ]
+
     rows = con.execute(
         f"DESCRIBE SELECT * FROM read_parquet({sql_string_literal(str(parquet_path))})"
     ).fetchall()

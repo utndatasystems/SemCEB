@@ -778,6 +778,7 @@ def compute_knn_similarity_coefficient(
 ) -> dict[str, Any]:
     """Compute cosine-similarity-based kNN statistics for multiple k values."""
 
+    faiss = import_faiss()
     kurtosis, _, skew, _ = import_scipy_stats()
     if embeddings.ndim != 2:
         raise ValueError(

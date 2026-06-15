@@ -139,9 +139,9 @@ class ExtrapolatedSampling(AlgorithmInterface):
         """Run the algorithm and return the estimated output cardinality for the given query."""
 
         if len(query_spec.datasets) == 1:
-            return self._estimate_filter_cardinality(query_spec)
+            return max(1, self._estimate_filter_cardinality(query_spec))
         elif len(query_spec.datasets) > 1:
-            return self._estimate_join_cardinality(query_spec)
+            return max(1, self._estimate_join_cardinality(query_spec))
 
         raise ValueError("Query must contain at least one dataset.")
 

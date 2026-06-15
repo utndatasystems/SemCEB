@@ -18,6 +18,10 @@ src/semceb/data/amazon-reviews/
 
 ## TL;DR Dataset Repro
 
+Reproduces the dataset that is used in the SemCEB paper.
+
+Note: This requires significant computing resources and time. It is better to just download the prepared dataset from S3 by running `semceb run`.
+
 ```bash
 python src/semceb/data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --category Arts_Crafts_and_Sewing  --mode raw_5core
 
@@ -122,6 +126,74 @@ products_filtered_with_embeddings.parquet
 reviews_filtered_with_embeddings.parquet
 embedding_cache.sqlite3
 ```
+
+## Embedded table schemas
+
+Current schemas from DuckDB `DESCRIBE` on the embedded parquet files.
+
+### `products_filtered_with_embeddings.parquet`
+
+Base columns:
+
+| Column | Type |
+| --- | --- |
+| `parent_asin` | `VARCHAR` |
+| `main_category` | `VARCHAR` |
+| `product_title` | `VARCHAR` |
+| `average_rating` | `DOUBLE` |
+| `rating_number` | `BIGINT` |
+| `price` | `VARCHAR` |
+| `store` | `VARCHAR` |
+| `categories_json` | `JSON` |
+| `features_json` | `JSON` |
+| `description_json` | `JSON` |
+| `details_json` | `JSON` |
+| `images_json` | `JSON` |
+| `main_image_local` | `VARCHAR` |
+| `videos_json` | `JSON` |
+| `bought_together` | `VARCHAR` |
+| `subtitle` | `VARCHAR` |
+| `author` | `VARCHAR` |
+
+Embedding columns:
+
+| Source | Model | Embedding column | Type | Truncation flag column |
+| --- | --- | --- | --- | --- |
+| `main_image_local` | `google/siglip2-base-patch16-224` | `main_image_local_embeddings_google_siglip2_base_patch16_224` | `DOUBLE[]` | `main_image_local_embeddings_google_siglip2_base_patch16_224_input_is_truncated` |
+| `product_title` | `Qwen/Qwen3-Embedding-0.6B` | `product_title_embeddings_qwen_qwen3_embedding_0_6b` | `DOUBLE[]` | `product_title_embeddings_qwen_qwen3_embedding_0_6b_input_is_truncated` |
+| `description_json` | `Qwen/Qwen3-Embedding-0.6B` | `description_json_embeddings_qwen_qwen3_embedding_0_6b` | `DOUBLE[]` | `description_json_embeddings_qwen_qwen3_embedding_0_6b_input_is_truncated` |
+| `features_json` | `Qwen/Qwen3-Embedding-0.6B` | `features_json_embeddings_qwen_qwen3_embedding_0_6b` | `DOUBLE[]` | `features_json_embeddings_qwen_qwen3_embedding_0_6b_input_is_truncated` |
+| `details_json` | `Qwen/Qwen3-Embedding-0.6B` | `details_json_embeddings_qwen_qwen3_embedding_0_6b` | `DOUBLE[]` | `details_json_embeddings_qwen_qwen3_embedding_0_6b_input_is_truncated` |
+| `product_title` | `google/siglip2-base-patch16-224` | `product_title_embeddings_google_siglip2_base_patch16_224` | `DOUBLE[]` | `product_title_embeddings_google_siglip2_base_patch16_224_input_is_truncated` |
+| `description_json` | `google/siglip2-base-patch16-224` | `description_json_embeddings_google_siglip2_base_patch16_224` | `DOUBLE[]` | `description_json_embeddings_google_siglip2_base_patch16_224_input_is_truncated` |
+| `features_json` | `google/siglip2-base-patch16-224` | `features_json_embeddings_google_siglip2_base_patch16_224` | `DOUBLE[]` | `features_json_embeddings_google_siglip2_base_patch16_224_input_is_truncated` |
+| `details_json` | `google/siglip2-base-patch16-224` | `details_json_embeddings_google_siglip2_base_patch16_224` | `DOUBLE[]` | `details_json_embeddings_google_siglip2_base_patch16_224_input_is_truncated` |
+
+### `reviews_filtered_with_embeddings.parquet`
+
+Base columns:
+
+| Column | Type |
+| --- | --- |
+| `user_id` | `VARCHAR` |
+| `asin` | `VARCHAR` |
+| `parent_asin` | `VARCHAR` |
+| `rating` | `DOUBLE` |
+| `review_title` | `VARCHAR` |
+| `review_text` | `VARCHAR` |
+| `timestamp_ms` | `BIGINT` |
+| `helpful_vote` | `BIGINT` |
+| `verified_purchase` | `BOOLEAN` |
+| `images_json` | `JSON` |
+
+Embedding columns:
+
+| Source | Model | Embedding column | Type | Truncation flag column |
+| --- | --- | --- | --- | --- |
+| `review_title` | `Qwen/Qwen3-Embedding-0.6B` | `review_title_embeddings_qwen_qwen3_embedding_0_6b` | `DOUBLE[]` | `review_title_embeddings_qwen_qwen3_embedding_0_6b_input_is_truncated` |
+| `review_text` | `Qwen/Qwen3-Embedding-0.6B` | `review_text_embeddings_qwen_qwen3_embedding_0_6b` | `DOUBLE[]` | `review_text_embeddings_qwen_qwen3_embedding_0_6b_input_is_truncated` |
+| `review_title` | `google/siglip2-base-patch16-224` | `review_title_embeddings_google_siglip2_base_patch16_224` | `DOUBLE[]` | `review_title_embeddings_google_siglip2_base_patch16_224_input_is_truncated` |
+| `review_text` | `google/siglip2-base-patch16-224` | `review_text_embeddings_google_siglip2_base_patch16_224` | `DOUBLE[]` | `review_text_embeddings_google_siglip2_base_patch16_224_input_is_truncated` |
 
 Models:
 

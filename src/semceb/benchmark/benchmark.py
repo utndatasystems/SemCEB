@@ -41,6 +41,11 @@ class BenchmarkRunner:
         self.result_filepath = Path("results") / "raw" / "result.jsonl"
         self.query_filepath = Path("benchmark_queries") / "queries.jsonl"
 
+        self._dataset_cache: dict[
+            tuple[frozenset[str], int | None],
+            dict[str, pd.DataFrame],
+        ] = {}
+        
         self.queries_specs = self._load_queries_specs(self.query_filepath)
 
         self._handle_cloud_data()
@@ -381,10 +386,26 @@ class BenchmarkRunner:
             for dataset in query_spec.datasets
         }
 
-        return DataLoader().load(
-            datasets=datasets,
-            scale_factor=scale_factor,
-        )
+        cache_key = (frozenset(datasets), scale_factor)
+
+        if cache_key in self._dataset_cache:
+            console.print("[green]✓[/green] Required datasets already loaded.")
+            return self._dataset_cache[cache_key]
+
+        with console.status(
+            f"Loading required datasets with scale_factor={scale_factor} ...",
+            spinner="dots",
+        ):
+            data_dfs = DataLoader().load(
+                datasets=datasets,
+                scale_factor=scale_factor,
+            )
+
+        self._dataset_cache[cache_key] = data_dfs
+
+        console.print("[green]✓[/green] Required datasets loaded.")
+
+        return data_dfs
 
     def _confirm_join_benchmark_run(self, data_dfs: dict[str, pd.DataFrame]) -> None:
         """Ask the user to confirm running join benchmarks after showing input sizes."""

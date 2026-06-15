@@ -1,6 +1,7 @@
 import sys
 import pandas as pd
 
+from semceb.algorithms.helpers import get_dict_memory_usage, get_sample_memory_usage
 from semceb.algorithms.interface import AlgorithmInterface
 import lotus.settings
 from semceb.queries.query_specification import QuerySpecification
@@ -78,8 +79,8 @@ class ExtrapolatedSampling(AlgorithmInterface):
         )
 
         self.memory_consumption = (
-            sys.getsizeof(self.data_rows)
-            + sys.getsizeof(self.data_sample)
+            get_dict_memory_usage(self.data_rows)
+            + get_sample_memory_usage(self.data_sample)
             + sys.getsizeof(self.model)
         )
 

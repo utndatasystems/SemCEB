@@ -48,11 +48,7 @@ class QErrorAnalysisPlotMixin:
             return
 
         algorithms = analysis_df["algorithm_label"].cat.categories.tolist()
-        algorithm_styles = self._get_algorithm_styles(algorithms)
-        palette = {
-            algorithm: algorithm_styles[algorithm]["facecolor"]
-            for algorithm in algorithms
-        }
+        palette = {algorithm: "#ffffff" for algorithm in algorithms}
 
         self.plot_dir.mkdir(parents=True, exist_ok=True)
 
@@ -176,6 +172,18 @@ class QErrorAnalysisPlotMixin:
             palette=palette,
             width=0.65,
             linewidth=1.1,
+            boxprops={
+                "edgecolor": "#000000",
+                "linewidth": 1.1,
+            },
+            whiskerprops={
+                "color": "#000000",
+                "linewidth": 1.1,
+            },
+            capprops={
+                "color": "#000000",
+                "linewidth": 1.1,
+            },
             flierprops={
                 "marker": "x",
                 "markersize": 4.0,
@@ -183,6 +191,10 @@ class QErrorAnalysisPlotMixin:
                 "markeredgewidth": 0.9,
                 "markerfacecolor": "none",
                 "linestyle": "none",
+            },
+            medianprops={
+                "color": "#000000",
+                "linewidth": 2.0,
             },
             ax=axis,
             dodge=False,

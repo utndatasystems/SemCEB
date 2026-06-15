@@ -23,6 +23,7 @@ dependencies = [
     "pyarrow",
     "python-dotenv",
     "tomli; python_version < '3.11'",
+    "duckdb",
 ]
 
 [project.optional-dependencies]

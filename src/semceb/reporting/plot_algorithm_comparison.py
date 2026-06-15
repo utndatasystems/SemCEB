@@ -12,8 +12,8 @@ from semceb.reporting.plot_params import apply_plot_params
 from semceb.utils.console import console
 
 
-class QErrorAnalysisPlotMixin:
-    """Helpers for plotting q-error distributions by query type and algorithm."""
+class AlgorithmComparisonPaperPlotMixin:
+    """Helpers for the paper-oriented algorithm comparison figure."""
 
     Q_ERROR_YLABEL_PAD = 18
     Q_ERROR_DIRECTION_LABEL_X_OFFSET = 0.075
@@ -37,8 +37,8 @@ class QErrorAnalysisPlotMixin:
         "Extrapolation Sampling 20%": "Sample 20\\%",
     }
 
-    def _plot_q_error_analysis(self, df: pd.DataFrame) -> None:
-        """Plot q-error boxplots for filter and join queries."""
+    def _plot_algorithm_comparison_paper(self, df: pd.DataFrame) -> None:
+        """Plot the paper-oriented algorithm comparison figure."""
 
         if df.empty:
             console.print(
@@ -142,10 +142,10 @@ class QErrorAnalysisPlotMixin:
         if not filter_q_error_data.empty:
             self._add_q_error_direction_labels(fig=fig, axis=axes[0, 0])
 
-        pdf_path = self.plot_dir / "q_error_analysis.pdf"
+        pdf_path = self.plot_dir / "algorithm_comparison_paper.pdf"
         fig.savefig(pdf_path, bbox_inches="tight", pad_inches=0)
         console.print(
-            f"[green]✓[/green] Saved q-error analysis plot to [bold]{pdf_path}[/bold]"
+            f"[green]✓[/green] Saved algorithm comparison paper plot to [bold]{pdf_path}[/bold]"
         )
 
         plt.close(fig)

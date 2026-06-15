@@ -1,123 +1,168 @@
-Amazon-Reviews-2023
-=====
+Amazon Reviews 2023 data preparation
+====================================
 
-The benchmark uses `McAuley-Lab/Amazon-Reviews-2023` (MIT license).
-The whole dataset is large, which would exceed the current capabilities of modern semantic operators.
+This directory contains the local preparation pipeline for
+`McAuley-Lab/Amazon-Reviews-2023` (MIT license). The default benchmark dataset
+is the `Arts_Crafts_and_Sewing` category in `raw_5core` mode: raw review text and
+metadata are retained, but rows are restricted to the 5-core interaction set.
 
-Therefore, we apply the following transformations:
+The generated data is intentionally not tracked in git. By default, scripts use:
 
- - Only the category `Arts_Crafts_and_Sewing` is used.
- - The `products` table is filtered such that the following columns do not contain `NULL` values and all values must have at least 5 characters.
-   - `product_title IS NOT NULL`
-   - `features_json IS NOT NULL`
-   - `description_json IS NOT NULL`
-   - `details_json IS NOT NULL`
-   - `images_json IS NOT NULL`
- - Further, `products` are filtered such that the following columns are neither `NULL` nor contain empty JSON array/structs:
-   - `features_json`
-   - `description_json`
-   - `details_json`
-   - `images_json`
- - Lastly, every product is associated with multiple images. For this dataset, we download only the `hi_res` version of the `"variant":"MAIN"` image such that we end up with exactly one image per product. The image file name is stored in the newly created `main_image_local` column. Further, products without such an image are removed such that every product is guaranteed to have one image.
- - The `reviews` table is filtered such that:
-   - `review_title` is neither NULL nor empty.
-   - `review_text` is neither NULL nor empty.
- - `5core` filtering is applied: both `products` and `reviews` are filtered such that only products/reviews are contained that appear in the `5core` interactions dataset.
-
-In the end, two tables are created:
- - `products_filtered`: ~45k rows
- - `reviews_filtered`: ~940k rows
-
-
-## Setup
-
-To generate the dataset, run the following commands:
-
-```bash
-python src/semceb/data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --category Arts_Crafts_and_Sewing --mode raw_5core
-python src/semceb/data/amazon-reviews/compute_embeddings.py --data-dir Arts_Crafts_and_Sewing__raw_5core
+```text
+src/semceb/data/amazon-reviews/
+  raw/        # downloaded Hugging Face source files
+  cache/      # cached Hugging Face tree metadata and local helper caches
+  reports/    # category size report
+  processed/  # prepared dataset runs
 ```
 
-The first command downloads large datasets and processes them with DuckDB.
-Make sure to have several gigabytes of free storage space, a good network connection, and a decent amount of memory.
-It also downloads many small images, which takes a bit of time...
+## TL;DR Dataset Repro
 
-The first steps writes datasetes to:
+```bash
+python src/semceb/data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --category Arts_Crafts_and_Sewing  --mode raw_5core
+
+python src/semceb/data/amazon-reviews/compute_embeddings.py --data-dir Arts_Crafts_and_Sewing__raw_5core
+
+cd src/semceb/data/amazon-reviews/
+AWS_ACCESS_KEY_ID=xxxxx AWS_SECRET_ACCESS_KEY=xxxxx ./upload_data_to_s3.sh
+```
+
+## Workflow
+
+Analyze category footprint:
+
+```bash
+python src/semceb/data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --analyze-only
+```
+
+Prepare the default benchmark dataset:
+
+```bash
+python src/semceb/data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py \
+  --category Arts_Crafts_and_Sewing \
+  --mode raw_5core
+```
+
+Compute embeddings:
+
+```bash
+python src/semceb/data/amazon-reviews/compute_embeddings.py \
+  --data-dir Arts_Crafts_and_Sewing__raw_5core
+```
+
+If embedded parquet files already exist but the local embedding cache is missing,
+seed the cache from those parquet files without recomputing existing embeddings:
+
+```bash
+python src/semceb/data/amazon-reviews/import_embeddings_into_cache.py \
+  --data-dir Arts_Crafts_and_Sewing__raw_5core
+```
+
+`--data-dir` accepts either an absolute path, a path relative to `src/semceb`, or a
+short processed-run name under `src/semceb/data/amazon-reviews/processed/`.
+
+## Preparation
+
+`download_and_prepare_amazon_reviews_dataset.py` downloads the required Amazon
+Reviews files from Hugging Face, mass-downloads product images for retained
+products, and builds a DuckDB-backed processed run.
+
+Supported modes:
+
+- `raw`: writes `products.parquet` and `reviews.parquet` after the metadata,
+  image, and non-empty review text filters, without 5-core restriction.
+- `raw_5core`: writes `products_filtered.parquet` and `reviews_filtered.parquet`
+  after applying the same filters and restricting products/reviews to the 5-core
+  interaction set.
+
+For `raw_5core`, the output directory is:
+
 ```text
 src/semceb/data/amazon-reviews/processed/Arts_Crafts_and_Sewing__raw_5core/
 ```
 
-Specifically, `products_filtered.parquet` and `reviews_filtered.parquet` (and a combination thereof in `amazon_reviews.duckdb`) in the `processed` directory are of interest.
+Important preparation rules:
 
-The second command computes embeddings for text and image columns. Ideally, this should be executed in a machine with a GPU.
+- Product metadata must have non-empty `product_title`, `features_json`,
+  `description_json`, `details_json`, and `images_json`.
+- Products must have a non-empty MAIN `hi_res` image URL. The script downloads
+  these images into `images/`, mirroring URL host/path to avoid filename
+  collisions.
+- Reviews must have non-empty `review_title` and `review_text`.
+- In `raw_5core`, reviews are matched to 5-core interactions by
+  `user_id`, `parent_asin`, `rating`, and `timestamp_ms`, then restricted to
+  products retained after metadata/image filtering.
 
-This uses `google/siglip2-base-patch16-224` for images and both
-`Qwen/Qwen3-Embedding-0.6B` and `google/siglip2-base-patch16-224` for the textual
-product and review columns, auto-selects the available device, and writes:
+For the current `Arts_Crafts_and_Sewing__raw_5core` run, the local parquet files
+contain 45,693 products and 936,216 filtered reviews.
+
+Core prepared artifacts:
+
+```text
+amazon_reviews.duckdb
+summary.json
+products_filtered.parquet
+reviews_filtered.parquet
+images/
+```
+
+## Embeddings
+
+`compute_embeddings.py` reads a processed `raw_5core` run, requires
+`amazon_reviews.duckdb` and `images/`, and writes embedded parquet files without
+modifying the original filtered parquet files.
+
+A machine with a GPU is recommended. The final parquet export is memory-heavy;
+for the current dataset, use a machine with more than 100 GB RAM.
+
+Output artifacts:
 
 ```text
 products_filtered_with_embeddings.parquet
 reviews_filtered_with_embeddings.parquet
+embedding_cache.sqlite3
 ```
 
-The embedding files are written into the same processed dataset directory. The original
-`products_filtered.parquet` and `reviews_filtered.parquet` remain untouched.
-The script also keeps a small SQLite cache file in that directory so reruns can resume
-without recomputing rows that already finished successfully.
+Models:
 
-Each embedding column also gets a sibling boolean column named
-`<embedding_column>_input_is_truncated` that indicates whether the text of the source column for which this embedding was computed exceeded the maximum token length for this embedding model and needed to be truncated.
+- Images: `google/siglip2-base-patch16-224` on `main_image_local`.
+- Product text: `Qwen/Qwen3-Embedding-0.6B` and
+  `google/siglip2-base-patch16-224` on `product_title`, `description_json`,
+  `features_json`, and `details_json`.
+- Review text: `Qwen/Qwen3-Embedding-0.6B` and
+  `google/siglip2-base-patch16-224` on `review_title` and `review_text`.
 
+Embedding column names follow:
 
-## Schema
-
-`products_filtered`:
-
-```
-┌──────────────────┬─────────────┬─────────┬─────────┬─────────┬─────────┐
-│   column_name    │ column_type │  null   │   key   │ default │  extra  │
-│     varchar      │   varchar   │ varchar │ varchar │ varchar │ varchar │
-├──────────────────┼─────────────┼─────────┼─────────┼─────────┼─────────┤
-│ parent_asin      │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ main_category    │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ product_title    │ VARCHAR     │ NO      │ NULL    │ NULL    │ NULL    │
-│ average_rating   │ DOUBLE      │ YES     │ NULL    │ NULL    │ NULL    │
-│ rating_number    │ BIGINT      │ YES     │ NULL    │ NULL    │ NULL    │
-│ price            │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ store            │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ categories_json  │ JSON        │ YES     │ NULL    │ NULL    │ NULL    │
-│ features_json    │ JSON        │ NO      │ NULL    │ NULL    │ NULL    │
-│ description_json │ JSON        │ NO      │ NULL    │ NULL    │ NULL    │
-│ details_json     │ JSON        │ NO      │ NULL    │ NULL    │ NULL    │
-│ images_json      │ JSON        │ NO      │ NULL    │ NULL    │ NULL    │
-│ main_image_local │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ videos_json      │ JSON        │ YES     │ NULL    │ NULL    │ NULL    │
-│ bought_together  │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ subtitle         │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ author           │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-├──────────────────┴─────────────┴─────────┴─────────┴─────────┴─────────┤
-│ 17 rows                                                      6 columns │
-└────────────────────────────────────────────────────────────────────────┘
+```text
+<source_column>_embeddings_<sanitized_model_name>
 ```
 
-`reviews_filtered`:
+Each embedding column has a sibling boolean column:
 
+```text
+<embedding_column>_input_is_truncated
 ```
-┌───────────────────┬─────────────┬─────────┬─────────┬─────────┬─────────┐
-│    column_name    │ column_type │  null   │   key   │ default │  extra  │
-│      varchar      │   varchar   │ varchar │ varchar │ varchar │ varchar │
-├───────────────────┼─────────────┼─────────┼─────────┼─────────┼─────────┤
-│ user_id           │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ asin              │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ parent_asin       │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ rating            │ DOUBLE      │ YES     │ NULL    │ NULL    │ NULL    │
-│ review_title      │ VARCHAR     │ NO      │ NULL    │ NULL    │ NULL    │
-│ review_text       │ VARCHAR     │ NO      │ NULL    │ NULL    │ NULL    │
-│ timestamp_ms      │ BIGINT      │ YES     │ NULL    │ NULL    │ NULL    │
-│ helpful_vote      │ BIGINT      │ YES     │ NULL    │ NULL    │ NULL    │
-│ verified_purchase │ BOOLEAN     │ YES     │ NULL    │ NULL    │ NULL    │
-│ images_json       │ JSON        │ YES     │ NULL    │ NULL    │ NULL    │
-├───────────────────┴─────────────┴─────────┴─────────┴─────────┴─────────┤
-│ 10 rows                                                       6 columns │
-└─────────────────────────────────────────────────────────────────────────┘
+
+Computing embeddings might be expensive. This script therefore employs a local
+embedding cache using SQLite.
+The embedding cache stores completed vectors keyed by table, source row key, and
+embedding column. It allows interrupted embedding runs to resume. It also allows
+backfilling the cache from already embedded parquet files via
+`import_embeddings_into_cache.py`, which is useful when adding new embedding
+columns without recomputing old ones. The cache is a performance artifact; the
+canonical exported datasets are the parquet files.
+
+## S3 upload
+
+`upload_data_to_s3.sh` uploads the prepared benchmark artifacts for
+`Arts_Crafts_and_Sewing__raw_5core` to:
+
+```text
+s3://azimmerer-semceb-datasets/amazon-reviews/
 ```
+
+It requires configured AWS CLI credentials and `zip`. Before uploading, it
+creates `images.zip` from the local image directory and
+`embedding_cache.sqlite3.zip` from the SQLite embedding cache. It uploads both
+archives plus the filtered and embedded parquet files.

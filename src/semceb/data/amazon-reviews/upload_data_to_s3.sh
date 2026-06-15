@@ -61,6 +61,8 @@ FILES_TO_UPLOAD=(
   "$EMBEDDING_ZIP"
   "$DATASET_DIR/products_filtered.parquet"
   "$DATASET_DIR/reviews_filtered.parquet"
+  "$DATASET_DIR/products_filtered_with_embeddings.parquet"
+  "$DATASET_DIR/reviews_filtered_with_embeddings.parquet"
 )
 
 # Validate files exist before attempting upload

@@ -8,12 +8,11 @@ from time import perf_counter
 from typing import Any
 import warnings
 
+import duckdb
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import numpy as np
 import pandas as pd
-import pyarrow as pa
-import pyarrow.parquet as pq
 import seaborn as sns
 
 from semceb.reporting.plot_params import apply_plot_params
@@ -165,18 +164,44 @@ def _sanitize_filename(name: str) -> str:
     )
 
 
-def _is_embedding_type(data_type: pa.DataType) -> bool:
-    """Return whether an Arrow type stores float embedding arrays."""
+def _sql_string_literal(value: str) -> str:
+    """Return a DuckDB-safe string literal."""
 
-    if not (
-        pa.types.is_list(data_type)
-        or pa.types.is_large_list(data_type)
-        or pa.types.is_fixed_size_list(data_type)
-    ):
-        return False
+    return "'" + value.replace("'", "''") + "'"
 
-    value_type = data_type.value_type
-    return pa.types.is_float32(value_type) or pa.types.is_float64(value_type)
+
+def _sql_identifier(identifier: str) -> str:
+    """Return a quoted SQL identifier."""
+
+    return '"' + identifier.replace('"', '""') + '"'
+
+
+def _is_embedding_type(column_type: str) -> bool:
+    """Return whether a DuckDB type stores float embedding arrays."""
+
+    normalized_type = column_type.upper().strip()
+    return (
+        normalized_type.endswith("[]")
+        and (
+            normalized_type.startswith("FLOAT")
+            or normalized_type.startswith("REAL")
+            or normalized_type.startswith("DOUBLE")
+        )
+    )
+
+
+def _load_column_schema(parquet_file: Path) -> dict[str, str]:
+    """Load a parquet schema as a column-to-type mapping via DuckDB."""
+
+    schema_df = duckdb.sql(
+        "DESCRIBE SELECT * FROM read_parquet("
+        f"{_sql_string_literal(str(parquet_file))})"
+    ).df()
+
+    return {
+        str(row["column_name"]): str(row["column_type"])
+        for _, row in schema_df.iterrows()
+    }
 
 
 def _embedding_source_column_name(embedding_column: str) -> str:
@@ -188,11 +213,11 @@ def _embedding_source_column_name(embedding_column: str) -> str:
 def _infer_embedding_columns(parquet_file: Path) -> list[str]:
     """Infer embedding columns from one parquet schema."""
 
-    schema = pq.read_schema(parquet_file)
+    schema = _load_column_schema(parquet_file)
     return [
-        field.name
-        for field in schema
-        if _is_embedding_type(field.type)
+        column_name
+        for column_name, column_type in schema.items()
+        if _is_embedding_type(column_type)
     ]
 
 
@@ -719,9 +744,14 @@ def _load_embedding_column(parquet_file: Path, column: str) -> tuple[np.ndarray,
     """Load one embedding column from parquet into a dense NumPy matrix."""
 
     with _log_step(f"Read parquet column column={column} file={parquet_file}"):
-        table = pq.read_table(parquet_file, columns=[column])
+        dataframe = duckdb.sql(
+            "SELECT "
+            f"{_sql_identifier(column)} "
+            "FROM read_parquet("
+            f"{_sql_string_literal(str(parquet_file))})"
+        ).df()
 
-    values = table.column(column).to_pylist()
+    values = dataframe[column].tolist()
     filtered_embeddings = [embedding for embedding in values if embedding is not None]
     dropped_nulls = len(values) - len(filtered_embeddings)
 

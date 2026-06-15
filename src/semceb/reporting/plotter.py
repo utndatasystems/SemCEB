@@ -12,6 +12,7 @@ import seaborn as sns
 from semceb.reporting.plot_params import apply_plot_params
 from semceb.reporting.plot_q_error_analysis import QErrorAnalysisPlotMixin
 from semceb.reporting.plot_query_selectivities import QuerySelectivityPlotMixin
+from semceb.reporting.plot_data_skew import DataSkewPlotMixin
 from semceb.reporting.plot_strlen_distribution import (
     StringLengthDistributionPlotMixin,
 )
@@ -20,6 +21,7 @@ from semceb.reporting.plot_strlen_distribution import (
 class ResultsPlotter(
     QuerySelectivityPlotMixin,
     StringLengthDistributionPlotMixin,
+    DataSkewPlotMixin,
     QErrorAnalysisPlotMixin,
 ):
     """Plots benchmark run results."""
@@ -71,6 +73,7 @@ class ResultsPlotter(
         self._plot_q_error_analysis(df)
         self._plot_ground_truth_selectivity_distributions()
         self._plot_string_length_distributions()
+        self._plot_data_skew()
         self._save_per_query_report(df)
         self._save_per_query_statistics_csv(df)
 

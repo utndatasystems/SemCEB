@@ -4,6 +4,7 @@ import pandas as pd
 
 from semceb.algorithms.interface import AlgorithmInterface
 from semceb.queries.query_specification import QuerySpecification
+from semceb.algorithms.cardinality_estimate import CardinalityEstimate, CardinalityEstimateKind
 
 
 class CustomAlgorithmTemplate(AlgorithmInterface):
@@ -55,7 +56,7 @@ class CustomAlgorithmTemplate(AlgorithmInterface):
         """
         ...
 
-    def run(self, query_spec: QuerySpecification) -> int:
+    def run(self, query_spec: QuerySpecification) -> CardinalityEstimate:
         """Estimate the output cardinality for a single query.
 
         Use the algorithm state prepared in `preparation` to approximate how
@@ -63,4 +64,8 @@ class CustomAlgorithmTemplate(AlgorithmInterface):
         dataset again.
         """
         ...
-        return 1
+        import random
+        return random.choice([
+            CardinalityEstimate(kind=CardinalityEstimateKind.INT, value=1),
+            CardinalityEstimate(kind=CardinalityEstimateKind.UNSUPPORTED, reason="This is a placeholder estimate indicating that the algorithm does not support this query type."),
+        ])

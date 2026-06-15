@@ -15,6 +15,7 @@ from semceb.data.loader import DataLoader
 from semceb.algorithms.interface import AlgorithmInterface
 from semceb.llm_backends.lotus_backend import LotusBackend
 from semceb.queries.query_specification import QuerySpecification
+from semceb.algorithms.cardinality_estimate import CardinalityEstimateKind
 
 class BenchmarkRunner:
     """Run benchmark queries and collect algorithm evaluation results."""
@@ -332,29 +333,33 @@ class BenchmarkRunner:
             cardinality_estimation = algorithm.run(query_spec)
             time_ms = (time.perf_counter() - start) * 1000
 
-        q_error = self._calculate_q_error(
-            cardinality_estimation,
-            cardinality_ground_truth,
-        )
+        if cardinality_estimation.kind == CardinalityEstimateKind.INT:
+            q_error = self._calculate_q_error(
+                cardinality_estimation.value,
+                cardinality_ground_truth,
+            )
 
-        selectivity_estimation = self._calculate_selectivity(
-            cardinality_estimation,
-            query_spec,
-            data_dfs,
-        )
+            selectivity_estimation = self._calculate_selectivity(
+                cardinality_estimation.value,
+                query_spec,
+                data_dfs,
+            )
 
-        self._save_result(
-            query_spec=query_spec,
-            algorithm_name=algorithm_config["name"],
-            algorithm_version=algorithm_config["version"],
-            algorithm_memory_consumption=algorithm.get_memory_consumption(),
-            algorithm_cost_stats=algorithm.get_cost_stats(),
-            cardinality_ground_truth=cardinality_ground_truth,
-            cardinality_estimation=cardinality_estimation,
-            selectivity_estimation=selectivity_estimation,
-            q_error=q_error,
-            time_ms=time_ms,
-        )
+            self._save_result(
+                query_spec=query_spec,
+                algorithm_name=algorithm_config["name"],
+                algorithm_version=algorithm_config["version"],
+                algorithm_memory_consumption=algorithm.get_memory_consumption(),
+                algorithm_cost_stats=algorithm.get_cost_stats(),
+                cardinality_ground_truth=cardinality_ground_truth,
+                cardinality_estimation=cardinality_estimation.value,
+                selectivity_estimation=selectivity_estimation,
+                q_error=q_error,
+                time_ms=time_ms,
+            )
+            
+        elif cardinality_estimation.kind == CardinalityEstimateKind.UNSUPPORTED:
+            console.print("[yellow]Algorithm returned unsupported estimate. Skipping q-error and selectivity calculations.[/yellow]")
 
         progress.advance(task)
 

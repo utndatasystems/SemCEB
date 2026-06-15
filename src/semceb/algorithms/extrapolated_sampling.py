@@ -5,6 +5,7 @@ from semceb.algorithms.interface import AlgorithmInterface
 import lotus.settings
 from semceb.queries.query_specification import QuerySpecification
 from semceb.queries.template_parser import QueryTemplatePartType
+from semceb.algorithms.cardinality_estimate import CardinalityEstimate, CardinalityEstimateKind
 
 
 class ExtrapolatedSampling(AlgorithmInterface):
@@ -135,14 +136,16 @@ class ExtrapolatedSampling(AlgorithmInterface):
 
         return data_sample
 
-    def run(self, query_spec: QuerySpecification) -> int:
+    def run(self, query_spec: QuerySpecification) -> CardinalityEstimate:
         """Run the algorithm and return the estimated output cardinality for the given query."""
 
         if len(query_spec.datasets) == 1:
-            return max(1, self._estimate_filter_cardinality(query_spec))
+            estimation = max(1, self._estimate_filter_cardinality(query_spec))
+            return CardinalityEstimate(CardinalityEstimateKind.INT, value=estimation)
         elif len(query_spec.datasets) > 1:
-            return max(1, self._estimate_join_cardinality(query_spec))
-
+            estimation = max(1, self._estimate_join_cardinality(query_spec))
+            return CardinalityEstimate(CardinalityEstimateKind.INT, value=estimation)
+        
         raise ValueError("Query must contain at least one dataset.")
 
     def _estimate_filter_cardinality(self, query_spec: QuerySpecification) -> int:

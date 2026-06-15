@@ -73,7 +73,11 @@ def load_text_model_bundle(model_name: str, device: str):
     import torch
     from transformers import AutoModel, AutoTokenizer
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
+    if model_name == "Qwen/Qwen3-Embedding-0.6B":
+        tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+
     model = AutoModel.from_pretrained(model_name)
     model.eval()
     model.to(device)
@@ -110,18 +114,23 @@ def compute_batch_embeddings(
     device: str,
     texts: list[str],
 ) -> list[list[float]]:
-    safe_max_length = get_safe_max_length(tokenizer, model)
+    if hasattr(model, "get_text_features"):
+        batch = tokenizer(
+            texts,
+            padding="max_length",
+            truncation=True,
+            max_length=64,
+            return_tensors="pt",
+        )
+    else:
+        batch = tokenizer(
+            texts,
+            padding=True,
+            truncation=True,
+            max_length=32768,
+            return_tensors="pt",
+        )
 
-    tokenizer_kwargs = {
-        "padding": True,
-        "truncation": True,
-        "return_tensors": "pt",
-    }
-
-    if safe_max_length is not None:
-        tokenizer_kwargs["max_length"] = safe_max_length
-
-    batch = tokenizer(texts, **tokenizer_kwargs)
     batch = {key: value.to(device) for key, value in batch.items()}
 
     with torch_module.inference_mode():
@@ -138,7 +147,6 @@ def compute_batch_embeddings(
         embeddings = torch_module.nn.functional.normalize(embeddings, p=2, dim=1)
 
     return embeddings.detach().cpu().to(torch_module.float32).tolist()
-
 
 def read_jsonl(path: Path) -> list[dict]:
     rows: list[dict] = []

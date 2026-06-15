@@ -17,10 +17,10 @@ class QErrorAnalysisPlotMixin:
 
     ALGORITHM_LABELS: dict[str, str] = {
         #"Custom Algorithm Template": "Template",
-        "Extrapolation Sampling 1%": "ES 1%",
-        "Extrapolation Sampling 5%": "ES 5%",
-        "Extrapolation Sampling 10%": "ES 10%",
-        "Extrapolation Sampling 20%": "ES 20%",
+        "Extrapolation Sampling 1%": "ES 1\\%",
+        "Extrapolation Sampling 5%": "ES 5\\%",
+        "Extrapolation Sampling 10%": "ES 10\\%",
+        "Extrapolation Sampling 20%": "ES 20\\%",
     }
 
     def _plot_q_error_analysis(self, df: pd.DataFrame) -> None:
@@ -57,7 +57,7 @@ class QErrorAnalysisPlotMixin:
         self._plot_q_error_subfigure(
             axis=axes[0],
             data=analysis_df[analysis_df["query_type"] == "filter"],
-            title="Filter queries",
+            title="Filter Queries",
             algorithms=algorithms,
             palette=palette,
             show_ylabel=True,
@@ -65,7 +65,7 @@ class QErrorAnalysisPlotMixin:
         self._plot_q_error_subfigure(
             axis=axes[1],
             data=analysis_df[analysis_df["query_type"] == "join"],
-            title="Join queries",
+            title="Join Queries",
             algorithms=algorithms,
             palette=palette,
             show_ylabel=False,

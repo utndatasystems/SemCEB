@@ -55,12 +55,10 @@ class StringLengthDistributionPlotMixin:
     """Helpers for plotting string-length distributions for embedded text columns."""
 
     AMAZON_REVIEWS_DATASET_DIR = (
-        Path(__file__).resolve().parents[2]
-        / "semceb"
+        Path(__file__).resolve().parents[3]
         / "data"
+        / "datasets"
         / "amazon-reviews"
-        / "processed"
-        / "Arts_Crafts_and_Sewing__raw_5core"
     )
 
     def _plot_string_length_distributions(self) -> None:

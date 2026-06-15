@@ -33,8 +33,8 @@ class QErrorAnalysisPlotMixin:
             return
 
         apply_plot_params(
-            fig_height=2.0,
-            scale=2,
+            fig_height=1.8,
+            scale=1.8,
             double_column=False,
         )
 

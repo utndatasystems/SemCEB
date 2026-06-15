@@ -17,10 +17,10 @@ class QErrorAnalysisPlotMixin:
 
     ALGORITHM_LABELS: dict[str, str] = {
         #"Custom Algorithm Template": "Template",
-        "Extrapolation Sampling 1%": "ES 1\\%",
-        "Extrapolation Sampling 5%": "ES 5\\%",
-        "Extrapolation Sampling 10%": "ES 10\\%",
-        "Extrapolation Sampling 20%": "ES 20\\%",
+        "Extrapolation Sampling 1%": "Sample 1\\%",
+        "Extrapolation Sampling 5%": "Sample 5\\%",
+        "Extrapolation Sampling 10%": "Sample 10\\%",
+        "Extrapolation Sampling 20%": "Sample 20\\%",
     }
 
     def _plot_q_error_analysis(self, df: pd.DataFrame) -> None:
@@ -33,7 +33,7 @@ class QErrorAnalysisPlotMixin:
             return
 
         apply_plot_params(
-            fig_height=1.8,
+            fig_height=1.3,
             scale=1.8,
             double_column=False,
         )
@@ -54,9 +54,12 @@ class QErrorAnalysisPlotMixin:
 
         fig, axes = plt.subplots(1, 2)
 
+        filter_data = analysis_df[analysis_df["query_type"] == "filter"]
+        join_data = analysis_df[analysis_df["query_type"] == "join"]
+
         self._plot_q_error_subfigure(
             axis=axes[0],
-            data=analysis_df[analysis_df["query_type"] == "filter"],
+            data=filter_data,
             title="Filter Queries",
             algorithms=algorithms,
             palette=palette,
@@ -64,7 +67,7 @@ class QErrorAnalysisPlotMixin:
         )
         self._plot_q_error_subfigure(
             axis=axes[1],
-            data=analysis_df[analysis_df["query_type"] == "join"],
+            data=join_data,
             title="Join Queries",
             algorithms=algorithms,
             palette=palette,
@@ -72,6 +75,8 @@ class QErrorAnalysisPlotMixin:
         )
 
         fig.tight_layout()
+        if not filter_data.empty:
+            self._add_q_error_direction_labels(fig=fig, axis=axes[0])
 
         pdf_path = self.plot_dir / "q_error_analysis.pdf"
         fig.savefig(pdf_path, bbox_inches="tight", pad_inches=0)
@@ -204,12 +209,7 @@ class QErrorAnalysisPlotMixin:
         axis.set_title(title)
         axis.set_xlabel("")
         if show_ylabel:
-            axis.set_ylabel(
-                r"q-error"
-                "\n"
-                r"{\small $\leftarrow$ underestimation \quad overestimation $\rightarrow$}",
-                labelpad=6,
-            )
+            axis.set_ylabel(r"q-error", labelpad=18)
         else:
             axis.set_ylabel("")
         self._apply_q_error_ticks(axis=axis, data=data["q_error"].tolist())
@@ -242,6 +242,31 @@ class QErrorAnalysisPlotMixin:
             spine.set_edgecolor("#666666")
             spine.set_linewidth(0.8)
 
+    def _add_q_error_direction_labels(self, fig: Any, axis: Any) -> None:
+        """Add separate direction labels for the upper and lower plot halves."""
+
+        axis_position = axis.get_position()
+        label_x = max(0.01, axis_position.x0 - 0.075)
+
+        fig.text(
+            label_x,
+            axis_position.y0 + (0.78 * axis_position.height),
+            "over-\nestimation",
+            rotation=90,
+            ha="center",
+            va="center",
+            fontsize="x-small",
+        )
+        fig.text(
+            label_x,
+            axis_position.y0 + (0.22 * axis_position.height),
+            "under-\nestimation",
+            rotation=90,
+            ha="center",
+            va="center",
+            fontsize="x-small",
+        )
+
     def _transform_q_error_for_plot(self, q_error: float) -> float:
         """Map signed q-error values onto a log-like plotting coordinate."""
 
@@ -267,15 +292,7 @@ class QErrorAnalysisPlotMixin:
         plot_limit = max(1, math.ceil(math.log10(max_abs_value)) + 1)
         axis.set_ylim(-plot_limit, plot_limit)
 
-        tick_values: list[float] = [10**exponent for exponent in range(plot_limit + 1)]
-
-        unique_values = sorted(
-            {
-                -value for value in tick_values if value > 1
-            }
-            | {1.0}
-            | {value for value in tick_values if value > 1}
-        )
+        unique_values = self._build_q_error_major_tick_values(plot_limit)
 
         axis.set_yticks(
             [self._transform_q_error_for_plot(value) for value in unique_values]
@@ -285,6 +302,31 @@ class QErrorAnalysisPlotMixin:
                 self._format_scientific_tick(value)
                 for value in unique_values
             ]
+        )
+
+    def _build_q_error_major_tick_values(self, plot_limit: int) -> list[float]:
+        """Select a reduced set of major q-error ticks to avoid label crowding."""
+
+        if plot_limit == 1:
+            exponents = [1]
+        elif plot_limit == 2:
+            exponents = [2]
+        elif plot_limit <= 6:
+            exponents = list(range(2, plot_limit + 1, 2))
+        else:
+            exponents = list(range(3, plot_limit + 1, 3))
+
+        if not exponents and plot_limit >= 1:
+            exponents = list(range(1, plot_limit + 1))
+
+        tick_values = [10**exponent for exponent in exponents]
+
+        return sorted(
+            {
+                -value for value in tick_values
+            }
+            | {1.0}
+            | set(tick_values)
         )
 
     def _build_q_error_minor_tick_positions(self, data: list[float]) -> list[float]:

@@ -25,8 +25,8 @@ class AlgorithmComparisonPaperPlotMixin:
     }
     LEFT_COLUMN_YLABEL_X = -0.28
     ALGORITHM_BAR_HATCH_PATTERNS = ("////", "\\\\\\\\", "xxxx", "....", "++", "oo")
-    AGGREGATED_COST_YLABEL = r"Agg. Costs [US-\$]"
-    AGGREGATED_TIME_YLABEL = "Agg. Time [s]"
+    COST_YLABEL = r"Cost per Query [US-\$]"
+    TIME_YLABEL = "Time per Query [s]"
     MEMORY_CONSUMPTION_YLABEL = "Memory [Bytes]"
 
     ALGORITHM_LABELS: dict[str, str] = {
@@ -94,28 +94,28 @@ class AlgorithmComparisonPaperPlotMixin:
             palette=palette,
             show_ylabel=False,
         )
-        self._plot_aggregated_cost_subfigure(
+        self._plot_cost_subfigure(
             axis=axes[1, 0],
             data=filter_cost_data,
             algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=True,
         )
-        self._plot_aggregated_cost_subfigure(
+        self._plot_cost_subfigure(
             axis=axes[1, 1],
             data=join_cost_data,
             algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=False,
         )
-        self._plot_aggregated_time_subfigure(
+        self._plot_time_subfigure(
             axis=axes[2, 0],
             data=filter_time_data,
             algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=True,
         )
-        self._plot_aggregated_time_subfigure(
+        self._plot_time_subfigure(
             axis=axes[2, 1],
             data=join_time_data,
             algorithms=algorithm_labels,
@@ -318,7 +318,7 @@ class AlgorithmComparisonPaperPlotMixin:
         axis.axhline(0, color="#666666", linewidth=0.9, linestyle="--", alpha=0.7, zorder=0)
         axis.grid(axis="y", alpha=0.6)
 
-    def _plot_aggregated_cost_subfigure(
+    def _plot_cost_subfigure(
         self,
         axis: Any,
         data: pd.DataFrame,
@@ -326,54 +326,71 @@ class AlgorithmComparisonPaperPlotMixin:
         palette: dict[str, Any],
         show_ylabel: bool,
     ) -> None:
-        """Plot aggregated per-algorithm costs for one query type."""
+        """Plot per-query costs for one query type."""
 
-        aggregated_cost_df = self._build_aggregated_metric_dataframe(
+        cost_df = self._prepare_boxplot_metric_dataframe(
             data=data,
-            algorithms=algorithms,
             metric_column="cost_usd",
-            aggregated_column="metric_total",
             require_non_negative=True,
         )
 
-        if aggregated_cost_df.empty:
+        if cost_df.empty:
             self._show_empty_axis(axis, title="", message="No cost data")
             return
 
-        sns.barplot(
-            data=aggregated_cost_df,
+        sns.boxplot(
+            data=cost_df,
             x="algorithm_label",
-            y="metric_total",
+            y="cost_usd",
             hue="algorithm_label",
             order=algorithms,
             hue_order=algorithms,
             palette=palette,
             width=0.65,
-            edgecolor="#000000",
             linewidth=1.1,
+            boxprops={
+                "edgecolor": "#000000",
+                "linewidth": 1.1,
+            },
+            whiskerprops={
+                "color": "#000000",
+                "linewidth": 1.1,
+            },
+            capprops={
+                "color": "#000000",
+                "linewidth": 1.1,
+            },
+            flierprops={
+                "marker": "x",
+                "markersize": 4.0,
+                "markeredgecolor": "#222222",
+                "markeredgewidth": 0.9,
+                "markerfacecolor": "none",
+                "linestyle": "none",
+            },
+            medianprops={
+                "color": "#000000",
+                "linewidth": 2.0,
+            },
             ax=axis,
+            dodge=False,
             legend=False,
         )
 
         axis.set_title("")
         axis.set_xlabel("")
         if show_ylabel:
-            axis.set_ylabel(self.AGGREGATED_COST_YLABEL)
+            axis.set_ylabel(self.COST_YLABEL)
         else:
             axis.set_ylabel("")
         axis.yaxis.set_major_formatter(FuncFormatter(self._format_usd_tick))
         axis.xaxis.set_minor_locator(NullLocator())
         axis.yaxis.set_minor_locator(NullLocator())
-        self._apply_bar_hatches(
-            axis=axis,
-            plotted_algorithms=aggregated_cost_df["algorithm_label"].tolist(),
-            all_algorithms=algorithms,
-        )
         self._style_axis_frame(axis)
         self._style_shared_x_axis(axis, show_ticklabels=False)
         axis.grid(axis="y", alpha=0.6)
 
-    def _plot_aggregated_time_subfigure(
+    def _plot_time_subfigure(
         self,
         axis: Any,
         data: pd.DataFrame,
@@ -381,49 +398,66 @@ class AlgorithmComparisonPaperPlotMixin:
         palette: dict[str, Any],
         show_ylabel: bool,
     ) -> None:
-        """Plot aggregated per-algorithm runtimes for one query type."""
+        """Plot per-query runtimes for one query type."""
 
-        aggregated_time_df = self._build_aggregated_metric_dataframe(
+        time_df = self._prepare_boxplot_metric_dataframe(
             data=data,
-            algorithms=algorithms,
             metric_column="time_ms",
-            aggregated_column="metric_total",
             require_non_negative=True,
         )
-        aggregated_time_df["metric_total"] = aggregated_time_df["metric_total"] / 1000.0
+        time_df["time_s"] = time_df["time_ms"] / 1000.0
 
-        if aggregated_time_df.empty:
+        if time_df.empty:
             self._show_empty_axis(axis, title="", message="No runtime data")
             return
 
-        sns.barplot(
-            data=aggregated_time_df,
+        sns.boxplot(
+            data=time_df,
             x="algorithm_label",
-            y="metric_total",
+            y="time_s",
             hue="algorithm_label",
             order=algorithms,
             hue_order=algorithms,
             palette=palette,
             width=0.65,
-            edgecolor="#000000",
             linewidth=1.1,
+            boxprops={
+                "edgecolor": "#000000",
+                "linewidth": 1.1,
+            },
+            whiskerprops={
+                "color": "#000000",
+                "linewidth": 1.1,
+            },
+            capprops={
+                "color": "#000000",
+                "linewidth": 1.1,
+            },
+            flierprops={
+                "marker": "x",
+                "markersize": 4.0,
+                "markeredgecolor": "#222222",
+                "markeredgewidth": 0.9,
+                "markerfacecolor": "none",
+                "linestyle": "none",
+            },
+            medianprops={
+                "color": "#000000",
+                "linewidth": 2.0,
+            },
             ax=axis,
+            dodge=False,
             legend=False,
         )
 
         axis.set_title("")
         axis.set_xlabel("")
         if show_ylabel:
-            axis.set_ylabel(self.AGGREGATED_TIME_YLABEL)
+            axis.set_ylabel(self.TIME_YLABEL)
         else:
             axis.set_ylabel("")
         axis.xaxis.set_minor_locator(NullLocator())
         axis.yaxis.set_minor_locator(NullLocator())
-        self._apply_bar_hatches(
-            axis=axis,
-            plotted_algorithms=aggregated_time_df["algorithm_label"].tolist(),
-            all_algorithms=algorithms,
-        )
         self._style_axis_frame(axis)
         self._style_shared_x_axis(axis, show_ticklabels=False)
         axis.grid(axis="y", alpha=0.6)
@@ -444,6 +478,8 @@ class AlgorithmComparisonPaperPlotMixin:
             self._show_empty_axis(axis, title="", message="No memory data")
             return
 
+        memory_palette = {algorithm: "#d9d9d9" for algorithm in algorithms}
+
         sns.barplot(
             data=memory_df,
             x="algorithm_label",
@@ -451,7 +487,7 @@ class AlgorithmComparisonPaperPlotMixin:
             hue="algorithm_label",
             order=algorithms,
             hue_order=algorithms,
-            palette=palette,
+            palette=memory_palette,
             width=0.65,
             edgecolor="#000000",
             linewidth=1.1,
@@ -467,24 +503,17 @@ class AlgorithmComparisonPaperPlotMixin:
             axis.set_ylabel("")
         axis.xaxis.set_minor_locator(NullLocator())
         axis.yaxis.set_minor_locator(NullLocator())
-        self._apply_bar_hatches(
-            axis=axis,
-            plotted_algorithms=memory_df["algorithm_label"].tolist(),
-            all_algorithms=algorithms,
-        )
         self._style_axis_frame(axis)
         self._style_shared_x_axis(axis, show_ticklabels=True)
         axis.grid(axis="y", alpha=0.6)
 
-    def _build_aggregated_metric_dataframe(
+    def _prepare_boxplot_metric_dataframe(
         self,
         data: pd.DataFrame,
-        algorithms: list[str],
         metric_column: str,
-        aggregated_column: str,
         require_non_negative: bool,
     ) -> pd.DataFrame:
-        """Aggregate one numeric metric by algorithm for one query type."""
+        """Prepare one per-query metric for boxplot rendering."""
 
         valid_metric_df = data.dropna(subset=[metric_column]).copy()
         valid_metric_df = valid_metric_df[
@@ -492,22 +521,8 @@ class AlgorithmComparisonPaperPlotMixin:
         ]
         if require_non_negative:
             valid_metric_df = valid_metric_df[valid_metric_df[metric_column] >= 0]
-        if valid_metric_df.empty:
-            return pd.DataFrame(columns=["algorithm_label", aggregated_column])
 
-        metric_by_algorithm = (
-            valid_metric_df.groupby("algorithm_label", observed=False)[metric_column]
-            .sum()
-            .reindex(algorithms, fill_value=0.0)
-            .reset_index(name=aggregated_column)
-        )
-        metric_by_algorithm["algorithm_label"] = pd.Categorical(
-            metric_by_algorithm["algorithm_label"],
-            categories=algorithms,
-            ordered=True,
-        )
-
-        return metric_by_algorithm
+        return valid_metric_df
 
     def _build_memory_consumption_dataframe(
         self,

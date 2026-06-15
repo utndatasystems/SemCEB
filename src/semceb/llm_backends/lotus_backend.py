@@ -13,11 +13,21 @@ from semceb.queries.template_parser import ColumnRef
 class LotusBackend():
     """LOTUS backend for ground-truth cardinality estimation and caching."""
 
-    def __init__(self, model_name: str, system_prompt: str, scale_factor: int):
+    def __init__(
+        self,
+        model_name: str,
+        system_prompt: str,
+        scale_factor: int | None,
+    ):
         """Initialize the LOTUS backend, cache, and model instance."""
-        
-        safe_model_name = self._safe_cache_name(model_name)
-        self.cache_path = Path("benchmark_queries") / f"ground_truth_cache_{safe_model_name}.json"
+        self.safe_model_name = self._safe_cache_name(model_name)
+        self.safe_scale_factor = self._safe_scale_factor_name(scale_factor)
+
+        self.cache_path = (
+            Path("benchmark_queries")
+            / f"ground_truth_cache_{self.safe_model_name}_{self.safe_scale_factor}.json"
+        )
+        self.query_results_dir = Path("results") / "raw" / "query_results"
         self.cache = self._load_cache()
 
         self.name = model_name
@@ -39,6 +49,20 @@ class LotusBackend():
             .replace(":", "_")
             .replace(" ", "_")
         )
+
+    def _safe_scale_factor_name(self, scale_factor: int | None) -> str:
+        """Return a filesystem-safe name for the scale-factor cache file suffix."""
+        if scale_factor is None:
+            return "sf_full"
+
+        return f"sf{scale_factor}"
+
+    def _format_scale_factor_for_filename(self) -> str:
+        """Format the scale factor for query result filenames."""
+        if self.scale_factor is None:
+            return "full"
+
+        return str(self.scale_factor)
 
     def _make_cache_key(
         self,
@@ -91,6 +115,20 @@ class LotusBackend():
 
         tmp_path.replace(self.cache_path)
 
+    def _save_query_result(self, query_spec: QuerySpecification, result_df: pd.DataFrame) -> None:
+        """Persist the full ground-truth match set for a query to CSV."""
+
+        self.query_results_dir.mkdir(parents=True, exist_ok=True)
+
+        result_path = (
+            self.query_results_dir
+            / f"{self.safe_model_name}_sf{self._format_scale_factor_for_filename()}_q{query_spec.id}.csv"
+        )
+
+        tmp_path = result_path.with_suffix(".tmp")
+        result_df.to_csv(tmp_path, index=False)
+        tmp_path.replace(result_path)
+
     def _get_cached_cardinality(self, cache_key: str) -> int | None:
         """Return cached cardinality if available."""
         value = self.cache.get(cache_key)
@@ -122,9 +160,12 @@ class LotusBackend():
         if cached is not None:
             return cached
 
-        cardinality = df.sem_filter(
+        result_df = df.sem_filter(
             user_instruction=query_str,
-        ).shape[0]
+        )
+        cardinality = result_df.shape[0]
+
+        self._save_query_result(query_spec, result_df)
 
         self._set_cached_cardinality(cache_key, cardinality, selectivity=cardinality / df.shape[0])
         return cardinality  
@@ -171,10 +212,13 @@ class LotusBackend():
         if cached is not None:
             return cached
         
-        cardinality = data_left_df.sem_join(
+        result_df = data_left_df.sem_join(
             data_right_df,
             query_str,
-        ).shape[0]
+        )
+        cardinality = result_df.shape[0]
+
+        self._save_query_result(query_spec, result_df)
 
         self._set_cached_cardinality(cache_key, cardinality, selectivity=cardinality / (data_left_df.shape[0] * data_right_df.shape[0]))
         return cardinality

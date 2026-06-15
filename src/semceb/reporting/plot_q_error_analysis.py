@@ -15,6 +15,15 @@ from semceb.utils.console import console
 class QErrorAnalysisPlotMixin:
     """Helpers for plotting q-error distributions by query type and algorithm."""
 
+    Q_ERROR_YLABEL_PAD = 18
+    Q_ERROR_DIRECTION_LABEL_X_OFFSET = 0.075
+    Q_ERROR_DIRECTION_LABEL_MIN_X = 0.01
+    Q_ERROR_DIRECTION_LABEL_FONT_SIZE = "x-small"
+    Q_ERROR_DIRECTION_LABEL_POSITIONS = {
+        "over-\nestimation": 0.78,
+        "under-\nestimation": 0.22,
+    }
+
     ALGORITHM_LABELS: dict[str, str] = {
         #"Custom Algorithm Template": "Template",
         "Extrapolation Sampling 1%": "Sample 1\\%",
@@ -47,8 +56,8 @@ class QErrorAnalysisPlotMixin:
             )
             return
 
-        algorithms = analysis_df["algorithm_label"].cat.categories.tolist()
-        palette = {algorithm: "#ffffff" for algorithm in algorithms}
+        algorithm_labels = analysis_df["algorithm_label"].cat.categories.tolist()
+        palette = {algorithm: "#ffffff" for algorithm in algorithm_labels}
 
         self.plot_dir.mkdir(parents=True, exist_ok=True)
 
@@ -61,7 +70,7 @@ class QErrorAnalysisPlotMixin:
             axis=axes[0],
             data=filter_data,
             title="Filter Queries",
-            algorithms=algorithms,
+            algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=True,
         )
@@ -69,7 +78,7 @@ class QErrorAnalysisPlotMixin:
             axis=axes[1],
             data=join_data,
             title="Join Queries",
-            algorithms=algorithms,
+            algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=False,
         )
@@ -206,20 +215,18 @@ class QErrorAnalysisPlotMixin:
             legend=False,
         )
 
+        q_error_values = data["q_error"].tolist()
+
         axis.set_title(title)
         axis.set_xlabel("")
         if show_ylabel:
-            axis.set_ylabel(r"q-error", labelpad=18)
+            axis.set_ylabel("q-error", labelpad=self.Q_ERROR_YLABEL_PAD)
         else:
             axis.set_ylabel("")
-        self._apply_q_error_ticks(axis=axis, data=data["q_error"].tolist())
+        self._apply_q_error_ticks(axis=axis, q_error_values=q_error_values)
         axis.xaxis.set_minor_locator(NullLocator())
         axis.yaxis.set_minor_locator(
-            FixedLocator(
-                self._build_q_error_minor_tick_positions(
-                    data["q_error"].tolist()
-                )
-            )
+            FixedLocator(self._get_q_error_minor_tick_positions(q_error_values))
         )
         axis.tick_params(
             axis="both",
@@ -246,26 +253,21 @@ class QErrorAnalysisPlotMixin:
         """Add separate direction labels for the upper and lower plot halves."""
 
         axis_position = axis.get_position()
-        label_x = max(0.01, axis_position.x0 - 0.075)
+        label_x = max(
+            self.Q_ERROR_DIRECTION_LABEL_MIN_X,
+            axis_position.x0 - self.Q_ERROR_DIRECTION_LABEL_X_OFFSET,
+        )
 
-        fig.text(
-            label_x,
-            axis_position.y0 + (0.78 * axis_position.height),
-            "over-\nestimation",
-            rotation=90,
-            ha="center",
-            va="center",
-            fontsize="x-small",
-        )
-        fig.text(
-            label_x,
-            axis_position.y0 + (0.22 * axis_position.height),
-            "under-\nestimation",
-            rotation=90,
-            ha="center",
-            va="center",
-            fontsize="x-small",
-        )
+        for label_text, relative_y in self.Q_ERROR_DIRECTION_LABEL_POSITIONS.items():
+            fig.text(
+                label_x,
+                axis_position.y0 + (relative_y * axis_position.height),
+                label_text,
+                rotation=90,
+                ha="center",
+                va="center",
+                fontsize=self.Q_ERROR_DIRECTION_LABEL_FONT_SIZE,
+            )
 
     def _transform_q_error_for_plot(self, q_error: float) -> float:
         """Map signed q-error values onto a log-like plotting coordinate."""
@@ -280,31 +282,36 @@ class QErrorAnalysisPlotMixin:
 
         return math.copysign(math.log10(magnitude), q_error)
 
-    def _apply_q_error_ticks(self, axis: Any, data: list[float]) -> None:
+    def _apply_q_error_ticks(self, axis: Any, q_error_values: list[float]) -> None:
         """Set log-like q-error ticks with 1 in the center."""
 
-        if not data:
+        if not q_error_values:
             axis.set_yticks([0.0])
             axis.set_yticklabels(["1"])
             return
 
-        max_abs_value = max(abs(value) for value in data if math.isfinite(value))
-        plot_limit = max(1, math.ceil(math.log10(max_abs_value)) + 1)
+        plot_limit = self._get_q_error_plot_limit(q_error_values)
         axis.set_ylim(-plot_limit, plot_limit)
 
-        unique_values = self._build_q_error_major_tick_values(plot_limit)
+        major_tick_values = self._get_q_error_major_tick_values(plot_limit)
 
         axis.set_yticks(
-            [self._transform_q_error_for_plot(value) for value in unique_values]
+            [self._transform_q_error_for_plot(value) for value in major_tick_values]
         )
         axis.set_yticklabels(
             [
                 self._format_scientific_tick(value)
-                for value in unique_values
+                for value in major_tick_values
             ]
         )
 
-    def _build_q_error_major_tick_values(self, plot_limit: int) -> list[float]:
+    def _get_q_error_plot_limit(self, q_error_values: list[float]) -> int:
+        """Return the symmetric log-scale limit used for q-error plotting."""
+
+        max_abs_value = max(abs(value) for value in q_error_values if math.isfinite(value))
+        return max(1, math.ceil(math.log10(max_abs_value)) + 1)
+
+    def _get_q_error_major_tick_values(self, plot_limit: int) -> list[float]:
         """Select a reduced set of major q-error ticks to avoid label crowding."""
 
         if plot_limit == 1:
@@ -329,16 +336,13 @@ class QErrorAnalysisPlotMixin:
             | set(tick_values)
         )
 
-    def _build_q_error_minor_tick_positions(self, data: list[float]) -> list[float]:
+    def _get_q_error_minor_tick_positions(self, q_error_values: list[float]) -> list[float]:
         """Build minor tick positions that follow log spacing on the transformed axis."""
 
-        finite_values = [abs(value) for value in data if math.isfinite(value)]
-        if not finite_values:
+        if not q_error_values:
             return []
 
-        max_abs_value = max(finite_values)
-        plot_limit = max(1, math.ceil(math.log10(max_abs_value)) + 1)
-
+        plot_limit = self._get_q_error_plot_limit(q_error_values)
         minor_positions: list[float] = []
 
         for exponent in range(plot_limit):

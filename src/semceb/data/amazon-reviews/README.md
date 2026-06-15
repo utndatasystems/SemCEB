@@ -1,117 +1,240 @@
-Amazon-Reviews-2023
-=====
+Amazon Reviews 2023 data preparation
+====================================
 
-The benchmark uses `McAuley-Lab/Amazon-Reviews-2023` (MIT license).
-The whole dataset is large, which would exceed the current capabilities of modern semantic operators.
+This directory contains the local preparation pipeline for
+`McAuley-Lab/Amazon-Reviews-2023` (MIT license). The default benchmark dataset
+is the `Arts_Crafts_and_Sewing` category in `raw_5core` mode: raw review text and
+metadata are retained, but rows are restricted to the 5-core interaction set.
 
-Therefore, we apply the following transformations:
-
- - Only the category `Arts_Crafts_and_Sewing` is used.
- - The `products` table is filtered such that the following columns do not contain `NULL` values and all values must have at least 5 characters.
-   - `product_title IS NOT NULL`
-   - `features_json IS NOT NULL`
-   - `description_json IS NOT NULL`
-   - `details_json IS NOT NULL`
-   - `images_json IS NOT NULL`
- - Further, `products` are filtered such that the following columns are neither `NULL` nor contain empty JSON array/structs:
-   - `features_json`
-   - `description_json`
-   - `details_json`
-   - `images_json`
- - Lastly, every product is associated with multiple images. For this dataset, we download only the `hi_res` version of the `"variant":"MAIN"` image such that we end up with exactly one image per product. The image file name is stored in the newly created `main_image_local` column. Further, products without such an image are removed such that every product is guaranteed to have one image.
- - The `reviews` table is filtered such that:
-   - `review_title` is neither NULL nor empty.
-   - `review_text` is neither NULL nor empty.
- - `5core` filtering is applied: both `products` and `reviews` are filtered such that only products/reviews are contained that appear in the `5core` interactions dataset.
-
-In the end, two tables are created:
- - `products_filtered`: ~45k rows
- - `reviews_filtered`: ~940k rows
-
-
-## Setup
-
-To generate the dataset, run the following command from the repository root:
-
-```bash
-python src/semceb/data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --category Arts_Crafts_and_Sewing --mode raw_5core
-```
-
-This writes the processed dataset to:
+The generated data is intentionally not tracked in git. By default, scripts use:
 
 ```text
-data/amazon-reviews/processed/Arts_Crafts_and_Sewing__raw_5core/
+src/semceb/data/amazon-reviews/
+  raw/        # downloaded Hugging Face source files
+  cache/      # cached Hugging Face tree metadata and local helper caches
+  reports/    # category size report
+  processed/  # prepared dataset runs
 ```
 
-To compute image and text embeddings for the filtered product and review tables, run:
+## TL;DR Dataset Repro
+
+Reproduces the dataset that is used in the SemCEB paper.
+
+Note: This requires significant computing resources and time. It is better to just download the prepared dataset from S3 by running `semceb run`.
 
 ```bash
-python src/semceb/data/amazon-reviews/compute_embeddings.py --run-dir Arts_Crafts_and_Sewing__raw_5core
+python src/semceb/data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --category Arts_Crafts_and_Sewing  --mode raw_5core
+
+python src/semceb/data/amazon-reviews/compute_embeddings.py --data-dir Arts_Crafts_and_Sewing__raw_5core
+
+cd src/semceb/data/amazon-reviews/
+AWS_ACCESS_KEY_ID=xxxxx AWS_SECRET_ACCESS_KEY=xxxxx ./upload_data_to_s3.sh
 ```
 
-The short `--run-dir` value is resolved relative to `data/amazon-reviews/processed/`.
+## Workflow
 
-This uses `google/siglip2-base-patch16-224` for images and `Qwen/Qwen3-Embedding-0.6B`
-for the textual product and review columns, auto-selects the available device, and writes:
+Analyze category footprint:
+
+```bash
+python src/semceb/data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --analyze-only
+```
+
+Prepare the default benchmark dataset:
+
+```bash
+python src/semceb/data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py \
+  --category Arts_Crafts_and_Sewing \
+  --mode raw_5core
+```
+
+Compute embeddings:
+
+```bash
+python src/semceb/data/amazon-reviews/compute_embeddings.py \
+  --data-dir Arts_Crafts_and_Sewing__raw_5core
+```
+
+If embedded parquet files already exist but the local embedding cache is missing,
+seed the cache from those parquet files without recomputing existing embeddings:
+
+```bash
+python src/semceb/data/amazon-reviews/import_embeddings_into_cache.py \
+  --data-dir Arts_Crafts_and_Sewing__raw_5core
+```
+
+`--data-dir` accepts either an absolute path, a path relative to `src/semceb`, or a
+short processed-run name under `src/semceb/data/amazon-reviews/processed/`.
+
+## Preparation
+
+`download_and_prepare_amazon_reviews_dataset.py` downloads the required Amazon
+Reviews files from Hugging Face, mass-downloads product images for retained
+products, and builds a DuckDB-backed processed run.
+
+Supported modes:
+
+- `raw`: writes `products.parquet` and `reviews.parquet` after the metadata,
+  image, and non-empty review text filters, without 5-core restriction.
+- `raw_5core`: writes `products_filtered.parquet` and `reviews_filtered.parquet`
+  after applying the same filters and restricting products/reviews to the 5-core
+  interaction set.
+
+For `raw_5core`, the output directory is:
+
+```text
+src/semceb/data/amazon-reviews/processed/Arts_Crafts_and_Sewing__raw_5core/
+```
+
+Important preparation rules:
+
+- Product metadata must have non-empty `product_title`, `features_json`,
+  `description_json`, `details_json`, and `images_json`.
+- Products must have a non-empty MAIN `hi_res` image URL. The script downloads
+  these images into `images/`, mirroring URL host/path to avoid filename
+  collisions.
+- Reviews must have non-empty `review_title` and `review_text`.
+- In `raw_5core`, reviews are matched to 5-core interactions by
+  `user_id`, `parent_asin`, `rating`, and `timestamp_ms`, then restricted to
+  products retained after metadata/image filtering.
+
+For the current `Arts_Crafts_and_Sewing__raw_5core` run, the local parquet files
+contain 45,693 products and 936,216 filtered reviews.
+
+Core prepared artifacts:
+
+```text
+amazon_reviews.duckdb
+summary.json
+products_filtered.parquet
+reviews_filtered.parquet
+images/
+```
+
+## Embeddings
+
+`compute_embeddings.py` reads a processed `raw_5core` run, requires
+`amazon_reviews.duckdb` and `images/`, and writes embedded parquet files without
+modifying the original filtered parquet files.
+
+A machine with a GPU is recommended. The final parquet export is memory-heavy;
+for the current dataset, use a machine with more than 100 GB RAM.
+
+Output artifacts:
 
 ```text
 products_filtered_with_embeddings.parquet
 reviews_filtered_with_embeddings.parquet
+embedding_cache.sqlite3
 ```
 
-The embedding files are written into the same processed dataset directory. The original
-`products_filtered.parquet` and `reviews_filtered.parquet` remain untouched.
+## Embedded table schemas
 
+Current schemas from DuckDB `DESCRIBE` on the embedded parquet files.
 
-## Schema
+### `products_filtered_with_embeddings.parquet`
 
-`products_filtered`:
+Base columns:
 
+| Column | Type |
+| --- | --- |
+| `parent_asin` | `VARCHAR` |
+| `main_category` | `VARCHAR` |
+| `product_title` | `VARCHAR` |
+| `average_rating` | `DOUBLE` |
+| `rating_number` | `BIGINT` |
+| `price` | `VARCHAR` |
+| `store` | `VARCHAR` |
+| `categories_json` | `JSON` |
+| `features_json` | `JSON` |
+| `description_json` | `JSON` |
+| `details_json` | `JSON` |
+| `images_json` | `JSON` |
+| `main_image_local` | `VARCHAR` |
+| `videos_json` | `JSON` |
+| `bought_together` | `VARCHAR` |
+| `subtitle` | `VARCHAR` |
+| `author` | `VARCHAR` |
+
+Embedding columns:
+
+| Source | Model | Embedding column | Type | Truncation flag column |
+| --- | --- | --- | --- | --- |
+| `main_image_local` | `google/siglip2-base-patch16-224` | `main_image_local_embeddings_google_siglip2_base_patch16_224` | `DOUBLE[]` | `main_image_local_embeddings_google_siglip2_base_patch16_224_input_is_truncated` |
+| `product_title` | `Qwen/Qwen3-Embedding-0.6B` | `product_title_embeddings_qwen_qwen3_embedding_0_6b` | `DOUBLE[]` | `product_title_embeddings_qwen_qwen3_embedding_0_6b_input_is_truncated` |
+| `description_json` | `Qwen/Qwen3-Embedding-0.6B` | `description_json_embeddings_qwen_qwen3_embedding_0_6b` | `DOUBLE[]` | `description_json_embeddings_qwen_qwen3_embedding_0_6b_input_is_truncated` |
+| `features_json` | `Qwen/Qwen3-Embedding-0.6B` | `features_json_embeddings_qwen_qwen3_embedding_0_6b` | `DOUBLE[]` | `features_json_embeddings_qwen_qwen3_embedding_0_6b_input_is_truncated` |
+| `details_json` | `Qwen/Qwen3-Embedding-0.6B` | `details_json_embeddings_qwen_qwen3_embedding_0_6b` | `DOUBLE[]` | `details_json_embeddings_qwen_qwen3_embedding_0_6b_input_is_truncated` |
+| `product_title` | `google/siglip2-base-patch16-224` | `product_title_embeddings_google_siglip2_base_patch16_224` | `DOUBLE[]` | `product_title_embeddings_google_siglip2_base_patch16_224_input_is_truncated` |
+| `description_json` | `google/siglip2-base-patch16-224` | `description_json_embeddings_google_siglip2_base_patch16_224` | `DOUBLE[]` | `description_json_embeddings_google_siglip2_base_patch16_224_input_is_truncated` |
+| `features_json` | `google/siglip2-base-patch16-224` | `features_json_embeddings_google_siglip2_base_patch16_224` | `DOUBLE[]` | `features_json_embeddings_google_siglip2_base_patch16_224_input_is_truncated` |
+| `details_json` | `google/siglip2-base-patch16-224` | `details_json_embeddings_google_siglip2_base_patch16_224` | `DOUBLE[]` | `details_json_embeddings_google_siglip2_base_patch16_224_input_is_truncated` |
+
+### `reviews_filtered_with_embeddings.parquet`
+
+Base columns:
+
+| Column | Type |
+| --- | --- |
+| `user_id` | `VARCHAR` |
+| `asin` | `VARCHAR` |
+| `parent_asin` | `VARCHAR` |
+| `rating` | `DOUBLE` |
+| `review_title` | `VARCHAR` |
+| `review_text` | `VARCHAR` |
+| `timestamp_ms` | `BIGINT` |
+| `helpful_vote` | `BIGINT` |
+| `verified_purchase` | `BOOLEAN` |
+| `images_json` | `JSON` |
+
+Embedding columns:
+
+| Source | Model | Embedding column | Type | Truncation flag column |
+| --- | --- | --- | --- | --- |
+| `review_title` | `Qwen/Qwen3-Embedding-0.6B` | `review_title_embeddings_qwen_qwen3_embedding_0_6b` | `DOUBLE[]` | `review_title_embeddings_qwen_qwen3_embedding_0_6b_input_is_truncated` |
+| `review_text` | `Qwen/Qwen3-Embedding-0.6B` | `review_text_embeddings_qwen_qwen3_embedding_0_6b` | `DOUBLE[]` | `review_text_embeddings_qwen_qwen3_embedding_0_6b_input_is_truncated` |
+| `review_title` | `google/siglip2-base-patch16-224` | `review_title_embeddings_google_siglip2_base_patch16_224` | `DOUBLE[]` | `review_title_embeddings_google_siglip2_base_patch16_224_input_is_truncated` |
+| `review_text` | `google/siglip2-base-patch16-224` | `review_text_embeddings_google_siglip2_base_patch16_224` | `DOUBLE[]` | `review_text_embeddings_google_siglip2_base_patch16_224_input_is_truncated` |
+
+Models:
+
+- Images: `google/siglip2-base-patch16-224` on `main_image_local`.
+- Product text: `Qwen/Qwen3-Embedding-0.6B` and
+  `google/siglip2-base-patch16-224` on `product_title`, `description_json`,
+  `features_json`, and `details_json`.
+- Review text: `Qwen/Qwen3-Embedding-0.6B` and
+  `google/siglip2-base-patch16-224` on `review_title` and `review_text`.
+
+Embedding column names follow:
+
+```text
+<source_column>_embeddings_<sanitized_model_name>
 ```
-┌──────────────────┬─────────────┬─────────┬─────────┬─────────┬─────────┐
-│   column_name    │ column_type │  null   │   key   │ default │  extra  │
-│     varchar      │   varchar   │ varchar │ varchar │ varchar │ varchar │
-├──────────────────┼─────────────┼─────────┼─────────┼─────────┼─────────┤
-│ parent_asin      │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ main_category    │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ product_title    │ VARCHAR     │ NO      │ NULL    │ NULL    │ NULL    │
-│ average_rating   │ DOUBLE      │ YES     │ NULL    │ NULL    │ NULL    │
-│ rating_number    │ BIGINT      │ YES     │ NULL    │ NULL    │ NULL    │
-│ price            │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ store            │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ categories_json  │ JSON        │ YES     │ NULL    │ NULL    │ NULL    │
-│ features_json    │ JSON        │ NO      │ NULL    │ NULL    │ NULL    │
-│ description_json │ JSON        │ NO      │ NULL    │ NULL    │ NULL    │
-│ details_json     │ JSON        │ NO      │ NULL    │ NULL    │ NULL    │
-│ images_json      │ JSON        │ NO      │ NULL    │ NULL    │ NULL    │
-│ main_image_local │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ videos_json      │ JSON        │ YES     │ NULL    │ NULL    │ NULL    │
-│ bought_together  │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ subtitle         │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ author           │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-├──────────────────┴─────────────┴─────────┴─────────┴─────────┴─────────┤
-│ 17 rows                                                      6 columns │
-└────────────────────────────────────────────────────────────────────────┘
+
+Each embedding column has a sibling boolean column:
+
+```text
+<embedding_column>_input_is_truncated
 ```
 
-`reviews_filtered`:
+Computing embeddings might be expensive. This script therefore employs a local
+embedding cache using SQLite.
+The embedding cache stores completed vectors keyed by table, source row key, and
+embedding column. It allows interrupted embedding runs to resume. It also allows
+backfilling the cache from already embedded parquet files via
+`import_embeddings_into_cache.py`, which is useful when adding new embedding
+columns without recomputing old ones. The cache is a performance artifact; the
+canonical exported datasets are the parquet files.
 
+## S3 upload
+
+`upload_data_to_s3.sh` uploads the prepared benchmark artifacts for
+`Arts_Crafts_and_Sewing__raw_5core` to:
+
+```text
+s3://azimmerer-semceb-datasets/amazon-reviews/
 ```
-┌───────────────────┬─────────────┬─────────┬─────────┬─────────┬─────────┐
-│    column_name    │ column_type │  null   │   key   │ default │  extra  │
-│      varchar      │   varchar   │ varchar │ varchar │ varchar │ varchar │
-├───────────────────┼─────────────┼─────────┼─────────┼─────────┼─────────┤
-│ user_id           │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ asin              │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ parent_asin       │ VARCHAR     │ YES     │ NULL    │ NULL    │ NULL    │
-│ rating            │ DOUBLE      │ YES     │ NULL    │ NULL    │ NULL    │
-│ review_title      │ VARCHAR     │ NO      │ NULL    │ NULL    │ NULL    │
-│ review_text       │ VARCHAR     │ NO      │ NULL    │ NULL    │ NULL    │
-│ timestamp_ms      │ BIGINT      │ YES     │ NULL    │ NULL    │ NULL    │
-│ helpful_vote      │ BIGINT      │ YES     │ NULL    │ NULL    │ NULL    │
-│ verified_purchase │ BOOLEAN     │ YES     │ NULL    │ NULL    │ NULL    │
-│ images_json       │ JSON        │ YES     │ NULL    │ NULL    │ NULL    │
-├───────────────────┴─────────────┴─────────┴─────────┴─────────┴─────────┤
-│ 10 rows                                                       6 columns │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+
+It requires configured AWS CLI credentials and `zip`. Before uploading, it
+creates `images.zip` from the local image directory and
+`embedding_cache.sqlite3.zip` from the SQLite embedding cache. It uploads both
+archives plus the filtered and embedded parquet files.

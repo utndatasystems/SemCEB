@@ -6,7 +6,10 @@ __pycache__/
 *.pyo
 *.pyd
 
-.*
 data/datasets/*
+.env*
+
+data/
+results/raw/query_results/
 
 *.egg-info/

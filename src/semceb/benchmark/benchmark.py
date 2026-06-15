@@ -235,6 +235,7 @@ class BenchmarkRunner:
                 progress=progress,
                 task=task,
                 group_name=query_group["name"],
+                scale_factor=query_group["scale_factor"],
             )
 
     def _get_ground_truth_params(self, algorithm_config: dict[str, Any]) -> tuple[str, str]:
@@ -255,6 +256,7 @@ class BenchmarkRunner:
         progress,
         task,
         group_name: str,
+        scale_factor: int | None,
     ) -> None:
         """Run one algorithm on a group of queries."""
 
@@ -274,6 +276,7 @@ class BenchmarkRunner:
                 progress=progress,
                 task=task,
                 group_name=group_name,
+                scale_factor=scale_factor,
                 ground_truth_model_name=ground_truth_model_name,
                 ground_truth_system_prompt=ground_truth_system_prompt,
             )
@@ -293,6 +296,7 @@ class BenchmarkRunner:
         progress,
         task,
         group_name: str,
+        scale_factor: int | None,
         ground_truth_model_name: str,
         ground_truth_system_prompt: str,
     ) -> None:
@@ -311,6 +315,7 @@ class BenchmarkRunner:
             cardinality_ground_truth = self._get_cardinality_ground_truth(
                 ground_truth_model_name,
                 ground_truth_system_prompt,
+                scale_factor,
                 query_spec,
                 data_dfs,
             )
@@ -428,9 +433,20 @@ class BenchmarkRunner:
             console.print("[yellow]Benchmark aborted by user.[/yellow]")
             raise SystemExit(0)
     
-    def _get_cardinality_ground_truth(self, model_name: str, system_prompt: str, query_spec: QuerySpecification, data_dfs: dict[str, pd.DataFrame]) -> int:
+    def _get_cardinality_ground_truth(
+        self,
+        model_name: str,
+        system_prompt: str,
+        scale_factor: int | None,
+        query_spec: QuerySpecification,
+        data_dfs: dict[str, pd.DataFrame],
+    ) -> int:
         """Obtain model-based selectivity ground truth."""
-        backend = LotusBackend(model_name=model_name, system_prompt=system_prompt, scale_factor=self.scale_factor)
+        backend = LotusBackend(
+            model_name=model_name,
+            system_prompt=system_prompt,
+            scale_factor=scale_factor,
+        )
 
         if len(query_spec.datasets) == 1:
             # Filtering
@@ -452,13 +468,11 @@ class BenchmarkRunner:
         """Calcualte q error. Higher is worse."""
         if cardinality_estimation == cardinality_ground_truth:
             return 1.0
-        elif cardinality_estimation == 0 or cardinality_ground_truth == 0:
-            return math.inf
-        else:
-            return max(
-                cardinality_estimation / cardinality_ground_truth,
-                cardinality_ground_truth / cardinality_estimation,
-            )
+        if cardinality_estimation == 0 or cardinality_ground_truth == 0:
+            return -math.inf if cardinality_estimation < cardinality_ground_truth else math.inf
+        if cardinality_estimation < cardinality_ground_truth:
+            return -(cardinality_ground_truth / cardinality_estimation)
+        return cardinality_estimation / cardinality_ground_truth
     
     def _calculate_selectivity(self, cardinality_estimation: int, query_spec: QuerySpecification, data_dfs: dict[str, pd.DataFrame]) -> float:
         """Calculate selectivity based on cardinality estimation and number of input rows."""

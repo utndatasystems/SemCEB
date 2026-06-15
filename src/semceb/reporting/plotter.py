@@ -2,15 +2,26 @@ from pathlib import Path
 from typing import Any
 import json
 import math
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 import pandas as pd
 from semceb.utils.console import console
 from rich.table import Table
 import seaborn as sns
+from semceb.reporting.plot_params import apply_plot_params
+from semceb.reporting.plot_q_error_analysis import QErrorAnalysisPlotMixin
+from semceb.reporting.plot_query_selectivities import QuerySelectivityPlotMixin
+from semceb.reporting.plot_strlen_distribution import (
+    StringLengthDistributionPlotMixin,
+)
 
 
-class ResultsPlotter:
+class ResultsPlotter(
+    QuerySelectivityPlotMixin,
+    StringLengthDistributionPlotMixin,
+    QErrorAnalysisPlotMixin,
+):
     """Plots benchmark run results."""
 
     def __init__(self):
@@ -30,9 +41,6 @@ class ResultsPlotter:
         # Example: with 2 algorithms and this set to 6,
         # the 2 algorithms appear on the left and the remaining space stays empty.
         self.minimum_visible_algorithm_slots = 8
-
-        self.plot_font_size = 12
-        self.main_title_font_size = 18
 
 
     def plot(self) -> None:
@@ -60,6 +68,9 @@ class ResultsPlotter:
         self._save_summary_table(summary)
         self._save_algorithm_summary_csv(summary)
         self._plot_algorithm_comparison(df)
+        self._plot_q_error_analysis(df)
+        self._plot_ground_truth_selectivity_distributions()
+        self._plot_string_length_distributions()
         self._save_per_query_report(df)
         self._save_per_query_statistics_csv(df)
 
@@ -279,7 +290,11 @@ class ResultsPlotter:
     def _plot_algorithm_comparison(self, df: pd.DataFrame) -> None:
         """Plot one metric as total bars while preserving empty algorithm slots."""
         
-        self._configure_plot_style()
+        apply_plot_params(
+            fig_height=5.5,
+            scale=2.0,
+            double_column=True,
+        )
 
         algorithms = self._get_algorithms_for_comparison(df)
         algorithm_styles = self._get_algorithm_styles(algorithms)
@@ -306,39 +321,6 @@ class ResultsPlotter:
             algorithm_styles=algorithm_styles,
         )
 
-    def _configure_plot_style(self) -> None:
-        """Configure Matplotlib and Seaborn style settings for consistent plots."""
-        plt.rcParams["font.family"] = "serif"
-        plt.rcParams["font.serif"] = ["DejaVu Serif"]
-        plt.rcParams["mathtext.fontset"] = "dejavuserif"
-
-        sns.set_theme(
-            context="paper",
-            style="whitegrid",
-            font_scale=1.0,
-            rc={
-                "font.size": self.plot_font_size,
-                "axes.titlesize": self.plot_font_size,
-                "axes.labelsize": self.plot_font_size,
-                "xtick.labelsize": self.plot_font_size,
-                "ytick.labelsize": self.plot_font_size,
-                "legend.fontsize": self.plot_font_size,
-                "legend.title_fontsize": self.plot_font_size,
-                "axes.facecolor": "white",
-                "figure.facecolor": "white",
-                "grid.color": "#d0d0d0",
-                "grid.linewidth": 0.8,
-                "axes.edgecolor": "#666666",
-                "axes.linewidth": 0.8,
-                "axes.titleweight": "bold",
-                "axes.labelcolor": "#222222",
-                "xtick.color": "#222222",
-                "ytick.color": "#222222",
-                "font.family": "serif",
-                "font.serif": ["DejaVu Serif"],
-            },
-        )
-
     def _get_algorithms_for_comparison(self, df: pd.DataFrame) -> list[str]:
         """Return the ordered list of algorithms to include in comparison plots."""
         if self.algorithm_order is None:
@@ -348,7 +330,7 @@ class ResultsPlotter:
 
     def _create_comparison_figure(self):
         """Create a fixed subplot grid for algorithm comparison charts."""
-        fig, axes = plt.subplots(2, 3, figsize=(20, 11))
+        fig, axes = plt.subplots(2, 3)
         return fig, axes.flatten()
 
     def _build_comparison_plot_specs(self) -> list[tuple[str, str, str]]:
@@ -441,7 +423,6 @@ class ResultsPlotter:
 
         fig.suptitle(
             "Algorithm Performance Comparison",
-            fontsize=self.main_title_font_size,
             fontweight="bold",
             color="#111111",
             y=1.06,
@@ -449,13 +430,7 @@ class ResultsPlotter:
 
         fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.99))
 
-        png_path = self.plot_dir / "algorithm_comparison.png"
         pdf_path = self.plot_dir / "algorithm_comparison.pdf"
-
-        fig.savefig(png_path, dpi=180, bbox_inches="tight")
-        console.print(
-            f"[green]✓[/green] Saved algorithm comparison plot to [bold]{png_path}[/bold]"
-        )
 
         fig.savefig(pdf_path, bbox_inches="tight")
         console.print(
@@ -463,7 +438,6 @@ class ResultsPlotter:
         )
 
         plt.close(fig)
-
 
     def _plot_box_metric(
         self,
@@ -586,15 +560,9 @@ class ResultsPlotter:
         algorithms are plotted.
         """
 
-        axis.set_title(title, fontsize=self.plot_font_size)
-        axis.set_xlabel("", fontsize=self.plot_font_size)
-        axis.set_ylabel(ylabel, fontsize=self.plot_font_size)
-
-        axis.tick_params(
-            axis="both",
-            which="major",
-            labelsize=self.plot_font_size,
-        )
+        axis.set_title(title)
+        axis.set_xlabel("")
+        axis.set_ylabel(ylabel)
 
         algorithm_count = len(algorithms)
         visible_slot_count = max(

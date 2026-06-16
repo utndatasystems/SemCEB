@@ -5,13 +5,13 @@ Reads the benchmark queries and computes embedding vectors for each row’s `fil
 ## Usage
 
 ```bash
-python tools/queries/compute_embeddings.py
+python tools/queries/compute_query_embeddings.py
 ```
 
 Recompute existing embeddings:
 
 ```bash
-python tools/queries/compute_embeddings.py --overwrite
+python tools/queries/compute_query_embeddings.py --overwrite
 ```
 
 Note: The JSONL file is updated in place.

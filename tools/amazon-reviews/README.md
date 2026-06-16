@@ -25,7 +25,7 @@ Note: This requires significant computing resources and time. It is better to ju
 ```bash
 python tools/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --category Arts_Crafts_and_Sewing  --mode raw_5core
 
-python tools/amazon-reviews/compute_embeddings.py --data-dir Arts_Crafts_and_Sewing__raw_5core
+python tools/amazon-reviews/compute_dataset_embeddings.py --data-dir Arts_Crafts_and_Sewing__raw_5core
 
 python tools/amazon-reviews/copy_prepared_data_to_runtime.py
 
@@ -52,7 +52,7 @@ python tools/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py \
 Compute embeddings:
 
 ```bash
-python tools/amazon-reviews/compute_embeddings.py \
+python tools/amazon-reviews/compute_dataset_embeddings.py \
   --data-dir Arts_Crafts_and_Sewing__raw_5core
 ```
 
@@ -122,7 +122,7 @@ images/
 
 ## Embeddings
 
-`compute_embeddings.py` reads a processed `raw_5core` run, requires
+`compute_dataset_embeddings.py` reads a processed `raw_5core` run, requires
 `amazon_reviews.duckdb` and `images/`, and writes embedded parquet files without
 modifying the original filtered parquet files.
 

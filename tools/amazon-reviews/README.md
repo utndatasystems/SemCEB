@@ -27,6 +27,8 @@ python tools/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --cat
 
 python tools/amazon-reviews/compute_embeddings.py --data-dir Arts_Crafts_and_Sewing__raw_5core
 
+python tools/amazon-reviews/copy_prepared_data_to_runtime.py
+
 cd tools/amazon-reviews/
 AWS_ACCESS_KEY_ID=xxxxx AWS_SECRET_ACCESS_KEY=xxxxx ./upload_data_to_s3.sh
 ```

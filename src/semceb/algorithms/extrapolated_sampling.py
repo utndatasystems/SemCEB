@@ -1,9 +1,12 @@
 import sys
 import pandas as pd
 
+from pathlib import Path
+import lotus.settings
+from lotus.dtype_extensions.image import ImageArray
+
 from semceb.algorithms.helpers import get_dict_memory_usage, get_sample_memory_usage
 from semceb.algorithms.interface import AlgorithmInterface
-import lotus.settings
 from semceb.queries.query_specification import QuerySpecification
 from semceb.queries.template_parser import QueryTemplatePartType
 from semceb.algorithms.cardinality_estimate import CardinalityEstimate, CardinalityEstimateKind
@@ -11,6 +14,8 @@ from semceb.algorithms.cardinality_estimate import CardinalityEstimate, Cardinal
 
 class ExtrapolatedSampling(AlgorithmInterface):
     """Algorithm based on extrapolation sampling."""
+
+    DATASETS_IMAGE_COLUMNS = {"main_image_local"}
 
     def __init__(self, name: str, version: str):
         """Initialize the sampling algorithm and prepare cost tracking."""
@@ -137,6 +142,93 @@ class ExtrapolatedSampling(AlgorithmInterface):
 
         return data_sample
 
+    def _load_referenced_image_columns(
+        self,
+        query_spec: QuerySpecification,
+        dataframes: list[pd.DataFrame],
+    ) -> list[pd.DataFrame]:
+        """Load referenced image columns for LOTUS semantic operations."""
+        image_columns_by_dataset: dict[str, set[str]] = {}
+
+        for part in query_spec.filter_parsed.parts:
+            if part.type != QueryTemplatePartType.COLUMN_REF:
+                continue
+
+            column_ref = part.value
+
+            if column_ref.column_name not in self.DATASETS_IMAGE_COLUMNS:
+                continue
+
+            dataset_ref = self._resolve_column_dataset_ref(
+                query_spec=query_spec,
+                column_ref=column_ref,
+            )
+
+            image_columns_by_dataset.setdefault(dataset_ref, set()).add(
+                column_ref.column_name
+            )
+
+        if not image_columns_by_dataset:
+            return dataframes
+
+        prepared_dataframes = list(dataframes)
+
+        for idx, dataset_spec in enumerate(query_spec.datasets):
+            image_columns = image_columns_by_dataset.get(dataset_spec.alias)
+
+            if not image_columns:
+                continue
+
+            dataset_root = (
+                Path("data")
+                / "datasets"
+                / dataset_spec.table_ref.split("/")[0]
+            )
+            image_root = dataset_root / "images"
+
+            for image_column in image_columns:
+                prepared_dataframes[idx] = self._load_image_column(
+                    df=prepared_dataframes[idx],
+                    image_column=image_column,
+                    image_root=image_root,
+                )
+
+        return prepared_dataframes
+
+    def _resolve_column_dataset_ref(
+        self,
+        query_spec: QuerySpecification,
+        column_ref,
+    ) -> str:
+        """Return the dataset alias for a column reference."""
+        if column_ref.dataset_ref is not None:
+            return column_ref.dataset_ref
+
+        if len(query_spec.datasets) == 1:
+            return query_spec.datasets[0].alias
+
+        raise ValueError(
+            f"Column '{column_ref.column_name}' has no dataset reference. "
+            "Dataset reference is required when querying multiple datasets."
+        )
+
+    def _load_image_column(
+        self,
+        df: pd.DataFrame,
+        image_column: str,
+        image_root: Path,
+    ) -> pd.DataFrame:
+        """Return a copy of the dataframe with an image column loaded as an ImageArray."""
+        df = df.copy()
+
+        image_paths = [
+            str(image_root / image_path) if pd.notna(image_path) else None
+            for image_path in df[image_column]
+        ]
+
+        df[image_column] = ImageArray(image_paths)
+        return df
+
     def run(self, query_spec: QuerySpecification) -> CardinalityEstimate:
         """Run the algorithm and return the estimated output cardinality for the given query."""
 
@@ -156,6 +248,11 @@ class ExtrapolatedSampling(AlgorithmInterface):
         dataset_spec = query_spec.datasets[0]
         data_sample = self.data_sample[dataset_spec.table_ref]
 
+        [data_sample] = self._load_referenced_image_columns(
+            query_spec=query_spec,
+            dataframes=[data_sample],
+        )
+
         sample_estimation = data_sample.sem_filter(
             user_instruction=query_str,
         ).shape[0]
@@ -174,6 +271,11 @@ class ExtrapolatedSampling(AlgorithmInterface):
         dataset_spec_left, dataset_spec_right = query_spec.datasets
         data_left = self.data_sample[dataset_spec_left.table_ref]
         data_right = self.data_sample[dataset_spec_right.table_ref]
+
+        data_left, data_right = self._load_referenced_image_columns(
+            query_spec=query_spec,
+            dataframes=[data_left, data_right],
+        )
 
         query_str = self._format_join_query(
             query_spec=query_spec,

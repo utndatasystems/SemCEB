@@ -188,6 +188,24 @@ def write_jsonl_in_place(path: Path, rows: list[dict]) -> None:
     os.replace(tmp_path, path)
 
 
+def get_embeddings_object(obj: dict) -> dict[str, list[float]]:
+    embeddings = obj.get("embeddings")
+
+    if embeddings is None:
+        embeddings = {}
+        obj["embeddings"] = embeddings
+    elif not isinstance(embeddings, dict):
+        raise ValueError(
+            f"Expected 'embeddings' to be an object for query id={obj.get('id')!r}"
+        )
+
+    for model_name in EMBEDDING_MODELS:
+        if model_name in obj:
+            embeddings.setdefault(model_name, obj.pop(model_name))
+
+    return embeddings
+
+
 def add_embeddings_for_model(
     rows: list[dict],
     model_name: str,
@@ -201,7 +219,9 @@ def add_embeddings_for_model(
     skipped_existing = 0
 
     for idx, obj in enumerate(rows):
-        if not overwrite and model_name in obj:
+        embeddings = get_embeddings_object(obj)
+
+        if not overwrite and model_name in embeddings:
             skipped_existing += 1
             continue
 
@@ -248,7 +268,8 @@ def add_embeddings_for_model(
         )
 
         for idx, vector in zip(batch_indices, vectors, strict=True):
-            rows[idx][model_name] = vector
+            embeddings = get_embeddings_object(rows[idx])
+            embeddings[model_name] = vector
 
         embedded += len(batch_jobs)
         print(f"[info] {model_name}: embedded {embedded}/{len(jobs)} rows")
@@ -260,7 +281,7 @@ def main() -> int:
     jsonl_path = Path(args.jsonl_path).expanduser().resolve()
 
     if not jsonl_path.exists():
-        print(f"[error] JSONL file does not exist: {jsonl_path}")
+        print(f"[error] JSONL file does not exist: {jsonl_path}. Is the given path correct (default: assumes this script is run from the project root)?")
         return 1
 
     device = resolve_device()

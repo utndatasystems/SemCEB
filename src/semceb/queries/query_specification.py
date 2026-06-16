@@ -22,7 +22,9 @@ class DatasetSpecification:
     """Represent one dataset reference and alias in a query specification."""
 
     alias: str
+    """Alias of the table reference, e.g., "reviews AS r2" -> alias="r2"."""
     table_ref: str
+    """Source table reference, e.g., "reviews AS r2" -> table_ref="reviews"."""
 
     @classmethod
     def from_str(cls, s: str) -> "DatasetSpecification":
@@ -63,13 +65,22 @@ class QuerySpecification:
     """Represent a benchmark query along with parsed filter metadata."""
 
     id: int
+    """Stable numeric query identifier."""
     type: str
+    """Benchmark-specific query type label."""
     category: str
+    """Benchmark category label used for grouping queries."""
     datasets: list[DatasetSpecification]
+    """Dataset references used by the query, including aliases."""
     filter: str
-    embeddings: dict[str, list[float]]
+    """Raw filter template string as stored in the query source."""
     filter_parsed: QueryTemplate
-
+    """Parsed representation of ``filter`` for downstream processing. Contains parsed column references.
+    The predicate string is split into fixed string parts and column references, stored together in a list
+    in the origianl order, which allows processing and re-assembling."""
+    embeddings: dict[str, list[float]]
+    """Embedding representations of the filter predicate with different models (keys of the dictionary)."""
+    
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "QuerySpecification":
         """Construct a QuerySpecification from a dictionary loaded from JSON."""

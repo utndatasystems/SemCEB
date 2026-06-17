@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import hashlib
 import importlib
 import re
@@ -22,7 +21,8 @@ from semceb.queries.template_parser import QueryTemplatePartType
 from semceb.utils.console import console
 
 
-CACHE_SCHEMA_VERSION = 2
+CACHE_SCHEMA_VERSION = 3
+ANSWER_PREFIX = "Answer: "
 SUPPORTED_SOURCE_COLUMNS = (
     "product_title",
     "review_title",
@@ -63,16 +63,6 @@ def _to_legacy_cache_on_cpu(past_key_values: Any) -> tuple[tuple[Any, ...], ...]
     )
 
 
-def _move_cache_to_device(
-    past_key_values: tuple[tuple[Any, ...], ...],
-    device: Any,
-) -> tuple[tuple[Any, ...], ...]:
-    return tuple(
-        tuple(tensor.to(device) for tensor in layer)
-        for layer in past_key_values
-    )
-
-
 @dataclass
 class RowPrefixCache:
     prefix_length: int
@@ -100,6 +90,8 @@ class LocalHFTextKVBackend:
         self._tokenizer = None
         self._model = None
         self._device = None
+        self._chat_template_parts: tuple[str, str] | None = None
+        self._binary_token_ids: tuple[int, int] | None = None
 
     @property
     def tokenizer(self):
@@ -153,7 +145,11 @@ class LocalHFTextKVBackend:
         assert self._model is not None
         assert self._device is not None
 
-        encoded = self._tokenizer(prefix_text, return_tensors="pt")
+        encoded = self._tokenizer(
+            prefix_text,
+            return_tensors="pt",
+            add_special_tokens=False,
+        )
         input_ids = encoded["input_ids"].to(self._device)
         attention_mask = encoded["attention_mask"].to(self._device)
 
@@ -171,82 +167,219 @@ class LocalHFTextKVBackend:
             past_key_values=_to_legacy_cache_on_cpu(outputs.past_key_values),
         )
 
+    def build_row_prefix(self, row_text: str) -> str:
+        chat_prefix, _ = self._get_chat_template_parts()
+        normalized_row_text = _normalize_whitespace(row_text)
+        return (
+            f"{chat_prefix}"
+            "Answer the following question based on the row text with '1' or '0'. "
+            "Do not add any other comments.\n\n"
+            f"Row text:\n{normalized_row_text}\n\n"
+        )
+
+    def build_runtime_suffix(self, predicate_text: str) -> str:
+        _, chat_suffix = self._get_chat_template_parts()
+        normalized_predicate = _normalize_whitespace(predicate_text)
+        return (
+            "Question: Does the row text satisfy this predicate?\n"
+            f"Predicate:\n{normalized_predicate}\n"
+            f"{chat_suffix}"
+            f"{ANSWER_PREFIX}"
+        )
+
     def evaluate_binary(
         self,
         runtime_question: str,
         cache: RowPrefixCache,
     ) -> tuple[str, dict[str, int]]:
+        responses, stats = self.evaluate_binary_batch(runtime_question, [cache])
+        return responses[0], stats
+
+    def evaluate_binary_batch(
+        self,
+        runtime_question: str,
+        caches: list[RowPrefixCache],
+    ) -> tuple[list[str], dict[str, int]]:
         self._ensure_loaded()
         assert self._torch is not None
         assert self._tokenizer is not None
         assert self._model is not None
         assert self._device is not None
 
-        answer_prompt = f"{runtime_question}\nAnswer:"
+        if not caches:
+            return [], {"usd": 0, "llm_calls": 0, "model_batches": 0, "tokens": 0}
+
         encoded = self._tokenizer(
-            answer_prompt,
+            runtime_question,
             return_tensors="pt",
             add_special_tokens=False,
         )
         suffix_input_ids = encoded["input_ids"].to(self._device)
         suffix_attention_mask = encoded["attention_mask"].to(self._device)
 
-        prefix_input_ids = cache.prefix_input_ids.to(self._device)
-        prefix_attention_mask = self._torch.ones_like(prefix_input_ids)
-        full_input_ids = self._torch.cat(
-            [prefix_input_ids, suffix_input_ids],
-            dim=1,
-        )
+        dynamic_cache, prefix_attention_mask = self._build_batched_cache(caches)
+        suffix_input_ids = suffix_input_ids.expand(len(caches), -1)
+        suffix_attention_mask = suffix_attention_mask.expand(len(caches), -1)
         full_attention_mask = self._torch.cat(
             [prefix_attention_mask, suffix_attention_mask],
             dim=1,
         )
 
-        moved_cache = _move_cache_to_device(
-            copy.deepcopy(cache.past_key_values),
-            self._device,
-        )
-        transformers_cache_utils = importlib.import_module("transformers.cache_utils")
-        DynamicCache = getattr(transformers_cache_utils, "DynamicCache")
-        dynamic_cache = DynamicCache.from_legacy_cache(moved_cache)
-
         with self._torch.no_grad():
-            generated = self._model.generate(
-                input_ids=full_input_ids,
+            outputs = self._model(
+                input_ids=suffix_input_ids,
                 attention_mask=full_attention_mask,
                 past_key_values=dynamic_cache,
-                do_sample=False,
-                max_new_tokens=self.max_new_tokens,
-                pad_token_id=self._tokenizer.pad_token_id,
-                eos_token_id=self._tokenizer.eos_token_id,
+                use_cache=False,
+                return_dict=True,
             )
 
-        new_tokens = generated[:, full_input_ids.shape[1] :]
-        decoded = self._tokenizer.decode(
-            new_tokens[0],
-            skip_special_tokens=True,
-        ).strip()
+        zero_token_id, one_token_id = self._get_binary_token_ids()
+        next_token_logits = outputs.logits[:, -1, :]
+        zero_logits = next_token_logits[:, zero_token_id]
+        one_logits = next_token_logits[:, one_token_id]
+        responses = [
+            "1" if is_positive else "0"
+            for is_positive in (one_logits > zero_logits).detach().cpu().tolist()
+        ]
 
-        result = self._parse_binary_response(decoded)
         stats = {
-            "llm_calls": 1,
-            "tokens": int(suffix_input_ids.numel() + new_tokens.numel()),
+            "usd": 0,
+            "llm_calls": len(caches),
+            "model_batches": 1,
+            "tokens": int(suffix_input_ids.numel() + len(caches)),
         }
-        return result, stats
+        return responses, stats
 
-    @staticmethod
-    def _parse_binary_response(decoded: str) -> str:
-        match = re.search(r"[01]", decoded)
-        if match is not None:
-            return match.group(0)
+    def _build_batched_cache(self, caches: list[RowPrefixCache]) -> tuple[Any, Any]:
+        assert self._torch is not None
+        assert self._tokenizer is not None
+        assert self._device is not None
 
-        normalized = decoded.strip().lower()
-        if normalized.startswith("yes"):
-            return "1"
-        if normalized.startswith("no"):
-            return "0"
-        return "0"
+        max_prefix_length = max(cache.prefix_length for cache in caches)
+        pad_token_id = self._tokenizer.pad_token_id
+        if pad_token_id is None:
+            pad_token_id = self._tokenizer.eos_token_id
 
+        prefix_attention_masks = []
+        batched_layers = []
+
+        for layer_entries in zip(*(cache.past_key_values for cache in caches)):
+            padded_keys = []
+            padded_values = []
+            for key_states, value_states in layer_entries:
+                key_states = key_states.to(self._device)
+                value_states = value_states.to(self._device)
+                pad_len = max_prefix_length - int(key_states.shape[2])
+                if pad_len > 0:
+                    key_states = self._torch.nn.functional.pad(
+                        key_states,
+                        (0, 0, pad_len, 0),
+                    )
+                    value_states = self._torch.nn.functional.pad(
+                        value_states,
+                        (0, 0, pad_len, 0),
+                    )
+                else:
+                    key_states = key_states.clone()
+                    value_states = value_states.clone()
+                padded_keys.append(key_states.contiguous())
+                padded_values.append(value_states.contiguous())
+
+            batched_layers.append(
+                (
+                    self._torch.cat(padded_keys, dim=0),
+                    self._torch.cat(padded_values, dim=0),
+                )
+            )
+
+        for cache in caches:
+            pad_len = max_prefix_length - cache.prefix_length
+            padding_mask = self._torch.zeros(
+                (1, pad_len),
+                dtype=self._torch.long,
+                device=self._device,
+            )
+            prefix_mask = self._torch.ones(
+                (1, cache.prefix_length),
+                dtype=self._torch.long,
+                device=self._device,
+            )
+            prefix_attention_masks.append(
+                self._torch.cat([padding_mask, prefix_mask], dim=1)
+            )
+
+        transformers_cache_utils = importlib.import_module("transformers.cache_utils")
+        DynamicCache = getattr(transformers_cache_utils, "DynamicCache")
+        dynamic_cache = DynamicCache()
+        for layer_idx, (key_states, value_states) in enumerate(batched_layers):
+            dynamic_cache.update(key_states, value_states, layer_idx)
+
+        return dynamic_cache, self._torch.cat(prefix_attention_masks, dim=0)
+
+    def _get_chat_template_parts(self) -> tuple[str, str]:
+        self._ensure_loaded()
+        assert self._tokenizer is not None
+
+        if self._chat_template_parts is not None:
+            return self._chat_template_parts
+
+        dummy = "SEMCEB_CHAT_TEMPLATE_PLACEHOLDER"
+        if (
+            not hasattr(self._tokenizer, "apply_chat_template")
+            or getattr(self._tokenizer, "chat_template", None) is None
+        ):
+            self._chat_template_parts = ("", "\n")
+            return self._chat_template_parts
+
+        prompt = self._tokenizer.apply_chat_template(
+            [{"role": "user", "content": dummy}],
+            add_generation_prompt=True,
+            tokenize=False,
+        )
+        if dummy not in prompt:
+            self._chat_template_parts = ("", "\n")
+            return self._chat_template_parts
+
+        self._chat_template_parts = prompt.split(dummy, 1)
+        return self._chat_template_parts
+
+    def _get_binary_token_ids(self) -> tuple[int, int]:
+        assert self._tokenizer is not None
+
+        if self._binary_token_ids is not None:
+            return self._binary_token_ids
+
+        answer_prefix_ids = self._tokenizer.encode(
+            ANSWER_PREFIX,
+            add_special_tokens=False,
+        )
+        zero_with_prefix_ids = self._tokenizer.encode(
+            f"{ANSWER_PREFIX}0",
+            add_special_tokens=False,
+        )
+        one_with_prefix_ids = self._tokenizer.encode(
+            f"{ANSWER_PREFIX}1",
+            add_special_tokens=False,
+        )
+        if (
+            zero_with_prefix_ids[: len(answer_prefix_ids)] == answer_prefix_ids
+            and one_with_prefix_ids[: len(answer_prefix_ids)] == answer_prefix_ids
+        ):
+            zero_ids = zero_with_prefix_ids[len(answer_prefix_ids) :]
+            one_ids = one_with_prefix_ids[len(answer_prefix_ids) :]
+        else:
+            zero_ids = self._tokenizer.encode("0", add_special_tokens=False)
+            one_ids = self._tokenizer.encode("1", add_special_tokens=False)
+
+        if len(zero_ids) != 1 or len(one_ids) != 1:
+            raise RuntimeError(
+                "SemanticHistogram binary logit scoring requires '0' and '1' to "
+                "tokenize to one token each."
+            )
+
+        self._binary_token_ids = (int(zero_ids[0]), int(one_ids[0]))
+        return self._binary_token_ids
 
 class TextPreloadedKVThresholdEstimator:
     def __init__(
@@ -258,6 +391,7 @@ class TextPreloadedKVThresholdEstimator:
         cache_dir: Path,
         hf_model_name: str,
         num_kv_caches: int,
+        eval_batch_size: int,
         seed: int,
     ):
         self.dataset_name = dataset_name
@@ -267,12 +401,13 @@ class TextPreloadedKVThresholdEstimator:
         self.cache_dir = cache_dir
         self.hf_model_name = hf_model_name
         self.num_kv_caches = num_kv_caches
+        self.eval_batch_size = eval_batch_size
         self.seed = seed
 
         self.image_embeddings = None
         self.row_prefix_caches: list[RowPrefixCache] = []
         self.selected_indices: list[int] = []
-        self.cost_stats = {"usd": 0, "llm_calls": 0, "tokens": 0}
+        self.cost_stats = {"usd": 0, "llm_calls": 0, "model_batches": 0, "tokens": 0}
         self.cache_bytes = 0
 
     def name(self):
@@ -327,7 +462,7 @@ class TextPreloadedKVThresholdEstimator:
         )
         self.row_prefix_caches = []
         for row_index in self.selected_indices:
-            prefix_text = self.build_cache_prefix(self.row_texts[row_index])
+            prefix_text = self.backend.build_row_prefix(self.row_texts[row_index])
             self.row_prefix_caches.append(self.backend.build_prefix_cache(prefix_text))
 
         self.cache_bytes = sum(
@@ -349,12 +484,18 @@ class TextPreloadedKVThresholdEstimator:
             raise ValueError("No prepared row caches available for estimation.")
 
         positive_responses = 0
-        for cache in self.row_prefix_caches:
-            result, stats = self.backend.evaluate_binary(predicate, cache)
+        runtime_suffix = self.backend.build_runtime_suffix(predicate)
+        batch_size = max(1, min(self.eval_batch_size, len(self.row_prefix_caches)))
+        for start in range(0, len(self.row_prefix_caches), batch_size):
+            cache_batch = self.row_prefix_caches[start : start + batch_size]
+            responses, stats = self.backend.evaluate_binary_batch(
+                runtime_suffix,
+                cache_batch,
+            )
             self.cost_stats["llm_calls"] += stats["llm_calls"]
+            self.cost_stats["model_batches"] += stats["model_batches"]
             self.cost_stats["tokens"] += stats["tokens"]
-            if result == "1":
-                positive_responses += 1
+            positive_responses += sum(1 for result in responses if result == "1")
 
         selectivity = positive_responses / len(self.row_prefix_caches)
         similarities = (
@@ -367,12 +508,16 @@ class TextPreloadedKVThresholdEstimator:
         return float(threshold.item())
 
     def reset_cost_stats(self) -> None:
-        self.cost_stats = {"usd": 0, "llm_calls": 0, "tokens": 0}
+        self.cost_stats = {"usd": 0, "llm_calls": 0, "model_batches": 0, "tokens": 0}
 
     @staticmethod
     def build_cache_prefix(row_text: str) -> str:
         normalized_row_text = _normalize_whitespace(row_text)
-        return f"Row text:\n{normalized_row_text}\n\nQuestion:\n"
+        return (
+            "Answer the following question based on the row text with '1' or '0'. "
+            "Do not add any other comments.\n\n"
+            f"Row text:\n{normalized_row_text}\n\n"
+        )
 
     @staticmethod
     def threshold_from_selectivity(similarities: Any, selectivity: float) -> Any:
@@ -486,6 +631,7 @@ class SemanticHistogram(AlgorithmInterface):
         self.embedding_model_key: str | None = None
         self.hf_model_name: str | None = None
         self.num_kv_caches: int | None = None
+        self.kv_eval_batch_size: int | None = None
         self.seed = 42
         self.device = "cuda:0"
         self.max_new_tokens = 1
@@ -493,7 +639,7 @@ class SemanticHistogram(AlgorithmInterface):
 
         self.prepared_states: dict[tuple[str, str], PreparedColumnState] = {}
         self.memory_consumption = 0
-        self.cost_stats = {"usd": 0, "llm_calls": 0, "tokens": 0}
+        self.cost_stats = {"usd": 0, "llm_calls": 0, "model_batches": 0, "tokens": 0}
         self._backend: LocalHFTextKVBackend | None = None
         self._threshold_based_cls = None
         self._full_estimator_cls = None
@@ -505,7 +651,7 @@ class SemanticHistogram(AlgorithmInterface):
         return self.cost_stats
 
     def reset_cost_stats(self) -> None:
-        self.cost_stats = {"usd": 0, "llm_calls": 0, "tokens": 0}
+        self.cost_stats = {"usd": 0, "llm_calls": 0, "model_batches": 0, "tokens": 0}
         for state in self.prepared_states.values():
             state.threshold_estimator.reset_cost_stats()
 
@@ -527,6 +673,9 @@ class SemanticHistogram(AlgorithmInterface):
         )
         self.num_kv_caches = int(
             self._require_algorithm_kwarg(algorithm_kwargs, "num_kv_caches")
+        )
+        self.kv_eval_batch_size = int(
+            algorithm_kwargs.get("kv_eval_batch_size", self.num_kv_caches)
         )
         self.device = str(algorithm_kwargs.get("device", self.device))
         self.seed = int(algorithm_kwargs.get("seed", self.seed))
@@ -668,15 +817,17 @@ class SemanticHistogram(AlgorithmInterface):
 
     @staticmethod
     def rewrite_single_column_query(query_spec: QuerySpecification) -> str:
-        text_parts = [
-            str(part.value)
-            for part in query_spec.filter_parsed.parts
-            if part.type == QueryTemplatePartType.TEXT
-        ]
-        rewritten = _normalize_whitespace(" ".join(text_parts))
+        rewritten_parts = []
+        for part in query_spec.filter_parsed.parts:
+            if part.type == QueryTemplatePartType.TEXT:
+                rewritten_parts.append(str(part.value))
+            elif part.type == QueryTemplatePartType.COLUMN_REF:
+                rewritten_parts.append("the row text shown above")
+
+        rewritten = _normalize_whitespace("".join(rewritten_parts))
         if rewritten:
-            return f"{rewritten}\nAnswer with 1 or 0 only."
-        return "Answer with 1 or 0 only."
+            return rewritten
+        return "the row text shown above matches the query"
 
     @staticmethod
     def _ensure_upstream_path() -> Path:
@@ -765,6 +916,8 @@ class SemanticHistogram(AlgorithmInterface):
             raise RuntimeError("SemanticHistogram upstream estimator classes are unavailable.")
         if self.num_kv_caches is None:
             raise RuntimeError("SemanticHistogram num_kv_caches is not configured.")
+        if self.kv_eval_batch_size is None:
+            raise RuntimeError("SemanticHistogram kv_eval_batch_size is not configured.")
         if self.hf_model_name is None:
             raise RuntimeError("SemanticHistogram HF model name is not configured.")
 
@@ -781,6 +934,7 @@ class SemanticHistogram(AlgorithmInterface):
             cache_dir=self.cache_dir,
             hf_model_name=self.hf_model_name,
             num_kv_caches=effective_num_kv_caches,
+            eval_batch_size=max(1, min(self.kv_eval_batch_size, effective_num_kv_caches)),
             seed=self.seed,
         )
         estimator = self._threshold_based_cls(

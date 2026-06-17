@@ -113,9 +113,7 @@ class LocalHFTextKVBackend:
         AutoModelForCausalLM = getattr(transformers, "AutoModelForCausalLM")
         AutoTokenizer = getattr(transformers, "AutoTokenizer")
 
-        requested_device = self.device_label
-        if requested_device.startswith("cuda") and not torch.cuda.is_available():
-            requested_device = "cpu"
+        requested_device = self.resolve_device_label(torch, self.device_label)
 
         self._device = torch.device(requested_device)
         self._torch = torch
@@ -137,6 +135,28 @@ class LocalHFTextKVBackend:
 
         if getattr(self._model.config, "pad_token_id", None) is None:
             self._model.config.pad_token_id = self._tokenizer.pad_token_id
+
+    @staticmethod
+    def resolve_device_label(torch: Any, configured_device: str) -> str:
+        requested_device = configured_device.strip().lower()
+
+        if requested_device == "auto":
+            if torch.cuda.is_available():
+                return "cuda:0"
+            mps_backend = getattr(getattr(torch, "backends", None), "mps", None)
+            if mps_backend is not None and mps_backend.is_available():
+                return "mps"
+            return "cpu"
+
+        if requested_device.startswith("cuda") and not torch.cuda.is_available():
+            return "cpu"
+
+        if requested_device == "mps":
+            mps_backend = getattr(getattr(torch, "backends", None), "mps", None)
+            if mps_backend is None or not mps_backend.is_available():
+                return "cpu"
+
+        return requested_device
 
     def build_prefix_cache(self, prefix_text: str) -> RowPrefixCache:
         self._ensure_loaded()

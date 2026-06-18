@@ -1,6 +1,7 @@
 from pathlib import Path
 from rich.prompt import Confirm
 import pandas as pd
+import duckdb
 from semceb.utils.console import console
 
 
@@ -45,8 +46,8 @@ class DataLoader:
     ) -> dict[str, pd.DataFrame]:
         """Load Amazon Reviews dataset tables."""
 
-        products_df = self._load_dataset(dataset="amazon-reviews/products_filtered")
-        reviews_df = self._load_dataset(dataset="amazon-reviews/reviews_filtered")
+        products_df = self._load_dataset(dataset="amazon-reviews/products_filtered_with_embeddings")
+        reviews_df = self._load_dataset(dataset="amazon-reviews/reviews_filtered_with_embeddings")
 
         products_df = self._shuffle_products(products_df)
         products_df = self._apply_scale_factor(products_df, scale_factor)
@@ -56,8 +57,8 @@ class DataLoader:
             products_df=products_df,
         )
 
-        datasets_df["amazon-reviews/products_filtered"] = products_df
-        datasets_df["amazon-reviews/reviews_filtered"] = reviews_df
+        datasets_df["amazon-reviews/products_filtered_with_embeddings"] = products_df
+        datasets_df["amazon-reviews/reviews_filtered_with_embeddings"] = reviews_df
 
         return datasets_df
 
@@ -123,7 +124,11 @@ class DataLoader:
         if csv_path.exists():
             df = pd.read_csv(csv_path)
         elif parquet_path.exists():
-            df = pd.read_parquet(parquet_path)
+            with duckdb.connect() as con:
+                df = con.execute(
+                    "SELECT * FROM read_parquet(?)",
+                    [str(parquet_path)],
+                ).df()
         else:
             raise FileNotFoundError(
                 f"Could not find dataset '{dataset}' as CSV or Parquet in "

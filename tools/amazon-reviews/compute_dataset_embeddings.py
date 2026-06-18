@@ -92,13 +92,13 @@ def resolve_data_dir(data_dir_arg: str) -> Path:
     if data_dir.is_absolute():
         return data_dir
 
-    package_root = SCRIPT_DIR.parents[1]
-    processed_root = package_root / "data" / "amazon-reviews" / "processed"
+    repo_root = SCRIPT_DIR.parents[1]
+    processed_root = SCRIPT_DIR / "processed"
 
     if len(data_dir.parts) == 1:
         return (processed_root / data_dir).resolve()
 
-    return (package_root / data_dir).resolve()
+    return (repo_root / data_dir).resolve()
 
 
 def sql_string_literal(value: str) -> str:

@@ -9,7 +9,7 @@ metadata are retained, but rows are restricted to the 5-core interaction set.
 The generated data is intentionally not tracked in git. By default, scripts use:
 
 ```text
-src/semceb/data/amazon-reviews/
+tools/amazon-reviews/
   raw/        # downloaded Hugging Face source files
   cache/      # cached Hugging Face tree metadata and local helper caches
   reports/    # category size report
@@ -23,11 +23,13 @@ Reproduces the dataset that is used in the SemCEB paper.
 Note: This requires significant computing resources and time. It is better to just download the prepared dataset from S3 by running `semceb run`.
 
 ```bash
-python src/semceb/data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --category Arts_Crafts_and_Sewing  --mode raw_5core
+python tools/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --category Arts_Crafts_and_Sewing  --mode raw_5core
 
-python src/semceb/data/amazon-reviews/compute_embeddings.py --data-dir Arts_Crafts_and_Sewing__raw_5core
+python tools/amazon-reviews/compute_dataset_embeddings.py --data-dir Arts_Crafts_and_Sewing__raw_5core
 
-cd src/semceb/data/amazon-reviews/
+python tools/amazon-reviews/copy_prepared_data_to_runtime.py
+
+cd tools/amazon-reviews/
 AWS_ACCESS_KEY_ID=xxxxx AWS_SECRET_ACCESS_KEY=xxxxx ./upload_data_to_s3.sh
 ```
 
@@ -36,13 +38,13 @@ AWS_ACCESS_KEY_ID=xxxxx AWS_SECRET_ACCESS_KEY=xxxxx ./upload_data_to_s3.sh
 Analyze category footprint:
 
 ```bash
-python src/semceb/data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --analyze-only
+python tools/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py --analyze-only
 ```
 
 Prepare the default benchmark dataset:
 
 ```bash
-python src/semceb/data/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py \
+python tools/amazon-reviews/download_and_prepare_amazon_reviews_dataset.py \
   --category Arts_Crafts_and_Sewing \
   --mode raw_5core
 ```
@@ -50,7 +52,7 @@ python src/semceb/data/amazon-reviews/download_and_prepare_amazon_reviews_datase
 Compute embeddings:
 
 ```bash
-python src/semceb/data/amazon-reviews/compute_embeddings.py \
+python tools/amazon-reviews/compute_dataset_embeddings.py \
   --data-dir Arts_Crafts_and_Sewing__raw_5core
 ```
 
@@ -58,12 +60,20 @@ If embedded parquet files already exist but the local embedding cache is missing
 seed the cache from those parquet files without recomputing existing embeddings:
 
 ```bash
-python src/semceb/data/amazon-reviews/import_embeddings_into_cache.py \
+python tools/amazon-reviews/import_embeddings_into_cache.py \
   --data-dir Arts_Crafts_and_Sewing__raw_5core
 ```
 
-`--data-dir` accepts either an absolute path, a path relative to `src/semceb`, or a
-short processed-run name under `src/semceb/data/amazon-reviews/processed/`.
+`--data-dir` accepts either an absolute path, a path relative to the repository
+root, or a short processed-run name under `tools/amazon-reviews/processed/`.
+
+Copy the prepared benchmark dataset into the runtime dataset directory:
+
+```bash
+python tools/amazon-reviews/copy_prepared_data_to_runtime.py
+```
+
+This overwrites the local runtime amazon data in:`data/datasets/` with the prepared dataset from `tools/amazon-reviews/processed/Arts_Crafts_and_Sewing__raw_5core/`
 
 ## Preparation
 
@@ -82,7 +92,7 @@ Supported modes:
 For `raw_5core`, the output directory is:
 
 ```text
-src/semceb/data/amazon-reviews/processed/Arts_Crafts_and_Sewing__raw_5core/
+tools/amazon-reviews/processed/Arts_Crafts_and_Sewing__raw_5core/
 ```
 
 Important preparation rules:
@@ -112,7 +122,7 @@ images/
 
 ## Embeddings
 
-`compute_embeddings.py` reads a processed `raw_5core` run, requires
+`compute_dataset_embeddings.py` reads a processed `raw_5core` run, requires
 `amazon_reviews.duckdb` and `images/`, and writes embedded parquet files without
 modifying the original filtered parquet files.
 

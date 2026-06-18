@@ -15,6 +15,7 @@ from semceb.data.loader import DataLoader
 from semceb.algorithms.interface import AlgorithmInterface
 from semceb.llm_backends.lotus_backend import LotusBackend
 from semceb.queries.query_specification import QuerySpecification
+from semceb.algorithms.cardinality_estimate import CardinalityEstimateKind
 
 class BenchmarkRunner:
     """Run benchmark queries and collect algorithm evaluation results."""
@@ -34,13 +35,18 @@ class BenchmarkRunner:
         self.default_ground_truth_model_name = default_ground_truth_model_name
         self.default_ground_truth_system_prompt = default_ground_truth_system_prompt
         self.scale_factor = scale_factor
-        self.query_categories = set(categories or [])
-        self.query_types = set(types or [])
+        self.query_categories = set(category.lower() for category in (categories or []))
+        self.query_types = set(type.lower() for type in (types or []))
         self.join_scale_factor = join_scale_factor
 
         self.result_filepath = Path("results") / "raw" / "result.jsonl"
         self.query_filepath = Path("benchmark_queries") / "queries.jsonl"
 
+        self._dataset_cache: dict[
+            tuple[frozenset[str], int | None],
+            dict[str, pd.DataFrame],
+        ] = {}
+        
         self.queries_specs = self._load_queries_specs(self.query_filepath)
 
         self._handle_cloud_data()
@@ -68,11 +74,11 @@ class BenchmarkRunner:
 
         category_matches = (
             not self.query_categories
-            or query_spec.category in self.query_categories
+            or any(category.lower() in self.query_categories for category in query_spec.category)
         )
         type_matches = (
             not self.query_types
-            or query_spec.type in self.query_types
+            or query_spec.type.lower() in self.query_types
         )
 
         return category_matches and type_matches
@@ -327,29 +333,33 @@ class BenchmarkRunner:
             cardinality_estimation = algorithm.run(query_spec)
             time_ms = (time.perf_counter() - start) * 1000
 
-        q_error = self._calculate_q_error(
-            cardinality_estimation,
-            cardinality_ground_truth,
-        )
+        if cardinality_estimation.kind == CardinalityEstimateKind.INT:
+            q_error = self._calculate_q_error(
+                cardinality_estimation.value,
+                cardinality_ground_truth,
+            )
 
-        selectivity_estimation = self._calculate_selectivity(
-            cardinality_estimation,
-            query_spec,
-            data_dfs,
-        )
+            selectivity_estimation = self._calculate_selectivity(
+                cardinality_estimation.value,
+                query_spec,
+                data_dfs,
+            )
 
-        self._save_result(
-            query_spec=query_spec,
-            algorithm_name=algorithm_config["name"],
-            algorithm_version=algorithm_config["version"],
-            algorithm_memory_consumption=algorithm.get_memory_consumption(),
-            algorithm_cost_stats=algorithm.get_cost_stats(),
-            cardinality_ground_truth=cardinality_ground_truth,
-            cardinality_estimation=cardinality_estimation,
-            selectivity_estimation=selectivity_estimation,
-            q_error=q_error,
-            time_ms=time_ms,
-        )
+            self._save_result(
+                query_spec=query_spec,
+                algorithm_name=algorithm_config["name"],
+                algorithm_version=algorithm_config["version"],
+                algorithm_memory_consumption=algorithm.get_memory_consumption(),
+                algorithm_cost_stats=algorithm.get_cost_stats(),
+                cardinality_ground_truth=cardinality_ground_truth,
+                cardinality_estimation=cardinality_estimation.value,
+                selectivity_estimation=selectivity_estimation,
+                q_error=q_error,
+                time_ms=time_ms,
+            )
+            
+        elif cardinality_estimation.kind == CardinalityEstimateKind.UNSUPPORTED:
+            console.print("[yellow]Algorithm returned unsupported estimate. Skipping q-error and selectivity calculations.[/yellow]")
 
         progress.advance(task)
 
@@ -381,10 +391,26 @@ class BenchmarkRunner:
             for dataset in query_spec.datasets
         }
 
-        return DataLoader().load(
-            datasets=datasets,
-            scale_factor=scale_factor,
-        )
+        cache_key = (frozenset(datasets), scale_factor)
+
+        if cache_key in self._dataset_cache:
+            console.print("[green]✓[/green] Required datasets already loaded.")
+            return self._dataset_cache[cache_key]
+
+        with console.status(
+            f"Loading required datasets with scale_factor={scale_factor} ...",
+            spinner="dots",
+        ):
+            data_dfs = DataLoader().load(
+                datasets=datasets,
+                scale_factor=scale_factor,
+            )
+
+        self._dataset_cache[cache_key] = data_dfs
+
+        console.print("[green]✓[/green] Required datasets loaded.")
+
+        return data_dfs
 
     def _confirm_join_benchmark_run(self, data_dfs: dict[str, pd.DataFrame]) -> None:
         """Ask the user to confirm running join benchmarks after showing input sizes."""

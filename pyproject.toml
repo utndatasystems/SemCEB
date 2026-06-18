@@ -23,10 +23,20 @@ dependencies = [
     "pyarrow",
     "python-dotenv",
     "tomli; python_version < '3.11'",
+    "duckdb",
 ]
 
 [project.optional-dependencies]
-dev = ["duckdb", "pillow", "transformers", "torch"]
+tools = [
+    "duckdb",
+    "pillow",
+    "transformers",
+    "torch",
+    "scikit-learn",
+    "safetensors",
+    "huggingface_hub",
+    "sentencepiece",
+]
 
 [project.scripts]
 semceb = "semceb.run:main"

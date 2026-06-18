@@ -19,14 +19,14 @@ class DataDownloader:
     def __init__(self):
         """Initialize downloader settings, bucket URL, and local data paths."""
         self.bucket_url = (
-            "https://azimmerer-semantic-selectivity-datasets."
+            "https://azimmerer-semceb-datasets."
             "s3.eu-central-1.amazonaws.com/"
         )
 
         self.filenames = [
             "amazon-reviews/images.zip",
-            "amazon-reviews/products_filtered.parquet",
-            "amazon-reviews/reviews_filtered.parquet",
+            "amazon-reviews/products_filtered_with_embeddings.parquet",
+            "amazon-reviews/reviews_filtered_with_embeddings.parquet",
         ]
 
         self.local_data_folderpath = Path("data") / "datasets"

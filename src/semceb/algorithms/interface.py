@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 
 import pandas as pd
 from semceb.queries.query_specification import QuerySpecification
+from semceb.algorithms.cardinality_estimate import CardinalityEstimate, CardinalityEstimateKind
 
 class AlgorithmInterface(ABC):
     """Abstract interface for algorithms."""
@@ -40,6 +41,6 @@ class AlgorithmInterface(ABC):
         pass
 
     @abstractmethod
-    def run(self, query_spec: QuerySpecification) -> int:
+    def run(self, query_spec: QuerySpecification) -> CardinalityEstimate:
         """Estimate the output cardinality for the provided query specification."""
         pass

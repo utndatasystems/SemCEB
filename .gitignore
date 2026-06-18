@@ -13,3 +13,5 @@ data/
 results/raw/query_results/
 
 *.egg-info/
+
+.local

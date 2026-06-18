@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Self
 
 
 class CardinalityEstimateKind(Enum):
@@ -15,9 +14,9 @@ class CardinalityEstimate:
     reason: str | None = None
 
     @classmethod
-    def int(cls, value: int) -> Self:
+    def int(cls, value: int) -> "CardinalityEstimate":
         return cls(kind=CardinalityEstimateKind.INT, value=value)
 
     @classmethod
-    def unsupported(cls, reason: str | None = None) -> Self:
+    def unsupported(cls, reason: str | None = None) -> "CardinalityEstimate":
         return cls(kind=CardinalityEstimateKind.UNSUPPORTED, reason=reason)

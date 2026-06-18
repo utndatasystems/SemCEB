@@ -198,5 +198,117 @@
   "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered_with_embeddings:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='Is the following product some supplementary material for a 3D printer? {product_title} - {description_json}, {details_json}, {features_json}'": {
     "cardinality": 0,
     "selectivity": 0.0
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered_with_embeddings:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='The image {main_image_local} clearly depicts blue wool.'": {
+    "cardinality": 1,
+    "selectivity": 0.01
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered_with_embeddings:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='The image {main_image_local} does not clearly depict an item that can be sold in a web shop.'": {
+    "cardinality": 4,
+    "selectivity": 0.04
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered_with_embeddings:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='The advertised product is essentially a sticker set with dinoaurs: {product_title} - {description_json}, {details_json}, {features_json}, {main_image_local}'": {
+    "cardinality": 0,
+    "selectivity": 0.0
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered_with_embeddings:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='The product can be used for repairing clothes: Title: '{product_title}'. Features: '{features_json}'. Description: '{description_json}'. Details: '{details_json}'. Image: {main_image_local}'": {
+    "cardinality": 9,
+    "selectivity": 0.09
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered_with_embeddings:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='The image {main_image_local} clearly depicts more than five items.'": {
+    "cardinality": 49,
+    "selectivity": 0.49
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered_with_embeddings:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='The product is shown stored or placed inside another container (a box, a tin, a jar, or a bag, etc.) in the main product image. Image: {main_image_local}'": {
+    "cardinality": 15,
+    "selectivity": 0.15
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered_with_embeddings:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='The product is shown being actively held or gripped by a human hand in the main product image. Image: {main_image_local}'": {
+    "cardinality": 3,
+    "selectivity": 0.03
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered_with_embeddings:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='The product image {main_image_local} shows multiple items arranged in a circle.'": {
+    "cardinality": 4,
+    "selectivity": 0.04
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered_with_embeddings:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='The image {main_image_local} does not match the product title or the product description. The product title is '{product_title}' and the description is: {description_json}'": {
+    "cardinality": 0,
+    "selectivity": 0.0
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered_with_embeddings:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='I am looking for new miniature paint. The colors should contain a wide variety of natural colors because I want to paint little bird statues. Make sure the paint is specifically for minatures and is from a high-quality brand. Does the following product match my requirements? {product_title} - {description_json}, {details_json}, {features_json}, {main_image_local}'": {
+    "cardinality": 0,
+    "selectivity": 0.0
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered_with_embeddings:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='I am looking for a macrame beginner kit that comes with instructions. Does the following product match my needs? {product_title} - {description_json}, {details_json}, {features_json}, {main_image_local}'": {
+    "cardinality": 0,
+    "selectivity": 0.0
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered_with_embeddings:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='I am looking for fake moss in the color red. Does the following product match my needs? {product_title} - {description_json}, {details_json}, {features_json}, {main_image_local}'": {
+    "cardinality": 0,
+    "selectivity": 0.0
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='filter' | datasets='amazon-reviews/products_filtered_with_embeddings:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='The following product is a paint-by-numbers painting that shows the Eiffel Tower: {product_title} - {description_json}, {details_json}, {features_json}, {main_image_local}'": {
+    "cardinality": 0,
+    "selectivity": 0.0
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p:amazon-reviews/products_filtered_with_embeddings, r:amazon-reviews/reviews_filtered_with_embeddings' | scale_factor='100' | query='The review complains about a missing component or weak quality that the product listing does not explicitly warn about. The review text is: {review_text:right}. The product detail is: {details_json:left}'": {
+    "cardinality": 5792,
+    "selectivity": 0.06027055150884495
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p:amazon-reviews/products_filtered_with_embeddings, r:amazon-reviews/reviews_filtered_with_embeddings' | scale_factor='100' | query='The review gives a negative verdict while the product listing presents the product positively. The review text is: {review_text:right}. The product description is: {description_json:left}'": {
+    "cardinality": 22642,
+    "selectivity": 0.23560874089490114
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p:amazon-reviews/products_filtered_with_embeddings, r:amazon-reviews/reviews_filtered_with_embeddings' | scale_factor='100' | query='The review describes a sequence of use over time, such as assembling, painting, changing a blade, or using the product after setup. The review text is: {review_text:right}. The product description is: {description_json:left}'": {
+    "cardinality": 2532,
+    "selectivity": 0.026347554630593132
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p:amazon-reviews/products_filtered_with_embeddings, r:amazon-reviews/reviews_filtered_with_embeddings' | scale_factor='100' | query='The review and the product listing share a clear topic keyword, such as sewing, pencils, butterfly, model, colors, blade, or organizer. The review text is: {review_text:right}. The product description is: {description_json:left}'": {
+    "cardinality": 17226,
+    "selectivity": 0.17925078043704473
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p1:amazon-reviews/products_filtered_with_embeddings, p2:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='The two product descriptions have a similar style or topic, such as both being about art supplies, sewing tools, model kits, organizers, lights, or decorative items. The first description is: {description_json:left}. The second description is: {description_json:right}'": {
+    "cardinality": 2606,
+    "selectivity": 0.2606
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p1:amazon-reviews/products_filtered_with_embeddings, p2:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='For this product, there exists another variant that is suitable for industrial or professional use. First product: {product_title:left}. {description_json:left}. Second product: {product_title:right}. {description_json:right}.'": {
+    "cardinality": 227,
+    "selectivity": 0.0227
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='r1:amazon-reviews/reviews_filtered_with_embeddings, r2:amazon-reviews/reviews_filtered_with_embeddings' | scale_factor='100' | query='I want to find two reviews that describe the same unusual product use case or the same specific product problem, but use noticeably different wording. Review text 1: {review_text:left}. Review text 2: {review_text:right}.'": {
+    "cardinality": 70939,
+    "selectivity": 0.0768136295763713
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p:amazon-reviews/products_filtered_with_embeddings, r:amazon-reviews/reviews_filtered_with_embeddings' | scale_factor='100' | query='I want to find products where a verified-purchase review with the highest rating praises or recommends the product. Product: {product_title:left}. {description_json:left}. Review: {review_title:right}. {review_text:right}. Rating: {rating:right}. Verified purchase: {verified_purchase:right}.'": {
+    "cardinality": 999,
+    "selectivity": 0.010395421436004162
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='r1:amazon-reviews/reviews_filtered_with_embeddings, r2:amazon-reviews/reviews_filtered_with_embeddings' | scale_factor='100' | query='I want to find reviews from users who have received helpful votes on their other reviews, because those users may be more trustworthy. First review: user {user_id:left}, title: {review_title:left}, text: {review_text:left}. Other review by the same user: user {user_id:right}, title: {review_title:right}, text: {review_text:right}, helpful votes: {helpful_vote:right}.'": {
+    "cardinality": 11580,
+    "selectivity": 0.012538967711616736
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p:amazon-reviews/products_filtered_with_embeddings, r:amazon-reviews/reviews_filtered_with_embeddings' | scale_factor='100' | query='Find products where a review mentions that the product subtitle is misleading. Product subtitle: {subtitle:left}. Review title: {review_title:right}. Review text: {review_text:right}.'": {
+    "cardinality": 744,
+    "selectivity": 0.007741935483870968
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p:amazon-reviews/products_filtered_with_embeddings, r:amazon-reviews/reviews_filtered_with_embeddings' | scale_factor='100' | query='I want to buy a product where a review highlights that buying it together with another product is the best option. Product: {product_title:left}. {description_json:left}. Review: {review_title:right}. {review_text:right}.'": {
+    "cardinality": 205,
+    "selectivity": 0.002133194588969823
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p1:amazon-reviews/products_filtered_with_embeddings, p2:amazon-reviews/products_filtered_with_embeddings' | scale_factor='100' | query='Which author sells two products that appear to target the same craft use case, but one listing is a kit or bundle while the other is a single component, refill, or accessory? Product 1: author {author:left}, title: {product_title:left}, description: {description_json:left}, features: {features_json:left}. Product 2: author {author:right}, title: {product_title:right}, description: {description_json:right}, features: {features_json:right}.'": {
+    "cardinality": 2,
+    "selectivity": 0.0002
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p:amazon-reviews/products_filtered_with_embeddings, r:amazon-reviews/reviews_filtered_with_embeddings' | scale_factor='100' | query='The review emphasizes one specific positive feature of the product, while ignoring most other product features. Review text: {review_text:right}. Product features: {features_json:left}.'": {
+    "cardinality": 66084,
+    "selectivity": 0.6876586888657649
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p:amazon-reviews/products_filtered_with_embeddings, r:amazon-reviews/reviews_filtered_with_embeddings' | scale_factor='100' | query='I am looking for a product where the review mentions that the product is useful for 3D printing. Product title: {product_title:left}. Review text: {review_text:right}.'": {
+    "cardinality": 8,
+    "selectivity": 8.324661810613944e-05
+  },
+  "model_name='gpt-5.4-nano' | system_prompt='The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>' | query_type='join' | datasets='p:amazon-reviews/products_filtered_with_embeddings, r:amazon-reviews/reviews_filtered_with_embeddings' | scale_factor='100' | query='I want to find products where the review mentions that the reviewer bought this product again because of its good quality. Product title: {product_title:left}. Review text: {review_text:right}.'": {
+    "cardinality": 2144,
+    "selectivity": 0.022310093652445368
   }
 }

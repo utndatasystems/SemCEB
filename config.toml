@@ -7,98 +7,27 @@ system_prompt = "The user will provide a claim and some relevant context.\nYour 
 # Related tables are filtered to match those selected rows.
 # Rows are shuffled deterministically before selection.
 # Join scale factor is applied on top restricting explosion of row counts due to joining
-scale_factor = 100
+scale_factor = 1000
 # Number of rows loaded from the main dataset table for joining.
 # Kept separate from scale_factor because join output sizes can grow quickly.
 join_scale_factor = 100
-types = []
+types = ["Simple Base-Table Predicate", "Complex Base-Table Predicate"]
 categories = []
 
 
-# Mandatory
 [[algorithms]]
-name = "Custom Algorithm Template"
+name = "Semantic Histogram"
 version = "1.0.0"
-filename = "custom_algorithm_template.py"
-class = "CustomAlgorithmTemplate"
+filename = "semantic_histogram.py"
+class = "SemanticHistogram"
 
-# Optional: Overwriting general ground truth configuration
-[algorithms.ground_truth]
-model_name = "gpt-5.4-nano"
-# system_prompt = ... # e.g. not used
-
-# Optional: Depends on implementation
 [algorithms.algorithm_kwargs]
-my_special_algorithm_argument = 42
+embedding_model_key = "Qwen/Qwen3-Embedding-0.6B"
+hf_model_name = "Qwen/Qwen2.5-3B-Instruct"
+num_kv_caches = 32
+kv_eval_batch_size = 32
+device = "auto"
+cache_dir = "results/cache/semantic_histogram"
+seed = 42
+max_new_tokens = 1
 
-
-[[algorithms]]
-name = "Extrapolation Sampling 1%"
-version = "1.0.0"
-filename = "extrapolated_sampling.py"
-class = "ExtrapolatedSampling"
-
-# Optional: Overwriting general ground truth configuration
-[algorithms.ground_truth]
-model_name = "gpt-5.4-nano"
-system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
-
-# Optional: Depends on implementation
-[algorithms.algorithm_kwargs]
-model_name = "gpt-5.4-nano"
-system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
-sampling_frac = 0.01
-
-
-[[algorithms]]
-name = "Extrapolation Sampling 5%"
-version = "1.0.0"
-filename = "extrapolated_sampling.py"
-class = "ExtrapolatedSampling"
-
-# Optional: Overwriting general ground truth configuration
-[algorithms.ground_truth]
-model_name = "gpt-5.4-nano"
-system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
-
-# Optional: Depends on implementation
-[algorithms.algorithm_kwargs]
-model_name = "gpt-5.4-nano"
-system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
-sampling_frac = 0.05
-
-
-[[algorithms]]
-name = "Extrapolation Sampling 10%"
-version = "1.0.0"
-filename = "extrapolated_sampling.py"
-class = "ExtrapolatedSampling"
-
-# Optional: Overwriting general ground truth configuration
-[algorithms.ground_truth]
-model_name = "gpt-5.4-nano"
-system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
-
-# Optional: Depends on implementation
-[algorithms.algorithm_kwargs]
-model_name = "gpt-5.4-nano"
-system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
-sampling_frac = 0.1
-
-
-[[algorithms]]
-name = "Extrapolation Sampling 20%"
-version = "1.0.0"
-filename = "extrapolated_sampling.py"
-class = "ExtrapolatedSampling"
-
-# Optional: Overwriting general ground truth configuration
-[algorithms.ground_truth]
-model_name = "gpt-5.4-nano"
-system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
-
-# Optional: Depends on implementation
-[algorithms.algorithm_kwargs]
-model_name = "gpt-5.4-nano"
-system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
-sampling_frac = 0.2

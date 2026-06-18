@@ -35,8 +35,8 @@ class BenchmarkRunner:
         self.default_ground_truth_model_name = default_ground_truth_model_name
         self.default_ground_truth_system_prompt = default_ground_truth_system_prompt
         self.scale_factor = scale_factor
-        self.query_categories = set(categories or [])
-        self.query_types = set(types or [])
+        self.query_categories = set(category.lower() for category in (categories or []))
+        self.query_types = set(type.lower() for type in (types or []))
         self.join_scale_factor = join_scale_factor
 
         self.result_filepath = Path("results") / "raw" / "result.jsonl"
@@ -74,11 +74,11 @@ class BenchmarkRunner:
 
         category_matches = (
             not self.query_categories
-            or query_spec.category in self.query_categories
+            or any(category.lower() in self.query_categories for category in query_spec.category)
         )
         type_matches = (
             not self.query_types
-            or query_spec.type in self.query_types
+            or query_spec.type.lower() in self.query_types
         )
 
         return category_matches and type_matches

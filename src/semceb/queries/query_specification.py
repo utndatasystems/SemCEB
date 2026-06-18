@@ -68,7 +68,7 @@ class QuerySpecification:
     """Stable numeric query identifier."""
     type: str
     """Benchmark-specific query type label."""
-    category: str
+    category: list[str]
     """Benchmark category label used for grouping queries."""
     datasets: list[DatasetSpecification]
     """Dataset references used by the query, including aliases."""

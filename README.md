@@ -14,7 +14,7 @@ The editable install means that local code changes under `src/semceb/` are picke
 <summary>Linux</summary>
 
 ```bash
-git clone https://github.com/utndatasystems/SemCEB.git
+git clone --recurse-submodules https://github.com/utndatasystems/SemCEB.git
 cd SemCEB
 
 python3 -m venv .venv

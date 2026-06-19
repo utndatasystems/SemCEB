@@ -4,6 +4,7 @@ import math
 from typing import Any
 
 import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
 from matplotlib.ticker import FixedLocator, FuncFormatter, NullLocator
 import pandas as pd
 import seaborn as sns
@@ -28,6 +29,14 @@ class AlgorithmComparisonPaperPlotMixin:
     COST_YLABEL = r"Cost per Query [US-\$]"
     TIME_YLABEL = "Time per Query [s]"
     MEMORY_CONSUMPTION_YLABEL = "Memory [Bytes]"
+    SUPPORTED_QUERY_REFERENCE_ALGORITHM = "Semantic Histogram"
+    SUPPORT_SCOPE_ALL = "all queries"
+    SUPPORT_SCOPE_REFERENCE = "queries supported by semantic histograms"
+    SUPPORT_SCOPE_ORDER = (SUPPORT_SCOPE_ALL, SUPPORT_SCOPE_REFERENCE)
+    SUPPORT_SCOPE_HATCHES = {
+        SUPPORT_SCOPE_ALL: "",
+        SUPPORT_SCOPE_REFERENCE: "xxxx",
+    }
 
     ALGORITHM_LABELS: dict[str, str] = {
         #"Custom Algorithm Template": "Template",
@@ -86,6 +95,8 @@ class AlgorithmComparisonPaperPlotMixin:
             algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=True,
+            compare_supported_subset=True,
+            fixed_plot_limit=3,
         )
         self._plot_q_error_subfigure(
             axis=axes[0, 1],
@@ -94,6 +105,8 @@ class AlgorithmComparisonPaperPlotMixin:
             algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=False,
+            compare_supported_subset=False,
+            fixed_plot_limit=None,
         )
         self._plot_cost_subfigure(
             axis=axes[1, 0],
@@ -101,6 +114,7 @@ class AlgorithmComparisonPaperPlotMixin:
             algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=True,
+            compare_supported_subset=True,
         )
         self._plot_cost_subfigure(
             axis=axes[1, 1],
@@ -108,6 +122,7 @@ class AlgorithmComparisonPaperPlotMixin:
             algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=False,
+            compare_supported_subset=False,
         )
         self._plot_time_subfigure(
             axis=axes[2, 0],
@@ -115,6 +130,7 @@ class AlgorithmComparisonPaperPlotMixin:
             algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=True,
+            compare_supported_subset=True,
         )
         self._plot_time_subfigure(
             axis=axes[2, 1],
@@ -122,6 +138,7 @@ class AlgorithmComparisonPaperPlotMixin:
             algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=False,
+            compare_supported_subset=False,
         )
         self._plot_memory_consumption_subfigure(
             axis=axes[3, 0],
@@ -129,6 +146,7 @@ class AlgorithmComparisonPaperPlotMixin:
             algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=True,
+            compare_supported_subset=True,
         )
         self._plot_memory_consumption_subfigure(
             axis=axes[3, 1],
@@ -136,9 +154,20 @@ class AlgorithmComparisonPaperPlotMixin:
             algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=False,
+            compare_supported_subset=False,
         )
 
-        fig.tight_layout()
+        fig.legend(
+            handles=self._build_support_scope_legend_handles(),
+            labels=list(self.SUPPORT_SCOPE_ORDER),
+            loc="upper center",
+            bbox_to_anchor=(0.5, 1.02),
+            ncol=2,
+            frameon=False,
+            columnspacing=1.4,
+            handletextpad=0.5,
+        )
+        fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
         self._align_left_column_ylabels(axes[:, 0])
         if not filter_q_error_data.empty:
             self._add_q_error_direction_labels(fig=fig, axis=axes[0, 0])
@@ -156,6 +185,7 @@ class AlgorithmComparisonPaperPlotMixin:
 
         analysis_df = df[
             [
+                "query_id",
                 "algorithm_name",
                 "datasets",
                 "q_error",
@@ -204,8 +234,59 @@ class AlgorithmComparisonPaperPlotMixin:
         )
 
         analysis_df = analysis_df.dropna(subset=["algorithm_label"])
+        supported_query_ids = self._get_supported_query_ids(analysis_df)
+        analysis_df = self._expand_analysis_dataframe_by_support_scope(
+            analysis_df=analysis_df,
+            supported_query_ids=supported_query_ids,
+        )
 
         return analysis_df
+
+    def _get_supported_query_ids(self, analysis_df: pd.DataFrame) -> set[Any]:
+        """Return the query IDs covered by the reference algorithm."""
+
+        supported_query_ids = set(
+            analysis_df.loc[
+                analysis_df["algorithm_name"] == self.SUPPORTED_QUERY_REFERENCE_ALGORITHM,
+                "query_id",
+            ].tolist()
+        )
+
+        if not supported_query_ids:
+            raise ValueError(
+                f"No queries found for reference algorithm {self.SUPPORTED_QUERY_REFERENCE_ALGORITHM!r}."
+            )
+
+        return supported_query_ids
+
+    def _expand_analysis_dataframe_by_support_scope(
+        self,
+        analysis_df: pd.DataFrame,
+        supported_query_ids: set[Any],
+    ) -> pd.DataFrame:
+        """Duplicate rows to compare all queries against the reference-supported subset."""
+
+        all_queries_df = analysis_df[
+            analysis_df["algorithm_name"] != self.SUPPORTED_QUERY_REFERENCE_ALGORITHM
+        ].copy()
+        all_queries_df["support_scope"] = self.SUPPORT_SCOPE_ALL
+
+        supported_queries_df = analysis_df[
+            analysis_df["query_id"].isin(supported_query_ids)
+        ].copy()
+        supported_queries_df["support_scope"] = self.SUPPORT_SCOPE_REFERENCE
+
+        expanded_df = pd.concat(
+            [all_queries_df, supported_queries_df],
+            ignore_index=True,
+        )
+        expanded_df["support_scope"] = pd.Categorical(
+            expanded_df["support_scope"],
+            categories=list(self.SUPPORT_SCOPE_ORDER),
+            ordered=True,
+        )
+
+        return expanded_df
 
     def _filter_finite_q_error_rows(self, analysis_df: pd.DataFrame) -> pd.DataFrame:
         """Return only rows with finite q-error values and transformed plotting coordinates."""
@@ -240,6 +321,8 @@ class AlgorithmComparisonPaperPlotMixin:
         algorithms: list[str],
         palette: dict[str, Any],
         show_ylabel: bool,
+        compare_supported_subset: bool,
+        fixed_plot_limit: int | None,
     ) -> None:
         """Plot one q-error boxplot for a single query type."""
 
@@ -260,44 +343,62 @@ class AlgorithmComparisonPaperPlotMixin:
                 spine.set_visible(False)
             return
 
-        sns.boxplot(
-            data=data,
-            x="algorithm_label",
-            y="q_error_plot",
-            hue="algorithm_label",
-            order=algorithms,
-            hue_order=algorithms,
-            palette=palette,
-            width=0.65,
-            linewidth=1.1,
-            boxprops={
+        boxplot_kwargs = {
+            "data": data,
+            "x": "algorithm_label",
+            "y": "q_error_plot",
+            "order": algorithms,
+            "width": 0.72 if compare_supported_subset else 0.65,
+            "linewidth": 1.1,
+            "boxprops": {
                 "edgecolor": "#000000",
                 "linewidth": 1.1,
             },
-            whiskerprops={
+            "whiskerprops": {
                 "color": "#000000",
                 "linewidth": 1.1,
             },
-            capprops={
+            "capprops": {
                 "color": "#000000",
                 "linewidth": 1.1,
             },
-            flierprops={
-                "marker": "x",
-                "markersize": 4.0,
+            "flierprops": {
+                "marker": ".",
+                "markersize": 3.5,
                 "markeredgecolor": "#222222",
-                "markeredgewidth": 0.9,
-                "markerfacecolor": "none",
+                "markeredgewidth": 0.6,
+                "markerfacecolor": "#222222",
                 "linestyle": "none",
             },
-            medianprops={
+            "medianprops": {
                 "color": "#000000",
                 "linewidth": 2.0,
             },
-            ax=axis,
-            dodge=False,
-            legend=False,
-        )
+            "ax": axis,
+            "legend": False,
+        }
+        if compare_supported_subset:
+            boxplot_kwargs.update(
+                {
+                    "hue": "support_scope",
+                    "hue_order": list(self.SUPPORT_SCOPE_ORDER),
+                    "palette": {
+                        scope: "#ffffff" for scope in self.SUPPORT_SCOPE_ORDER
+                    },
+                    "dodge": True,
+                }
+            )
+        else:
+            boxplot_kwargs.update(
+                {
+                    "color": "#ffffff",
+                    "dodge": False,
+                }
+            )
+
+        sns.boxplot(**boxplot_kwargs)
+        if compare_supported_subset:
+            self._apply_support_scope_box_hatches(axis=axis, data=data)
 
         q_error_values = data["q_error"].tolist()
 
@@ -307,10 +408,19 @@ class AlgorithmComparisonPaperPlotMixin:
             axis.set_ylabel("Q-Error", labelpad=self.Q_ERROR_YLABEL_PAD)
         else:
             axis.set_ylabel("")
-        self._apply_q_error_ticks(axis=axis, q_error_values=q_error_values)
+        self._apply_q_error_ticks(
+            axis=axis,
+            q_error_values=q_error_values,
+            fixed_plot_limit=fixed_plot_limit,
+        )
         axis.xaxis.set_minor_locator(NullLocator())
         axis.yaxis.set_minor_locator(
-            FixedLocator(self._get_q_error_minor_tick_positions(q_error_values))
+            FixedLocator(
+                self._get_q_error_minor_tick_positions(
+                    q_error_values=q_error_values,
+                    fixed_plot_limit=fixed_plot_limit,
+                )
+            )
         )
         self._style_axis_frame(axis)
         axis.tick_params(axis="y", which="minor", length=2.5, width=0.7)
@@ -326,6 +436,7 @@ class AlgorithmComparisonPaperPlotMixin:
         algorithms: list[str],
         palette: dict[str, Any],
         show_ylabel: bool,
+        compare_supported_subset: bool,
     ) -> None:
         """Plot per-query costs for one query type."""
 
@@ -339,44 +450,62 @@ class AlgorithmComparisonPaperPlotMixin:
             self._show_empty_axis(axis, title="", message="No cost data")
             return
 
-        sns.boxplot(
-            data=cost_df,
-            x="algorithm_label",
-            y="cost_usd",
-            hue="algorithm_label",
-            order=algorithms,
-            hue_order=algorithms,
-            palette=palette,
-            width=0.65,
-            linewidth=1.1,
-            boxprops={
+        boxplot_kwargs = {
+            "data": cost_df,
+            "x": "algorithm_label",
+            "y": "cost_usd",
+            "order": algorithms,
+            "width": 0.72 if compare_supported_subset else 0.65,
+            "linewidth": 1.1,
+            "boxprops": {
                 "edgecolor": "#000000",
                 "linewidth": 1.1,
             },
-            whiskerprops={
+            "whiskerprops": {
                 "color": "#000000",
                 "linewidth": 1.1,
             },
-            capprops={
+            "capprops": {
                 "color": "#000000",
                 "linewidth": 1.1,
             },
-            flierprops={
-                "marker": "x",
-                "markersize": 4.0,
+            "flierprops": {
+                "marker": ".",
+                "markersize": 3.5,
                 "markeredgecolor": "#222222",
-                "markeredgewidth": 0.9,
-                "markerfacecolor": "none",
+                "markeredgewidth": 0.6,
+                "markerfacecolor": "#222222",
                 "linestyle": "none",
             },
-            medianprops={
+            "medianprops": {
                 "color": "#000000",
                 "linewidth": 2.0,
             },
-            ax=axis,
-            dodge=False,
-            legend=False,
-        )
+            "ax": axis,
+            "legend": False,
+        }
+        if compare_supported_subset:
+            boxplot_kwargs.update(
+                {
+                    "hue": "support_scope",
+                    "hue_order": list(self.SUPPORT_SCOPE_ORDER),
+                    "palette": {
+                        scope: "#ffffff" for scope in self.SUPPORT_SCOPE_ORDER
+                    },
+                    "dodge": True,
+                }
+            )
+        else:
+            boxplot_kwargs.update(
+                {
+                    "color": "#ffffff",
+                    "dodge": False,
+                }
+            )
+
+        sns.boxplot(**boxplot_kwargs)
+        if compare_supported_subset:
+            self._apply_support_scope_box_hatches(axis=axis, data=cost_df)
 
         axis.set_title("")
         axis.set_xlabel("")
@@ -398,6 +527,7 @@ class AlgorithmComparisonPaperPlotMixin:
         algorithms: list[str],
         palette: dict[str, Any],
         show_ylabel: bool,
+        compare_supported_subset: bool,
     ) -> None:
         """Plot per-query runtimes for one query type."""
 
@@ -412,44 +542,62 @@ class AlgorithmComparisonPaperPlotMixin:
             self._show_empty_axis(axis, title="", message="No runtime data")
             return
 
-        sns.boxplot(
-            data=time_df,
-            x="algorithm_label",
-            y="time_s",
-            hue="algorithm_label",
-            order=algorithms,
-            hue_order=algorithms,
-            palette=palette,
-            width=0.65,
-            linewidth=1.1,
-            boxprops={
+        boxplot_kwargs = {
+            "data": time_df,
+            "x": "algorithm_label",
+            "y": "time_s",
+            "order": algorithms,
+            "width": 0.72 if compare_supported_subset else 0.65,
+            "linewidth": 1.1,
+            "boxprops": {
                 "edgecolor": "#000000",
                 "linewidth": 1.1,
             },
-            whiskerprops={
+            "whiskerprops": {
                 "color": "#000000",
                 "linewidth": 1.1,
             },
-            capprops={
+            "capprops": {
                 "color": "#000000",
                 "linewidth": 1.1,
             },
-            flierprops={
-                "marker": "x",
-                "markersize": 4.0,
+            "flierprops": {
+                "marker": ".",
+                "markersize": 3.5,
                 "markeredgecolor": "#222222",
-                "markeredgewidth": 0.9,
-                "markerfacecolor": "none",
+                "markeredgewidth": 0.6,
+                "markerfacecolor": "#222222",
                 "linestyle": "none",
             },
-            medianprops={
+            "medianprops": {
                 "color": "#000000",
                 "linewidth": 2.0,
             },
-            ax=axis,
-            dodge=False,
-            legend=False,
-        )
+            "ax": axis,
+            "legend": False,
+        }
+        if compare_supported_subset:
+            boxplot_kwargs.update(
+                {
+                    "hue": "support_scope",
+                    "hue_order": list(self.SUPPORT_SCOPE_ORDER),
+                    "palette": {
+                        scope: "#ffffff" for scope in self.SUPPORT_SCOPE_ORDER
+                    },
+                    "dodge": True,
+                }
+            )
+        else:
+            boxplot_kwargs.update(
+                {
+                    "color": "#ffffff",
+                    "dodge": False,
+                }
+            )
+
+        sns.boxplot(**boxplot_kwargs)
+        if compare_supported_subset:
+            self._apply_support_scope_box_hatches(axis=axis, data=time_df)
 
         axis.set_title("")
         axis.set_xlabel("")
@@ -470,6 +618,7 @@ class AlgorithmComparisonPaperPlotMixin:
         algorithms: list[str],
         palette: dict[str, Any],
         show_ylabel: bool,
+        compare_supported_subset: bool,
     ) -> None:
         """Plot one constant memory-consumption value per algorithm for one query type."""
 
@@ -479,22 +628,33 @@ class AlgorithmComparisonPaperPlotMixin:
             self._show_empty_axis(axis, title="", message="No memory data")
             return
 
-        memory_palette = {algorithm: "#d9d9d9" for algorithm in algorithms}
+        barplot_kwargs = {
+            "data": memory_df,
+            "x": "algorithm_label",
+            "y": "memory_consumption",
+            "order": algorithms,
+            "width": 0.72 if compare_supported_subset else 0.65,
+            "edgecolor": "#000000",
+            "linewidth": 1.1,
+            "ax": axis,
+            "legend": False,
+        }
+        if compare_supported_subset:
+            barplot_kwargs.update(
+                {
+                    "hue": "support_scope",
+                    "hue_order": list(self.SUPPORT_SCOPE_ORDER),
+                    "palette": {
+                        scope: "#ffffff" for scope in self.SUPPORT_SCOPE_ORDER
+                    },
+                }
+            )
+        else:
+            barplot_kwargs.update({"color": "#ffffff"})
 
-        sns.barplot(
-            data=memory_df,
-            x="algorithm_label",
-            y="memory_consumption",
-            hue="algorithm_label",
-            order=algorithms,
-            hue_order=algorithms,
-            palette=memory_palette,
-            width=0.65,
-            edgecolor="#000000",
-            linewidth=1.1,
-            ax=axis,
-            legend=False,
-        )
+        sns.barplot(**barplot_kwargs)
+        if compare_supported_subset:
+            self._apply_support_scope_bar_hatches(axis)
 
         axis.set_title("")
         axis.set_xlabel("")
@@ -502,6 +662,12 @@ class AlgorithmComparisonPaperPlotMixin:
             axis.set_ylabel(self.MEMORY_CONSUMPTION_YLABEL)
         else:
             axis.set_ylabel("")
+        axis.set_yscale("symlog", linthresh=1)
+        axis.set_ylim(bottom=0)
+        self._apply_memory_ticks(
+            axis=axis,
+            memory_values=memory_df["memory_consumption"].tolist(),
+        )
         axis.xaxis.set_minor_locator(NullLocator())
         axis.yaxis.set_minor_locator(NullLocator())
         self._style_axis_frame(axis)
@@ -530,27 +696,35 @@ class AlgorithmComparisonPaperPlotMixin:
         data: pd.DataFrame,
         algorithms: list[str],
     ) -> pd.DataFrame:
-        """Validate and extract one memory-consumption value per algorithm."""
+        """Validate and extract one memory-consumption value per algorithm and support scope."""
 
         if data.empty:
-            return pd.DataFrame(columns=["algorithm_label", "memory_consumption"])
+            return pd.DataFrame(
+                columns=["algorithm_label", "support_scope", "memory_consumption"]
+            )
 
         valid_memory_df = data.dropna(subset=["memory_consumption"]).copy()
         valid_memory_df = valid_memory_df[
             valid_memory_df["memory_consumption"].apply(math.isfinite)
         ]
         if valid_memory_df.empty:
-            return pd.DataFrame(columns=["algorithm_label", "memory_consumption"])
+            return pd.DataFrame(
+                columns=["algorithm_label", "support_scope", "memory_consumption"]
+            )
 
-        grouped_values = valid_memory_df.groupby("algorithm_label", observed=False)[
-            "memory_consumption"
-        ]
+        grouped_values = valid_memory_df.groupby(
+            ["algorithm_label", "support_scope"],
+            observed=False,
+        )["memory_consumption"]
         distinct_values = grouped_values.nunique(dropna=True)
         inconsistent_algorithms = distinct_values[distinct_values > 1].index.tolist()
         if inconsistent_algorithms:
             raise ValueError(
-                "Inconsistent memory_consumption values found for algorithms: "
-                + ", ".join(str(algorithm) for algorithm in inconsistent_algorithms)
+                "Inconsistent memory_consumption values found for algorithm/support-scope combinations: "
+                + ", ".join(
+                    f"{algorithm} [{support_scope}]"
+                    for algorithm, support_scope in inconsistent_algorithms
+                )
             )
 
         memory_by_algorithm = grouped_values.first().reset_index()
@@ -562,7 +736,14 @@ class AlgorithmComparisonPaperPlotMixin:
             categories=algorithms,
             ordered=True,
         )
-        memory_by_algorithm = memory_by_algorithm.sort_values("algorithm_label")
+        memory_by_algorithm["support_scope"] = pd.Categorical(
+            memory_by_algorithm["support_scope"],
+            categories=list(self.SUPPORT_SCOPE_ORDER),
+            ordered=True,
+        )
+        memory_by_algorithm = memory_by_algorithm.sort_values(
+            ["algorithm_label", "support_scope"]
+        )
 
         return memory_by_algorithm
 
@@ -607,6 +788,59 @@ class AlgorithmComparisonPaperPlotMixin:
         axis.tick_params(axis="x", labelrotation=30, labelbottom=show_ticklabels)
         for label in axis.get_xticklabels():
             label.set_ha("right")
+
+    def _apply_support_scope_box_hatches(
+        self,
+        axis: Any,
+        data: pd.DataFrame,
+    ) -> None:
+        """Apply support-scope hatch patterns to dodged boxplots."""
+
+        plotted_boxes = [patch for patch in axis.patches if patch.get_fill()]
+        plotted_scopes_df = data[["algorithm_label", "support_scope"]].drop_duplicates()
+        plotted_scopes: list[str] = []
+        for support_scope in self.SUPPORT_SCOPE_ORDER:
+            scope_rows = plotted_scopes_df[
+                plotted_scopes_df["support_scope"] == support_scope
+            ].sort_values("algorithm_label")
+            plotted_scopes.extend([str(support_scope)] * len(scope_rows))
+
+        if len(plotted_boxes) != len(plotted_scopes):
+            raise ValueError(
+                "Mismatch between plotted box count and support-scope combinations."
+            )
+
+        for patch, support_scope in zip(
+            plotted_boxes,
+            plotted_scopes,
+            strict=False,
+        ):
+            patch.set_hatch(self.SUPPORT_SCOPE_HATCHES[support_scope])
+
+    def _apply_support_scope_bar_hatches(self, axis: Any) -> None:
+        """Apply support-scope hatch patterns to dodged bars."""
+
+        for container, support_scope in zip(
+            axis.containers,
+            self.SUPPORT_SCOPE_ORDER,
+            strict=False,
+        ):
+            for patch in container.patches:
+                patch.set_hatch(self.SUPPORT_SCOPE_HATCHES[support_scope])
+
+    def _build_support_scope_legend_handles(self) -> list[Patch]:
+        """Create legend handles for the support-scope comparison."""
+
+        return [
+            Patch(
+                facecolor="#ffffff",
+                edgecolor="#000000",
+                hatch=self.SUPPORT_SCOPE_HATCHES[support_scope],
+                linewidth=1.1,
+                label=support_scope,
+            )
+            for support_scope in self.SUPPORT_SCOPE_ORDER
+        ]
 
     def _apply_bar_hatches(
         self,
@@ -664,7 +898,12 @@ class AlgorithmComparisonPaperPlotMixin:
 
         return math.copysign(math.log10(magnitude), q_error)
 
-    def _apply_q_error_ticks(self, axis: Any, q_error_values: list[float]) -> None:
+    def _apply_q_error_ticks(
+        self,
+        axis: Any,
+        q_error_values: list[float],
+        fixed_plot_limit: int | None = None,
+    ) -> None:
         """Set log-like q-error ticks with 1 in the center."""
 
         if not q_error_values:
@@ -672,7 +911,10 @@ class AlgorithmComparisonPaperPlotMixin:
             axis.set_yticklabels(["1"])
             return
 
-        plot_limit = self._get_q_error_plot_limit(q_error_values)
+        plot_limit = self._get_q_error_plot_limit(
+            q_error_values=q_error_values,
+            fixed_plot_limit=fixed_plot_limit,
+        )
         axis.set_ylim(-plot_limit, plot_limit)
 
         major_tick_values = self._get_q_error_major_tick_values(plot_limit)
@@ -687,8 +929,15 @@ class AlgorithmComparisonPaperPlotMixin:
             ]
         )
 
-    def _get_q_error_plot_limit(self, q_error_values: list[float]) -> int:
+    def _get_q_error_plot_limit(
+        self,
+        q_error_values: list[float],
+        fixed_plot_limit: int | None = None,
+    ) -> int:
         """Return the symmetric log-scale limit used for q-error plotting."""
+
+        if fixed_plot_limit is not None:
+            return fixed_plot_limit
 
         max_abs_value = max(abs(value) for value in q_error_values if math.isfinite(value))
         return max(1, math.ceil(math.log10(max_abs_value)) + 1)
@@ -718,13 +967,20 @@ class AlgorithmComparisonPaperPlotMixin:
             | set(tick_values)
         )
 
-    def _get_q_error_minor_tick_positions(self, q_error_values: list[float]) -> list[float]:
+    def _get_q_error_minor_tick_positions(
+        self,
+        q_error_values: list[float],
+        fixed_plot_limit: int | None = None,
+    ) -> list[float]:
         """Build minor tick positions that follow log spacing on the transformed axis."""
 
         if not q_error_values:
             return []
 
-        plot_limit = self._get_q_error_plot_limit(q_error_values)
+        plot_limit = self._get_q_error_plot_limit(
+            q_error_values=q_error_values,
+            fixed_plot_limit=fixed_plot_limit,
+        )
         minor_positions: list[float] = []
 
         for exponent in range(plot_limit):
@@ -760,3 +1016,33 @@ class AlgorithmComparisonPaperPlotMixin:
             return rf"\${value:,.2f}"
 
         return rf"\${value:,.3f}"
+
+    def _apply_memory_ticks(self, axis: Any, memory_values: list[float]) -> None:
+        """Set a sparse set of major ticks for the memory subplot."""
+
+        positive_values = [
+            value for value in memory_values
+            if math.isfinite(value) and value > 0
+        ]
+        if not positive_values:
+            axis.set_yticks([0])
+            axis.set_yticklabels(["0"])
+            return
+
+        max_exponent = max(
+            0,
+            math.ceil(math.log10(max(positive_values))),
+        )
+        exponent_step = 2 if max_exponent >= 4 else 1
+        exponents = list(range(0, max_exponent + 1, exponent_step))
+        if exponents[-1] != max_exponent:
+            exponents.append(max_exponent)
+
+        tick_values = [0] + [10**exponent for exponent in exponents]
+        axis.yaxis.set_major_locator(FixedLocator(tick_values))
+        axis.set_yticklabels(
+            [
+                "0" if value == 0 else self._format_scientific_tick(float(value))
+                for value in tick_values
+            ]
+        )

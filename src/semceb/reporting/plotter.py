@@ -44,7 +44,7 @@ class ResultsPlotter(
         self.minimum_visible_algorithm_slots = 8
 
 
-    def plot(self) -> None:
+    def plot(self, include_semantic_skew: bool = False) -> None:
         """Create benchmark run plots and summary tables."""
 
         results = self._load_results()
@@ -72,7 +72,8 @@ class ResultsPlotter(
         self._plot_algorithm_comparison_paper(df)
         self._plot_ground_truth_selectivity_distributions()
         self._plot_string_length_distributions()
-        self._plot_data_skew()
+        if include_semantic_skew:
+            self._plot_data_skew()
         self._save_per_query_report(df)
         self._save_per_query_statistics_csv(df)
 

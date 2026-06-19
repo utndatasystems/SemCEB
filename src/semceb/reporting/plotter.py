@@ -21,7 +21,6 @@ class ResultsPlotter(
     QuerySelectivityPlotMixin,
     StringLengthDistributionPlotMixin,
     DataSkewPlotMixin,
-    QErrorAnalysisPlotMixin,
     AlgorithmComparisonPaperPlotMixin,
 ):
     """Plots benchmark run results."""

@@ -10,7 +10,11 @@ from rich.table import Table
 import seaborn as sns
 from semceb.reporting.plot_params import apply_plot_params
 from semceb.reporting.plot_algorithm_comparison import AlgorithmComparisonPaperPlotMixin
+from semceb.reporting.plot_q_error_query_categories import (
+    QErrorQueryCategoriesPlotMixin,
+)
 from semceb.reporting.plot_query_selectivities import QuerySelectivityPlotMixin
+from semceb.reporting.plot_data_skew import DataSkewPlotMixin
 from semceb.reporting.plot_strlen_distribution import (
     StringLengthDistributionPlotMixin,
 )
@@ -19,6 +23,8 @@ from semceb.reporting.plot_strlen_distribution import (
 class ResultsPlotter(
     QuerySelectivityPlotMixin,
     StringLengthDistributionPlotMixin,
+    DataSkewPlotMixin,
+    QErrorQueryCategoriesPlotMixin,
     AlgorithmComparisonPaperPlotMixin,
 ):
     """Plots benchmark run results."""
@@ -42,7 +48,7 @@ class ResultsPlotter(
         self.minimum_visible_algorithm_slots = 8
 
 
-    def plot(self) -> None:
+    def plot(self, include_semantic_skew: bool = False) -> None:
         """Create benchmark run plots and summary tables."""
 
         results = self._load_results()
@@ -68,8 +74,11 @@ class ResultsPlotter(
         self._save_algorithm_summary_csv(summary)
         self._plot_algorithm_comparison(df)
         self._plot_algorithm_comparison_paper(df)
+        self._plot_q_error_query_categories(df)
         self._plot_ground_truth_selectivity_distributions()
         self._plot_string_length_distributions()
+        if include_semantic_skew:
+            self._plot_data_skew()
         self._save_per_query_report(df)
         self._save_per_query_statistics_csv(df)
 

@@ -1,0 +1,3 @@
+[submodule "src/semceb/algorithms/semantic_histograms"]
+	path = src/semceb/algorithms/semantic_histograms
+	url = https://github.com/DataManagementLab/semantic_histograms.git

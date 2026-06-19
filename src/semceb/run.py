@@ -45,7 +45,7 @@ def plot_benchmark(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
     from semceb.reporting.plotter import ResultsPlotter
 
     plotter = ResultsPlotter()
-    plotter.plot()
+    plotter.plot(include_semantic_skew="semantic_skew" in kwargs)
 
 def print_section(title: str, style: str = "bold cyan") -> None:
     """Print a formatted CLI section header."""
@@ -74,7 +74,8 @@ Commands:
 
 Examples:
   semceb run
-  semceb plot"""
+  semceb plot
+  semceb plot --semantic-skew"""
     )
 
     print_done()

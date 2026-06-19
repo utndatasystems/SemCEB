@@ -35,7 +35,7 @@ class AlgorithmComparisonPaperPlotMixin:
         "Extrapolation Sampling 5%": "Sample 5\\%",
         "Extrapolation Sampling 10%": "Sample 10\\%",
         "Extrapolation Sampling 20%": "Sample 20\\%",
-        "Semantic Histograms": "SemHist",
+        "Semantic Histogram": "SemHist",
     }
 
     def _plot_algorithm_comparison_paper(self, df: pd.DataFrame) -> None:

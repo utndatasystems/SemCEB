@@ -484,7 +484,13 @@ class BenchmarkRunner:
             dataset_spec_left, dataset_spec_right = query_spec.datasets
             data_left = data_dfs[dataset_spec_left.table_ref]
             data_right = data_dfs[dataset_spec_right.table_ref]
-            cardinality_ground_truth = backend.joining_query(query_spec, data_left, data_right)
+            cardinality_ground_truth = backend.joining_query(
+                query_spec,
+                data_left,
+                data_right,
+                dataset_spec_left.alias,
+                dataset_spec_right.alias,
+            )
 
         return cardinality_ground_truth
 

@@ -120,18 +120,61 @@ class LotusBackend():
         tmp_path.replace(self.cache_path)
 
     def _save_query_result(self, query_spec: QuerySpecification, result_df: pd.DataFrame) -> None:
-        """Persist the full ground-truth match set for a query to CSV."""
+        """Persist the full ground-truth match set for a query to Parquet."""
 
         self.query_results_dir.mkdir(parents=True, exist_ok=True)
 
         result_path = (
             self.query_results_dir
-            / f"{self.safe_model_name}_sf{self._format_scale_factor_for_filename()}_q{query_spec.id}.csv"
+            / f"{self.safe_model_name}_sf{self._format_scale_factor_for_filename()}_q{query_spec.id}.parquet"
         )
 
-        tmp_path = result_path.with_suffix(".tmp")
-        result_df.to_csv(tmp_path, index=False)
+        tmp_path = result_path.with_suffix(".parquet.tmp")
+        columns_to_drop = [
+            column_name
+            for column_name in result_df.columns
+            if column_name == "main_image_local" or column_name.endswith(".main_image_local")
+        ]
+        persisted_df = result_df.drop(columns=columns_to_drop, errors="ignore")
+        persisted_df.to_parquet(tmp_path, index=False)
         tmp_path.replace(result_path)
+
+    def _prefix_join_output_columns(
+        self,
+        result_df: pd.DataFrame,
+        data_left_df: pd.DataFrame,
+        data_right_df: pd.DataFrame,
+        left_prefix: str,
+        right_prefix: str,
+    ) -> pd.DataFrame:
+        """Prefix join output columns by dataset to make their origin explicit."""
+
+        left_columns = set(data_left_df.columns)
+        right_columns = set(data_right_df.columns)
+        rename_map: dict[str, str] = {}
+
+        for column_name in result_df.columns:
+            if column_name.endswith(":left"):
+                base_name = column_name.removesuffix(":left")
+                rename_map[column_name] = f"{left_prefix}.{base_name}"
+                continue
+
+            if column_name.endswith(":right"):
+                base_name = column_name.removesuffix(":right")
+                rename_map[column_name] = f"{right_prefix}.{base_name}"
+                continue
+
+            if column_name in left_columns and column_name not in right_columns:
+                rename_map[column_name] = f"{left_prefix}.{column_name}"
+                continue
+
+            if column_name in right_columns and column_name not in left_columns:
+                rename_map[column_name] = f"{right_prefix}.{column_name}"
+
+        if not rename_map:
+            return result_df
+
+        return result_df.rename(columns=rename_map)
 
     def _get_cached_cardinality(self, cache_key: str) -> int | None:
         """Return cached cardinality if available."""
@@ -297,7 +340,14 @@ class LotusBackend():
             if column_ref.column_name not in df.columns:
                 raise ValueError(f"Column '{column_ref.column_name}' does not exist in data.")
 
-    def joining_query(self, query_spec: QuerySpecification, data_left_df: pd.DataFrame, data_right_df: pd.DataFrame) -> int:
+    def joining_query(
+        self,
+        query_spec: QuerySpecification,
+        data_left_df: pd.DataFrame,
+        data_right_df: pd.DataFrame,
+        data_left_ref: str,
+        data_right_ref: str,
+    ) -> int:
         """Run a semantic join query and return the number of matching rows."""
         query_str = self._format_joining_query(query_spec, data_left_df, data_right_df)
         
@@ -319,6 +369,13 @@ class LotusBackend():
         result_df = data_left_df.sem_join(
             data_right_df,
             query_str,
+        )
+        result_df = self._prefix_join_output_columns(
+            result_df=result_df,
+            data_left_df=data_left_df,
+            data_right_df=data_right_df,
+            left_prefix=data_left_ref,
+            right_prefix=data_right_ref,
         )
         cardinality = result_df.shape[0]
 

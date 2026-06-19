@@ -30,6 +30,7 @@ def apply_plot_params(
                 fig_height * scale,
             ),
             "figure.dpi": 300,
+            "hatch.linewidth": 0.4,
             "font.size": 11.0,
             "font.family": "serif",
             "axes.titlesize": "medium",

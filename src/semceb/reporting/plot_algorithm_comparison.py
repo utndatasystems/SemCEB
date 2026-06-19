@@ -30,8 +30,8 @@ class AlgorithmComparisonPaperPlotMixin:
     TIME_YLABEL = "Time per Query [s]"
     MEMORY_CONSUMPTION_YLABEL = "Memory [Bytes]"
     SUPPORTED_QUERY_REFERENCE_ALGORITHM = "Semantic Histogram"
-    SUPPORT_SCOPE_ALL = "all queries"
-    SUPPORT_SCOPE_REFERENCE = "queries supported by semantic histograms"
+    SUPPORT_SCOPE_ALL = "All SemCEB Queries"
+    SUPPORT_SCOPE_REFERENCE = "Queries supported by Semantic Histograms"
     SUPPORT_SCOPE_ORDER = (SUPPORT_SCOPE_ALL, SUPPORT_SCOPE_REFERENCE)
     SUPPORT_SCOPE_HATCHES = {
         SUPPORT_SCOPE_ALL: "",
@@ -161,13 +161,13 @@ class AlgorithmComparisonPaperPlotMixin:
             handles=self._build_support_scope_legend_handles(),
             labels=list(self.SUPPORT_SCOPE_ORDER),
             loc="upper center",
-            bbox_to_anchor=(0.5, 1.02),
+            bbox_to_anchor=(0.5, 0.995),
             ncol=2,
             frameon=False,
             columnspacing=1.4,
             handletextpad=0.5,
         )
-        fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
+        fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.97))
         self._align_left_column_ylabels(axes[:, 0])
         if not filter_q_error_data.empty:
             self._add_q_error_direction_labels(fig=fig, axis=axes[0, 0])

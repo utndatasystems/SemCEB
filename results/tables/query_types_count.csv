@@ -1,0 +1,4 @@
+predicate_type,filters,joins
+Single-Column Predicates,37,23
+Multi-Column Predicates,25,17
+Total,62,40

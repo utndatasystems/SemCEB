@@ -3,7 +3,7 @@ from typing import Any
 import json
 
 import matplotlib.pyplot as plt
-from matplotlib.ticker import LogLocator, MaxNLocator, NullFormatter
+from matplotlib.ticker import LogLocator, NullFormatter, PercentFormatter
 import pandas as pd
 import seaborn as sns
 
@@ -42,7 +42,7 @@ class QuerySelectivityPlotMixin:
         ]
 
         apply_plot_params(
-            fig_height=2.3,
+            fig_height=1.8,
             scale=1,
             double_column=False,
         )
@@ -120,7 +120,7 @@ class QuerySelectivityPlotMixin:
         query_type: str,
         selectivities: list[float],
     ) -> None:
-        """Plot a sorted workload selectivity distribution for one query type."""
+        """Plot an empirical CDF of workload selectivities for one query type."""
 
         if not selectivities:
             console.print(
@@ -133,46 +133,45 @@ class QuerySelectivityPlotMixin:
         plot_selectivities, _ = self._prepare_selectivities_for_log_plot(
             sorted_selectivities
         )
-
-        x_values = list(range(1, len(plot_selectivities) + 1))
-        lower_y_limit = 0.0001
+        cumulative_probabilities = [
+            index / len(plot_selectivities)
+            for index in range(1, len(plot_selectivities) + 1)
+        ]
+        lower_x_limit = 0.0001
         line_color = "#D67D00"
         fill_color = "#DEA555"
 
         fig, axis = plt.subplots()
-        axis.plot(
-            x_values,
+        axis.step(
             plot_selectivities,
+            cumulative_probabilities,
+            where="post",
             color=line_color,
-            marker="x",
-            markersize=4.5,
             linewidth=1.6,
-            markeredgecolor=line_color,
-            markeredgewidth=1.0,
             zorder=3,
-            clip_on=False,
         )
         axis.fill_between(
-            x_values,
             plot_selectivities,
-            y2=lower_y_limit,
+            cumulative_probabilities,
+            y2=0,
+            step="post",
             color=fill_color,
             alpha=0.35,
             linewidth=0,
             zorder=1,
         )
 
-        axis.set_yscale("log")
-        axis.set_ylim(bottom=lower_y_limit, top=1)
+        axis.set_xscale("log")
+        axis.set_xlim(left=lower_x_limit, right=1)
+        axis.set_ylim(bottom=0, top=1)
         axis.set_title(f"{query_type.capitalize()} Queries")
 
-        axis.set_xlabel(r"\#Predicates")
-        axis.set_ylabel("Selectivity")
-        axis.xaxis.set_major_locator(MaxNLocator(nbins=8, integer=True))
-        axis.set_xlim(1, max(x_values))
+        axis.set_xlabel("Selectivity")
+        axis.set_ylabel("CDF")
+        axis.yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=0))
         axis.minorticks_on()
-        axis.yaxis.set_minor_locator(LogLocator(base=10.0, subs=range(2, 10), numticks=100))
-        axis.yaxis.set_minor_formatter(NullFormatter())
+        axis.xaxis.set_minor_locator(LogLocator(base=10.0, subs=range(2, 10), numticks=100))
+        axis.xaxis.set_minor_formatter(NullFormatter())
         axis.tick_params(
             axis="both",
             which="major",
@@ -188,18 +187,18 @@ class QuerySelectivityPlotMixin:
             labelleft=True,
         )
         axis.tick_params(
-            axis="y",
+            axis="x",
             which="minor",
-            left=True,
-            right=False,
+            bottom=True,
+            top=False,
             length=5,
             width=0.9,
             color="#666666",
             direction="out",
         )
-        axis.grid(axis="y", alpha=0.55)
-        axis.grid(axis="y", which="minor", alpha=0.22)
-        axis.grid(axis="x", visible=False)
+        axis.grid(axis="x", alpha=0.55)
+        axis.grid(axis="x", which="minor", alpha=0.22)
+        axis.grid(axis="y", alpha=0.35)
 
         sns.despine(
             ax=axis,
@@ -214,14 +213,14 @@ class QuerySelectivityPlotMixin:
         pdf_path = (
             self.plot_dir
             / (
-                "query_selectivity_distribution_"
+                "query_selectivity_cdf_"
                 f"{cache_path.stem}_{query_type}.pdf"
             )
         )
 
         fig.savefig(pdf_path, bbox_inches="tight", pad_inches=0)
         console.print(
-            f"[green]✓[/green] Saved {query_type} selectivity distribution plot "
+            f"[green]✓[/green] Saved {query_type} selectivity CDF plot "
             f"to [bold]{pdf_path}[/bold]"
         )
 

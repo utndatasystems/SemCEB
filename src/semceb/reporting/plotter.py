@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any
+from collections import Counter
 import json
 import math
 import matplotlib.pyplot as plt
@@ -18,6 +19,8 @@ from semceb.reporting.plot_data_skew import DataSkewPlotMixin
 from semceb.reporting.plot_strlen_distribution import (
     StringLengthDistributionPlotMixin,
 )
+from semceb.queries.query_specification import QuerySpecification
+from semceb.queries.template_parser import QueryTemplatePartType
 
 
 class ResultsPlotter(
@@ -81,6 +84,8 @@ class ResultsPlotter(
             self._plot_data_skew()
         self._save_per_query_report(df)
         self._save_per_query_statistics_csv(df)
+        self._save_query_category_counts_csv(results)
+        self._save_query_type_counts(results)
 
     def _load_results(self) -> list[dict[str, Any]]:
         """Load raw benchmark results from JSONL."""
@@ -1199,6 +1204,190 @@ class ResultsPlotter(
 
         console.print(
             f"[green]✓[/green] Saved per-query statistics CSV to [bold]{csv_path}[/bold]"
+        )
+
+    def _save_query_category_counts_csv(
+        self,
+        results: list[dict[str, Any]],
+    ) -> None:
+        """Save per-category query counts based on unique queries in the results file."""
+
+        csv_path = self.table_dir / "query_categoriy_counts.csv"
+        query_categories_by_id: dict[Any, list[str]] = {}
+
+        for result in results:
+            query = result["query"]
+            query_id = query["id"]
+            raw_categories = query.get("category", [])
+
+            if isinstance(raw_categories, str):
+                categories = [raw_categories]
+            elif isinstance(raw_categories, list):
+                categories = [str(category) for category in raw_categories]
+            else:
+                raise ValueError(
+                    f"Expected query categories to be a string or list for query {query_id}, "
+                    f"got {type(raw_categories).__name__}."
+                )
+
+            if query_id in query_categories_by_id:
+                if query_categories_by_id[query_id] != categories:
+                    raise ValueError(
+                        f"Inconsistent categories found for query {query_id}: "
+                        f"{query_categories_by_id[query_id]!r} vs {categories!r}."
+                    )
+                continue
+
+            query_categories_by_id[query_id] = categories
+
+        category_counts: Counter[str] = Counter()
+        for categories in query_categories_by_id.values():
+            category_counts.update(category for category in categories if category)
+
+        export_df = pd.DataFrame(
+            [
+                {
+                    "query_category": category,
+                    "query_count": count,
+                }
+                for category, count in category_counts.items()
+            ]
+        )
+
+        if not export_df.empty:
+            export_df = export_df.sort_values(
+                by=["query_count", "query_category"],
+                ascending=[False, True],
+                kind="stable",
+            ).reset_index(drop=True)
+
+        export_df.to_csv(
+            csv_path,
+            index=False,
+            encoding="utf-8",
+        )
+
+        console.print(
+            f"[green]✓[/green] Saved query category counts CSV to [bold]{csv_path}[/bold]"
+        )
+
+    def _save_query_type_counts(
+        self,
+        results: list[dict[str, Any]],
+    ) -> None:
+        """Save high-level query type counts as CSV."""
+
+        csv_path = self.table_dir / "query_types_count.csv"
+
+        query_specs_by_id: dict[Any, QuerySpecification] = {}
+        for result in results:
+            query_data = result["query"]
+            query_spec = QuerySpecification.from_dict(query_data)
+
+            if query_spec.id in query_specs_by_id:
+                existing_query_spec = query_specs_by_id[query_spec.id]
+                if existing_query_spec != query_spec:
+                    raise ValueError(
+                        f"Inconsistent query definition found for query {query_spec.id}."
+                    )
+                continue
+
+            query_specs_by_id[query_spec.id] = query_spec
+
+        counts = {
+            "Single-Column Predicates": {"Filters": 0, "Joins": 0},
+            "Multi-Column Predicates": {"Filters": 0, "Joins": 0},
+        }
+
+        for query_spec in query_specs_by_id.values():
+            column_refs = [
+                part.value
+                for part in query_spec.filter_parsed.parts
+                if part.type == QueryTemplatePartType.COLUMN_REF
+            ]
+
+            if not column_refs:
+                raise ValueError(
+                    f"Query {query_spec.id} has no column references in its parsed filter."
+                )
+
+            query_family = "Filters" if len(query_spec.datasets) == 1 else "Joins"
+
+            if query_family == "Filters":
+                predicate_type = (
+                    "Single-Column Predicates"
+                    if len(column_refs) == 1
+                    else "Multi-Column Predicates"
+                )
+            else:
+                dataset_aliases = {dataset.alias for dataset in query_spec.datasets}
+                referenced_aliases = {
+                    column_ref.dataset_ref
+                    for column_ref in column_refs
+                    if column_ref.dataset_ref is not None
+                }
+                column_ref_counts_by_alias = {
+                    dataset.alias: 0
+                    for dataset in query_spec.datasets
+                }
+                for column_ref in column_refs:
+                    if column_ref.dataset_ref is None:
+                        raise ValueError(
+                            f"Join query {query_spec.id} contains a column reference without dataset alias."
+                        )
+                    if column_ref.dataset_ref not in column_ref_counts_by_alias:
+                        raise ValueError(
+                            f"Join query {query_spec.id} references unknown dataset alias "
+                            f"{column_ref.dataset_ref!r}."
+                        )
+                    column_ref_counts_by_alias[column_ref.dataset_ref] += 1
+
+                is_single_column_join = (
+                    referenced_aliases == dataset_aliases
+                    and all(count == 1 for count in column_ref_counts_by_alias.values())
+                )
+                predicate_type = (
+                    "Single-Column Predicates"
+                    if is_single_column_join
+                    else "Multi-Column Predicates"
+                )
+
+            counts[predicate_type][query_family] += 1
+
+        export_df = pd.DataFrame(
+            [
+                {
+                    "predicate_type": "Single-Column Predicates",
+                    "filters": counts["Single-Column Predicates"]["Filters"],
+                    "joins": counts["Single-Column Predicates"]["Joins"],
+                },
+                {
+                    "predicate_type": "Multi-Column Predicates",
+                    "filters": counts["Multi-Column Predicates"]["Filters"],
+                    "joins": counts["Multi-Column Predicates"]["Joins"],
+                },
+                {
+                    "predicate_type": "Total",
+                    "filters": (
+                        counts["Single-Column Predicates"]["Filters"]
+                        + counts["Multi-Column Predicates"]["Filters"]
+                    ),
+                    "joins": (
+                        counts["Single-Column Predicates"]["Joins"]
+                        + counts["Multi-Column Predicates"]["Joins"]
+                    ),
+                },
+            ]
+        )
+
+        export_df.to_csv(
+            csv_path,
+            index=False,
+            encoding="utf-8",
+        )
+
+        console.print(
+            f"[green]✓[/green] Saved query type counts CSV to [bold]{csv_path}[/bold]"
         )
 
     def _format_metric_cell_html(

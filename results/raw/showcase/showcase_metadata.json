@@ -1,0 +1,10 @@
+{
+  "model_name": "gpt-5.4-nano",
+  "system_prompt": "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>",
+  "configured_join_scale_factor": 100,
+  "effective_join_scale_factor": 100,
+  "total_plans": 96,
+  "enumerate_only": false,
+  "result_jsonl_path": "results/raw/showcase/showcase_results.jsonl",
+  "executed_plans": 96
+}

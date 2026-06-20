@@ -47,6 +47,18 @@ def plot_benchmark(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
     plotter = ResultsPlotter()
     plotter.plot(include_semantic_skew="semantic_skew" in kwargs)
 
+
+def run_showcase(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
+    """Run the showcase setup path."""
+    from semceb.benchmark.card_est_showcase import CardEstShowcaseRunner
+
+    runner = CardEstShowcaseRunner(
+        model_name=config["general"]["ground_truth"]["model_name"],
+        system_prompt=config["general"]["ground_truth"]["system_prompt"],
+        join_scale_factor=config["general"]["data"].get("join_scale_factor"),
+    )
+    runner.run(enumerate_only=bool(kwargs.get("enumerate_only")))
+
 def print_section(title: str, style: str = "bold cyan") -> None:
     """Print a formatted CLI section header."""
     console.print()
@@ -71,10 +83,13 @@ def print_help() -> None:
 Commands:
   run       Run the benchmark
   plot      Generate plots and summary tables from benchmark results
+  showcase  Prepare the cardinality-estimation showcase setup
 
 Examples:
   semceb run
   semceb plot
+  semceb showcase
+  semceb showcase --enumerate-only
   semceb plot --semantic-skew"""
     )
 
@@ -85,7 +100,7 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, dict[str, Any]]:
     Parse CLI arguments.
 
     Returns:
-        mode: one of "run", "plot"
+        mode: one of "run", "plot", "showcase"
         kwargs: everything else as a dictionary
     """
     if argv is None:
@@ -97,7 +112,7 @@ def parse_args(argv: list[str] | None = None) -> tuple[str, dict[str, Any]]:
 
     mode = argv[0]
 
-    valid_modes = {"run", "plot"}
+    valid_modes = {"run", "plot", "showcase"}
     if mode not in valid_modes:
         raise ValueError(
             f"Invalid mode '{mode}'. Expected one of: {', '.join(valid_modes)}"
@@ -158,9 +173,10 @@ def main() -> None:
 
     config = load_config("config.toml")
 
-    commands: dict[str, Callable[[dict[str, Any]], None]] = {
+    commands: dict[str, Callable[[dict[str, Any], dict[str, Any]], None]] = {
         "run": run_benchmark,
         "plot": plot_benchmark,
+        "showcase": run_showcase,
     }
 
     if mode not in commands:

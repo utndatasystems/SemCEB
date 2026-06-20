@@ -15,6 +15,7 @@ from semceb.reporting.plot_q_error_query_categories import (
     QErrorQueryCategoriesPlotMixin,
 )
 from semceb.reporting.plot_query_selectivities import QuerySelectivityPlotMixin
+from semceb.reporting.plot_showcase import ShowcasePlotMixin
 from semceb.reporting.plot_data_skew import DataSkewPlotMixin
 from semceb.reporting.plot_strlen_distribution import (
     StringLengthDistributionPlotMixin,
@@ -29,12 +30,16 @@ class ResultsPlotter(
     DataSkewPlotMixin,
     QErrorQueryCategoriesPlotMixin,
     AlgorithmComparisonPaperPlotMixin,
+    ShowcasePlotMixin,
 ):
     """Plots benchmark run results."""
 
     def __init__(self):
         """Initialize the plotter with default output directories and style settings."""
         self.raw_results_path = Path("results") / "raw" / "result.jsonl"
+        self.showcase_results_path = (
+            Path("results") / "raw" / "showcase" / "showcase_results.jsonl"
+        )
         self.plot_dir = Path("results") / "plots"
         self.table_dir = Path("results") / "tables"
 
@@ -53,39 +58,45 @@ class ResultsPlotter(
 
     def plot(self, include_semantic_skew: bool = False) -> None:
         """Create benchmark run plots and summary tables."""
+        self.plot_dir.mkdir(parents=True, exist_ok=True)
+        results: list[dict[str, Any]] = []
+        df = pd.DataFrame()
 
-        results = self._load_results()
-        df = self._to_dataframe(results)
+        try:
+            results = self._load_results()
+            df = self._to_dataframe(results)
+        except FileNotFoundError as error:
+            console.print(f"[bold yellow]Warning:[/bold yellow] {error}")
 
         if df.empty:
             console.print(
-                "[bold yellow]Warning:[/bold yellow] No results to plot."
+                "[bold yellow]Warning:[/bold yellow] No benchmark results to plot."
             )
-            return
+        else:
+            self.table_dir.mkdir(parents=True, exist_ok=True)
 
-        self.plot_dir.mkdir(parents=True, exist_ok=True)
-        self.table_dir.mkdir(parents=True, exist_ok=True)
+            summary = self._summarize_by_algorithm(df)
+            table = self._create_summary_table(summary)
 
-        summary = self._summarize_by_algorithm(df)
-        table = self._create_summary_table(summary)
+            console.print()
+            console.print(table)
+            console.print()
 
-        console.print()
-        console.print(table)
-        console.print()
+            self._save_summary_table(summary)
+            self._save_algorithm_summary_csv(summary)
+            self._plot_algorithm_comparison(df)
+            self._plot_algorithm_comparison_paper(df)
+            self._plot_q_error_query_categories(df)
+            self._plot_ground_truth_selectivity_distributions()
+            self._plot_string_length_distributions()
+            if include_semantic_skew:
+                self._plot_data_skew()
+            self._save_per_query_report(df)
+            self._save_per_query_statistics_csv(df)
+            self._save_query_category_counts_csv(results)
+            self._save_query_type_counts(results)
 
-        self._save_summary_table(summary)
-        self._save_algorithm_summary_csv(summary)
-        self._plot_algorithm_comparison(df)
-        self._plot_algorithm_comparison_paper(df)
-        self._plot_q_error_query_categories(df)
-        self._plot_ground_truth_selectivity_distributions()
-        self._plot_string_length_distributions()
-        if include_semantic_skew:
-            self._plot_data_skew()
-        self._save_per_query_report(df)
-        self._save_per_query_statistics_csv(df)
-        self._save_query_category_counts_csv(results)
-        self._save_query_type_counts(results)
+        self._plot_showcase_cost_histogram()
 
     def _load_results(self) -> list[dict[str, Any]]:
         """Load raw benchmark results from JSONL."""

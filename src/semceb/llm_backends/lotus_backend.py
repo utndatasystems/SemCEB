@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import lotus.settings
+from lotus.cache import CacheConfig, CacheFactory, CacheType
 from lotus.models.lm import LM
 from lotus.dtype_extensions import ImageArray
 from semceb.queries.template_parser import QueryTemplatePartType
@@ -16,6 +17,7 @@ class LotusBackend():
     """LOTUS backend for ground-truth cardinality estimation and caching."""
 
     DATASETS_IMAGE_COLUMNS = {"main_image_local"}
+    LOTUS_CACHE_MAX_SIZE = 10_000_000
 
     def __init__(
         self,
@@ -37,13 +39,48 @@ class LotusBackend():
         self.name = model_name
         self.system_prompt = system_prompt
         self.scale_factor = scale_factor
+        self._warm_litellm_pydantic_models()
+        cache_config = CacheConfig(
+            cache_type=CacheType.IN_MEMORY,
+            max_size=self.LOTUS_CACHE_MAX_SIZE,
+        )
+        cache = CacheFactory.create_cache(cache_config)
         self.lm = LM(
             model=self.name,
             rate_limit=None,
             max_batch_size=256,
+            cache=cache,
         )
         self.lm.system_prompt = self.system_prompt
         lotus.settings.configure(lm=self.lm)
+
+    def _warm_litellm_pydantic_models(self) -> None:
+        """Eagerly rebuild LiteLLM Pydantic models before threaded batch use.
+
+        LiteLLM lazily rebuilds some response models on first access. Under
+        threaded batch completion, that can race and surface as missing
+        ``__pydantic_core_schema__`` on ``Message``. Rebuilding these upfront
+        keeps initialization single-threaded.
+        """
+        try:
+            from litellm.types import utils as litellm_utils
+        except Exception:
+            return
+
+        for class_name in [
+            "Message",
+            "Choices",
+            "StreamingChoices",
+            "Delta",
+            "ModelResponse",
+        ]:
+            model_class = getattr(litellm_utils, class_name, None)
+            model_rebuild = getattr(model_class, "model_rebuild", None)
+
+            if model_rebuild is None:
+                continue
+
+            model_rebuild(force=True)
 
     def _safe_cache_name(self, model_name: str) -> str:
         """Return a filesystem-safe name for the model cache file."""

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import permutations, product
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pandas as pd
@@ -120,6 +122,9 @@ class CardEstShowcaseRunner:
         self.base_relations: dict[str, pd.DataFrame] = {}
         self.plans: list[ShowcasePlan] = []
         self.plan_results: list[dict[str, Any]] = []
+        self.result_dir = Path("results") / "raw" / "showcase"
+        self.result_jsonl_path = self.result_dir / "showcase_results.jsonl"
+        self.metadata_path = self.result_dir / "showcase_metadata.json"
 
     def run(self, enumerate_only: bool = False) -> None:
         """Prepare the showcase, generate plans, and optionally execute them."""
@@ -134,8 +139,10 @@ class CardEstShowcaseRunner:
         self.backend = self._initialize_backend()
         self._configure_lotus_runtime()
         self.base_relations = self._prepare_base_relations()
+        self._initialize_result_files()
         self._print_setup_summary()
         self.plan_results = self._execute_plans()
+        self._finalize_result_files()
 
     def _ensure_data_available(self) -> None:
         """Download benchmark data when it is not available locally."""
@@ -326,6 +333,7 @@ class CardEstShowcaseRunner:
             self._print_plan_configuration(plan, total_plans)
             result = self._execute_plan(plan)
             results.append(result)
+            self._append_plan_result(result)
             self._print_plan_result(result)
 
             cnt += 1
@@ -347,6 +355,7 @@ class CardEstShowcaseRunner:
         if hasattr(self.backend.lm, "reset_stats"):
             self.backend.lm.reset_stats()
 
+        plan_usage_before = self._capture_usage_snapshot()
         relations = {
             relation_name: relation_df.copy()
             for relation_name, relation_df in self.base_relations.items()
@@ -359,11 +368,13 @@ class CardEstShowcaseRunner:
 
             for filter_step in plan.filter_orders[relation_name]:
                 input_rows = len(current_df)
+                step_usage_before = self._capture_usage_snapshot()
                 current_df = self._apply_filter(
                     df=current_df,
                     relation_name=relation_name,
                     filter_step=filter_step,
                 )
+                step_usage_after = self._capture_usage_snapshot()
                 filter_stats.append(
                     {
                         "relation": relation_name,
@@ -371,6 +382,10 @@ class CardEstShowcaseRunner:
                         "instruction": filter_step.instruction,
                         "input_rows": input_rows,
                         "output_rows": len(current_df),
+                        "cost": self._usage_delta_dict(
+                            before=step_usage_before,
+                            after=step_usage_after,
+                        ),
                     }
                 )
 
@@ -380,6 +395,7 @@ class CardEstShowcaseRunner:
             left_df = relations[join_step.left_relation]
             right_df = relations[join_step.right_relation]
             instruction = self._build_join_instruction(join_step)
+            step_usage_before = self._capture_usage_snapshot()
 
             result_df = self._apply_join(
                 left_df=left_df,
@@ -387,6 +403,7 @@ class CardEstShowcaseRunner:
                 join_step=join_step,
                 join_index=join_index,
             )
+            step_usage_after = self._capture_usage_snapshot()
 
             join_stats.append(
                 {
@@ -400,12 +417,17 @@ class CardEstShowcaseRunner:
                     "right_rows": len(right_df),
                     "input_pairs": len(left_df) * len(right_df),
                     "output_rows": len(result_df),
+                    "cost": self._usage_delta_dict(
+                        before=step_usage_before,
+                        after=step_usage_after,
+                    ),
                 }
             )
 
             relations[join_step.output_relation] = result_df
 
         final_df = relations["result"]
+        plan_usage_after = self._capture_usage_snapshot()
 
         return {
             "plan_id": plan.plan_id,
@@ -427,6 +449,10 @@ class CardEstShowcaseRunner:
             "filter_stats": filter_stats,
             "join_stats": join_stats,
             "final_rows": len(final_df),
+            "plan_cost": self._usage_delta_dict(
+                before=plan_usage_before,
+                after=plan_usage_after,
+            ),
             "lm_stats": self._capture_lm_stats(),
         }
 
@@ -554,6 +580,134 @@ class CardEstShowcaseRunner:
             "operator_cache_hits": stats.operator_cache_hits,
         }
 
+    def _capture_usage_snapshot(self) -> dict[str, Any]:
+        """Capture the current LM usage counters for later delta computation."""
+        if self.backend is None:
+            return self._empty_usage_snapshot()
+
+        stats = self.backend.lm.stats
+
+        return {
+            "virtual_usage": self._usage_to_dict(stats.virtual_usage),
+            "physical_usage": self._usage_to_dict(stats.physical_usage),
+            "cache_hits": int(stats.cache_hits),
+            "operator_cache_hits": int(stats.operator_cache_hits),
+        }
+
+    def _empty_usage_snapshot(self) -> dict[str, Any]:
+        """Return a zeroed usage snapshot."""
+        return {
+            "virtual_usage": self._usage_zero_dict(),
+            "physical_usage": self._usage_zero_dict(),
+            "cache_hits": 0,
+            "operator_cache_hits": 0,
+        }
+
+    def _usage_zero_dict(self) -> dict[str, Any]:
+        """Return a zeroed usage dictionary."""
+        return {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "total_cost": 0.0,
+        }
+
+    def _usage_to_dict(self, usage: Any) -> dict[str, Any]:
+        """Convert a LOTUS usage object into a JSON-serializable dictionary."""
+        return {
+            "prompt_tokens": int(usage.prompt_tokens),
+            "completion_tokens": int(usage.completion_tokens),
+            "total_tokens": int(usage.total_tokens),
+            "total_cost": float(usage.total_cost),
+        }
+
+    def _usage_delta_dict(
+        self,
+        before: dict[str, Any],
+        after: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Compute the usage delta between two LM usage snapshots.
+
+        Virtual usage is the cache-independent cost signal and should be used
+        for analysis. Physical usage is persisted alongside it to expose the
+        actual cached runtime spend.
+        """
+        return {
+            "virtual_usage": self._subtract_usage_dict(
+                before["virtual_usage"],
+                after["virtual_usage"],
+            ),
+            "physical_usage": self._subtract_usage_dict(
+                before["physical_usage"],
+                after["physical_usage"],
+            ),
+            "cache_hits": int(after["cache_hits"] - before["cache_hits"]),
+            "operator_cache_hits": int(
+                after["operator_cache_hits"] - before["operator_cache_hits"]
+            ),
+        }
+
+    def _subtract_usage_dict(
+        self,
+        before: dict[str, Any],
+        after: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Subtract one usage dictionary from another."""
+        return {
+            "prompt_tokens": int(after["prompt_tokens"] - before["prompt_tokens"]),
+            "completion_tokens": int(
+                after["completion_tokens"] - before["completion_tokens"]
+            ),
+            "total_tokens": int(after["total_tokens"] - before["total_tokens"]),
+            "total_cost": float(after["total_cost"] - before["total_cost"]),
+        }
+
+    def _initialize_result_files(self) -> None:
+        """Reset showcase output files and write run metadata."""
+        self.result_dir.mkdir(parents=True, exist_ok=True)
+        self.result_jsonl_path.write_text("", encoding="utf-8")
+        self._write_metadata(
+            {
+                "model_name": self.model_name,
+                "system_prompt": self.system_prompt,
+                "configured_join_scale_factor": self.join_scale_factor,
+                "effective_join_scale_factor": self.execution_join_scale_factor,
+                "total_plans": len(self.plans),
+                "enumerate_only": False,
+                "test_plan_limit": self.TEST_PLAN_LIMIT,
+                "result_jsonl_path": str(self.result_jsonl_path),
+                "executed_plans": 0,
+            }
+        )
+
+    def _append_plan_result(self, result: dict[str, Any]) -> None:
+        """Append one showcase plan result as JSONL."""
+        with self.result_jsonl_path.open("a", encoding="utf-8") as file:
+            file.write(json.dumps(result) + "\n")
+
+    def _finalize_result_files(self) -> None:
+        """Update metadata after showcase execution completes."""
+        self._write_metadata(
+            {
+                "model_name": self.model_name,
+                "system_prompt": self.system_prompt,
+                "configured_join_scale_factor": self.join_scale_factor,
+                "effective_join_scale_factor": self.execution_join_scale_factor,
+                "total_plans": len(self.plans),
+                "enumerate_only": False,
+                "test_plan_limit": self.TEST_PLAN_LIMIT,
+                "result_jsonl_path": str(self.result_jsonl_path),
+                "executed_plans": len(self.plan_results),
+            }
+        )
+
+    def _write_metadata(self, metadata: dict[str, Any]) -> None:
+        """Persist showcase metadata as JSON."""
+        self.metadata_path.write_text(
+            json.dumps(metadata, indent=2),
+            encoding="utf-8",
+        )
+
     def _print_setup_summary(self) -> None:
         """Report the prepared showcase setup and planned permutation count."""
         console.print("[green]✓[/green] Showcase setup is ready.")
@@ -570,6 +724,7 @@ class CardEstShowcaseRunner:
             )
 
         console.print(f"  Plans to execute: [bold]{len(self.plans):,}[/bold]")
+        console.print(f"  Results file: [bold]{self.result_jsonl_path}[/bold]")
 
     def _print_enumerated_plans(self) -> None:
         """Print all enumerated plans and the final plan count without execution."""

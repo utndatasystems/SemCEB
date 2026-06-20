@@ -55,8 +55,6 @@ class ShowcasePlan:
 class CardEstShowcaseRunner:
     """Run a fixed showcase query under many filter and join permutations."""
 
-    TEST_PLAN_LIMIT = 5
-    TEST_JOIN_SCALE_FACTOR = 5
     SHOWCASE_DATASETS = [
         "amazon-reviews/products_filtered_with_embeddings",
         "amazon-reviews/reviews_filtered_with_embeddings",
@@ -115,7 +113,7 @@ class CardEstShowcaseRunner:
         self.model_name = model_name
         self.system_prompt = system_prompt
         self.join_scale_factor = join_scale_factor
-        self.execution_join_scale_factor = self.TEST_JOIN_SCALE_FACTOR
+        self.execution_join_scale_factor = self.join_scale_factor
 
         self.data_dfs: dict[str, pd.DataFrame] = {}
         self.backend: LotusBackendType | None = None
@@ -327,23 +325,12 @@ class CardEstShowcaseRunner:
         results: list[dict[str, Any]] = []
         total_plans = len(self.plans)
 
-        cnt = 0
-
         for plan in self.plans:
             self._print_plan_configuration(plan, total_plans)
             result = self._execute_plan(plan)
             results.append(result)
             self._append_plan_result(result)
             self._print_plan_result(result)
-
-            cnt += 1
-            if cnt >= self.TEST_PLAN_LIMIT:
-                console.print()
-                console.print(
-                    "[yellow]Test safeguard[/yellow]: stopping showcase execution "
-                    f"after [bold]{cnt}[/bold] plans."
-                )
-                return results
 
         return results
 
@@ -674,7 +661,6 @@ class CardEstShowcaseRunner:
                 "effective_join_scale_factor": self.execution_join_scale_factor,
                 "total_plans": len(self.plans),
                 "enumerate_only": False,
-                "test_plan_limit": self.TEST_PLAN_LIMIT,
                 "result_jsonl_path": str(self.result_jsonl_path),
                 "executed_plans": 0,
             }
@@ -695,7 +681,6 @@ class CardEstShowcaseRunner:
                 "effective_join_scale_factor": self.execution_join_scale_factor,
                 "total_plans": len(self.plans),
                 "enumerate_only": False,
-                "test_plan_limit": self.TEST_PLAN_LIMIT,
                 "result_jsonl_path": str(self.result_jsonl_path),
                 "executed_plans": len(self.plan_results),
             }
@@ -713,9 +698,7 @@ class CardEstShowcaseRunner:
         console.print("[green]✓[/green] Showcase setup is ready.")
         console.print(f"  Model: [cyan]{self.model_name}[/cyan]")
         console.print(
-            "  Join scale factor: "
-            f"[bold]{self.execution_join_scale_factor}[/bold] "
-            f"(configured: {self.join_scale_factor})"
+            "  Join scale factor: " f"[bold]{self.execution_join_scale_factor}[/bold]"
         )
 
         for dataset_name, data_df in self.data_dfs.items():
@@ -730,19 +713,13 @@ class CardEstShowcaseRunner:
         """Print all enumerated plans and the final plan count without execution."""
         total_plans = len(self.plans)
 
-        displayed_plans = 0
-
         for plan in self.plans:
             self._print_plan_configuration(plan, total_plans)
-            displayed_plans += 1
-            if displayed_plans >= self.TEST_PLAN_LIMIT:
-                break
 
         console.print()
         console.print(
             "[green]✓[/green] Enumerated "
-            f"[bold]{displayed_plans:,}[/bold] showcase plans "
-            f"out of [bold]{total_plans:,}[/bold] total."
+            f"[bold]{total_plans:,}[/bold] showcase plans."
         )
 
     def _print_plan_configuration(self, plan: ShowcasePlan, total_plans: int) -> None:

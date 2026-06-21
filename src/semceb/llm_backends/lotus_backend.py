@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from duckdb import df
 import pandas as pd
 
@@ -24,10 +25,15 @@ class LotusBackend():
         model_name: str,
         system_prompt: str,
         scale_factor: int | None,
+        *,
+        enable_lotus_cache: bool = True,
+        repeated_runs: int = 1,
     ):
         """Initialize the LOTUS backend, cache, and model instance."""
         self.safe_model_name = self._safe_cache_name(model_name)
         self.safe_scale_factor = self._safe_scale_factor_name(scale_factor)
+        self.enable_lotus_cache = enable_lotus_cache
+        self.repeated_runs = repeated_runs
 
         self.cache_path = (
             Path("benchmark_queries")
@@ -40,11 +46,13 @@ class LotusBackend():
         self.system_prompt = system_prompt
         self.scale_factor = scale_factor
         self._warm_litellm_pydantic_models()
-        cache_config = CacheConfig(
-            cache_type=CacheType.IN_MEMORY,
-            max_size=self.LOTUS_CACHE_MAX_SIZE,
-        )
-        cache = CacheFactory.create_cache(cache_config)
+        cache = None
+        if self.enable_lotus_cache:
+            cache_config = CacheConfig(
+                cache_type=CacheType.IN_MEMORY,
+                max_size=self.LOTUS_CACHE_MAX_SIZE,
+            )
+            cache = CacheFactory.create_cache(cache_config)
         self.lm = LM(
             model=self.name,
             rate_limit=None,
@@ -52,7 +60,10 @@ class LotusBackend():
             cache=cache,
         )
         self.lm.system_prompt = self.system_prompt
-        lotus.settings.configure(lm=self.lm)
+        lotus.settings.configure(
+            lm=self.lm,
+            enable_cache=self.enable_lotus_cache,
+        )
 
     def _warm_litellm_pydantic_models(self) -> None:
         """Eagerly rebuild LiteLLM Pydantic models before threaded batch use.
@@ -105,6 +116,12 @@ class LotusBackend():
 
         return str(self.scale_factor)
 
+    def _validate_repeated_runs(self) -> None:
+        """Ensure the configured repeated-run count is valid."""
+
+        if self.repeated_runs < 1:
+            raise ValueError("repeated_runs must be at least 1.")
+
     def _make_cache_key(
         self,
         query_type: str,
@@ -156,17 +173,30 @@ class LotusBackend():
 
         tmp_path.replace(self.cache_path)
 
-    def _save_query_result(self, query_spec: QuerySpecification, result_df: pd.DataFrame) -> None:
-        """Persist the full ground-truth match set for a query to Parquet."""
+    def _get_query_result_path(self, query_spec: QuerySpecification) -> Path:
+        """Return the final parquet path for one cached query result."""
 
-        self.query_results_dir.mkdir(parents=True, exist_ok=True)
-
-        result_path = (
+        return (
             self.query_results_dir
             / f"{self.safe_model_name}_sf{self._format_scale_factor_for_filename()}_q{query_spec.id}.parquet"
         )
 
-        tmp_path = result_path.with_suffix(".parquet.tmp")
+    def _get_repeated_query_result_path(
+        self,
+        query_spec: QuerySpecification,
+        run_index: int,
+    ) -> Path:
+        """Return a temporary parquet path for one repeated run."""
+
+        result_path = self._get_query_result_path(query_spec)
+        return result_path.with_name(f"{result_path.stem}__run{run_index}{result_path.suffix}")
+
+    def _persist_query_result(self, result_df: pd.DataFrame, output_path: Path) -> None:
+        """Persist one query result dataframe to parquet atomically."""
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        tmp_path = output_path.with_suffix(f"{output_path.suffix}.tmp")
         columns_to_drop = [
             column_name
             for column_name in result_df.columns
@@ -174,7 +204,12 @@ class LotusBackend():
         ]
         persisted_df = result_df.drop(columns=columns_to_drop, errors="ignore")
         persisted_df.to_parquet(tmp_path, index=False)
-        tmp_path.replace(result_path)
+        tmp_path.replace(output_path)
+
+    def _save_query_result(self, query_spec: QuerySpecification, result_df: pd.DataFrame) -> None:
+        """Persist the full ground-truth match set for a query to Parquet."""
+
+        self._persist_query_result(result_df, self._get_query_result_path(query_spec))
 
     def _prefix_join_output_columns(
         self,
@@ -217,18 +252,114 @@ class LotusBackend():
         """Return cached cardinality if available."""
         value = self.cache.get(cache_key)
 
-        if value is None:
+        if value is None or not isinstance(value, dict):
             return None
 
-        return int(value["cardinality"])
+        try:
+            cardinality = int(value["cardinality"])
+        except (KeyError, TypeError, ValueError):
+            return None
 
-    def _set_cached_cardinality(self, cache_key: str, cardinality: int, selectivity: float) -> None:
+        if self.repeated_runs <= 1:
+            return cardinality
+
+        repeated = value.get("cardinalities_repeated")
+        if not isinstance(repeated, list) or len(repeated) != self.repeated_runs:
+            return None
+
+        try:
+            repeated_cardinalities = [int(entry) for entry in repeated]
+        except (TypeError, ValueError):
+            return None
+
+        if cardinality != self._select_median_cardinality(repeated_cardinalities):
+            return None
+
+        return cardinality
+
+    def _set_cached_cardinality(
+        self,
+        cache_key: str,
+        cardinality: int,
+        selectivity: float,
+        cardinalities_repeated: list[int],
+    ) -> None:
         """Store cardinality in the cache."""
         self.cache[cache_key] = {
             "cardinality": int(cardinality),
             "selectivity": float(selectivity),
+            "cardinalities_repeated": [int(value) for value in cardinalities_repeated],
         }
         self._save_cache()
+
+    def _select_median_run_index(self, cardinalities: list[int]) -> int:
+        """Return the index of the run whose cardinality is the median order statistic."""
+
+        if not cardinalities:
+            raise ValueError("At least one repeated cardinality is required.")
+
+        ranked_indices = sorted(
+            range(len(cardinalities)),
+            key=lambda index: (cardinalities[index], index),
+        )
+        return ranked_indices[len(ranked_indices) // 2]
+
+    def _select_median_cardinality(self, cardinalities: list[int]) -> int:
+        """Return the cardinality of the median repeated run."""
+
+        return int(cardinalities[self._select_median_run_index(cardinalities)])
+
+    def _execute_query_with_repeats(
+        self,
+        *,
+        cache_key: str,
+        query_spec: QuerySpecification,
+        run_query: Callable[[], pd.DataFrame],
+        selectivity_denominator: int,
+    ) -> int:
+        """Execute one semantic query repeatedly and keep the median run."""
+
+        self._validate_repeated_runs()
+
+        cached = self._get_cached_cardinality(cache_key)
+        if cached is not None:
+            return cached
+
+        cardinalities_repeated: list[int] = []
+        repeated_result_paths: list[Path] = []
+        median_run_index: int | None = None
+
+        try:
+            for run_index in range(self.repeated_runs):
+                result_df = run_query()
+                cardinalities_repeated.append(int(result_df.shape[0]))
+
+                repeated_result_path = self._get_repeated_query_result_path(
+                    query_spec=query_spec,
+                    run_index=run_index,
+                )
+                self._persist_query_result(result_df, repeated_result_path)
+                repeated_result_paths.append(repeated_result_path)
+
+            median_run_index = self._select_median_run_index(cardinalities_repeated)
+            median_cardinality = int(cardinalities_repeated[median_run_index])
+            repeated_result_paths[median_run_index].replace(
+                self._get_query_result_path(query_spec)
+            )
+
+            self._set_cached_cardinality(
+                cache_key,
+                cardinality=median_cardinality,
+                selectivity=median_cardinality / selectivity_denominator,
+                cardinalities_repeated=cardinalities_repeated,
+            )
+            return median_cardinality
+        finally:
+            for run_index, repeated_result_path in enumerate(repeated_result_paths):
+                if median_run_index == run_index and not repeated_result_path.exists():
+                    continue
+                if repeated_result_path.exists():
+                    repeated_result_path.unlink()
 
     def _load_image_column(
         self,
@@ -330,24 +461,19 @@ class LotusBackend():
             query_str=query_str,
         )
 
-        cached = self._get_cached_cardinality(cache_key)
-        if cached is not None:
-            return cached
-        
         [df] = self._load_referenced_image_columns(
             query_spec=query_spec,
             dataframes=[df],
         )
 
-        result_df = df.sem_filter(
-            user_instruction=query_str,
+        return self._execute_query_with_repeats(
+            cache_key=cache_key,
+            query_spec=query_spec,
+            run_query=lambda: df.sem_filter(
+                user_instruction=query_str,
+            ),
+            selectivity_denominator=df.shape[0],
         )
-        cardinality = result_df.shape[0]
-
-        self._save_query_result(query_spec, result_df)
-
-        self._set_cached_cardinality(cache_key, cardinality, selectivity=cardinality / df.shape[0])
-        return cardinality  
 
     def _format_filtering_query(self, query_spec: QuerySpecification, df: pd.DataFrame) -> str:
         """Format LOTUS query string for filtering."""
@@ -394,32 +520,26 @@ class LotusBackend():
             query_str=query_str,
         )
 
-        cached = self._get_cached_cardinality(cache_key)
-        if cached is not None:
-            return cached
-        
         data_left_df, data_right_df = self._load_referenced_image_columns(
             query_spec=query_spec,
             dataframes=[data_left_df, data_right_df],
         )
 
-        result_df = data_left_df.sem_join(
-            data_right_df,
-            query_str,
+        return self._execute_query_with_repeats(
+            cache_key=cache_key,
+            query_spec=query_spec,
+            run_query=lambda: self._prefix_join_output_columns(
+                result_df=data_left_df.sem_join(
+                    data_right_df,
+                    query_str,
+                ),
+                data_left_df=data_left_df,
+                data_right_df=data_right_df,
+                left_prefix=data_left_ref,
+                right_prefix=data_right_ref,
+            ),
+            selectivity_denominator=data_left_df.shape[0] * data_right_df.shape[0],
         )
-        result_df = self._prefix_join_output_columns(
-            result_df=result_df,
-            data_left_df=data_left_df,
-            data_right_df=data_right_df,
-            left_prefix=data_left_ref,
-            right_prefix=data_right_ref,
-        )
-        cardinality = result_df.shape[0]
-
-        self._save_query_result(query_spec, result_df)
-
-        self._set_cached_cardinality(cache_key, cardinality, selectivity=cardinality / (data_left_df.shape[0] * data_right_df.shape[0]))
-        return cardinality
     
     def _format_joining_query(
         self,

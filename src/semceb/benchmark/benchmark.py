@@ -2,7 +2,6 @@ import sys
 import importlib
 from pathlib import Path
 import json
-import math
 from enum import Enum
 import time
 import pandas as pd
@@ -19,6 +18,8 @@ from semceb.algorithms.cardinality_estimate import CardinalityEstimateKind
 
 class BenchmarkRunner:
     """Run benchmark queries and collect algorithm evaluation results."""
+
+    GROUND_TRUTH_REPEATED_RUNS = 5
 
     def __init__(
         self,
@@ -472,6 +473,8 @@ class BenchmarkRunner:
             model_name=model_name,
             system_prompt=system_prompt,
             scale_factor=scale_factor,
+            enable_lotus_cache=False,
+            repeated_runs=self.GROUND_TRUTH_REPEATED_RUNS,
         )
 
         if len(query_spec.datasets) == 1:

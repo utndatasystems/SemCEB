@@ -87,6 +87,7 @@ class ResultsPlotter(
             self._plot_algorithm_comparison(df)
             self._plot_algorithm_comparison_paper(df)
             self._plot_q_error_query_categories(df)
+            self._plot_q_error_query_categories_comparison(df)
             self._plot_ground_truth_selectivity_distributions()
             self._plot_string_length_distributions()
             if include_semantic_skew:

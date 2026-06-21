@@ -17,6 +17,10 @@ class QErrorQueryCategoriesPlotMixin:
     """Helpers for per-algorithm q-error drill-down plots by query category."""
 
     Q_ERROR_QUERY_CATEGORY_PLOT_LIMIT = 4
+    Q_ERROR_QUERY_CATEGORY_COMPARISON_ALGORITHMS = (
+        ("Extrapolation Sampling 5%", "5\\%-Sample"),
+        ("Semantic Histogram", "Semantic Histogram"),
+    )
     QUERY_CATEGORY_ORDER = (
         "equality",
         "inequality",
@@ -63,6 +67,110 @@ class QErrorQueryCategoriesPlotMixin:
                 algorithm_df=algorithm_df,
             )
 
+    def _plot_q_error_query_categories_comparison(self, df: pd.DataFrame) -> None:
+        """Create a stacked filter-query comparison across three algorithms."""
+
+        if df.empty:
+            console.print(
+                "[bold yellow]Warning:[/bold yellow] No results available for q-error category comparison plot."
+            )
+            return
+
+        apply_plot_params(
+            fig_height=2.2,
+            scale=1.8,
+            double_column=False,
+        )
+
+        analysis_df = self._prepare_q_error_query_category_dataframe(df)
+
+        if analysis_df.empty:
+            console.print(
+                "[bold yellow]Warning:[/bold yellow] No finite q-error values found for the comparison plot."
+            )
+            return
+
+        algorithm_names = [
+            algorithm_name
+            for algorithm_name, _display_name in (
+                self.Q_ERROR_QUERY_CATEGORY_COMPARISON_ALGORITHMS
+            )
+        ]
+        filter_df = analysis_df[
+            (analysis_df["query_type"] == "filter")
+            & (analysis_df["algorithm_name"].isin(algorithm_names))
+        ].copy()
+
+        if filter_df.empty:
+            console.print(
+                "[bold yellow]Warning:[/bold yellow] No filter-query results found for the comparison plot."
+            )
+            return
+
+        common_query_ids = self._get_common_supported_query_ids(
+            data=filter_df,
+            algorithm_names=algorithm_names,
+        )
+        if not common_query_ids:
+            console.print(
+                "[bold yellow]Warning:[/bold yellow] No filter queries are supported by all comparison algorithms."
+            )
+            return
+
+        comparison_df = filter_df[
+            filter_df["query_id"].isin(common_query_ids)
+        ].copy()
+        categories = self._get_query_category_plot_order(
+            comparison_df["query_category_group"].drop_duplicates().tolist()
+        )
+        category_labels = self._build_query_category_count_labels(
+            data=comparison_df,
+            categories=categories,
+        )
+
+        self.plot_dir.mkdir(parents=True, exist_ok=True)
+
+        fig, axes = plt.subplots(
+            nrows=len(self.Q_ERROR_QUERY_CATEGORY_COMPARISON_ALGORITHMS),
+            ncols=1,
+            sharex=True,
+        )
+
+        axes = list(axes.flat) if hasattr(axes, "flat") else [axes]
+
+        for index, ((algorithm_name, display_name), axis) in enumerate(
+            zip(self.Q_ERROR_QUERY_CATEGORY_COMPARISON_ALGORITHMS, axes, strict=False)
+        ):
+            algorithm_df = comparison_df[
+                comparison_df["algorithm_name"] == algorithm_name
+            ].copy()
+            self._plot_q_error_query_category_subfigure(
+                axis=axis,
+                data=algorithm_df,
+                title=display_name,
+                categories=categories,
+                show_ylabel=True,
+                show_xticklabels=(
+                    index
+                    == len(self.Q_ERROR_QUERY_CATEGORY_COMPARISON_ALGORITHMS) - 1
+                ),
+                mark_empty_categories=True,
+                custom_xticklabels=category_labels,
+            )
+            axis.set_title(display_name)
+
+        fig.tight_layout()
+        for axis in axes:
+            self._add_q_error_direction_labels(fig=fig, axis=axis)
+
+        pdf_path = self.plot_dir / "q_error_query_categories_comparison.pdf"
+        fig.savefig(pdf_path, bbox_inches="tight", pad_inches=0)
+        console.print(
+            f"[green]✓[/green] Saved q-error category comparison plot to [bold]{pdf_path}[/bold]"
+        )
+
+        plt.close(fig)
+
     def _prepare_q_error_query_category_dataframe(
         self,
         df: pd.DataFrame,
@@ -71,6 +179,7 @@ class QErrorQueryCategoriesPlotMixin:
 
         analysis_df = df[
             [
+                "query_id",
                 "algorithm_name",
                 "datasets",
                 "query_category",
@@ -151,6 +260,9 @@ class QErrorQueryCategoriesPlotMixin:
         title: str,
         categories: list[str],
         show_ylabel: bool,
+        show_xticklabels: bool = True,
+        mark_empty_categories: bool = False,
+        custom_xticklabels: list[str] | None = None,
     ) -> None:
         """Plot one q-error category drill-down subfigure."""
 
@@ -211,10 +323,19 @@ class QErrorQueryCategoriesPlotMixin:
             FixedLocator(self._get_fixed_q_error_query_category_minor_tick_positions())
         )
         axis.tick_params(axis="y", which="minor", length=2.5, width=0.7)
-        self._style_shared_x_axis(axis, show_ticklabels=True)
+        self._style_shared_x_axis(axis, show_ticklabels=show_xticklabels)
+        if custom_xticklabels is not None:
+            axis.set_xticks(range(len(custom_xticklabels)))
+            axis.set_xticklabels(custom_xticklabels)
         axis.axhline(0, color="#666666", linewidth=0.9, linestyle="--", alpha=0.7, zorder=0)
         axis.grid(axis="y", alpha=0.6)
         axis.grid(axis="x", visible=False)
+        if mark_empty_categories:
+            self._mark_empty_q_error_query_categories(
+                axis=axis,
+                data=data,
+                categories=categories,
+            )
 
     def _show_empty_q_error_query_category_axis(
         self,
@@ -339,3 +460,76 @@ class QErrorQueryCategoriesPlotMixin:
 
         sanitized = re.sub(r"[^a-zA-Z0-9._-]+", "_", value)
         return sanitized.strip("._") or "value"
+
+    def _get_common_supported_query_ids(
+        self,
+        data: pd.DataFrame,
+        algorithm_names: list[str],
+    ) -> set[Any]:
+        """Return query ids that have plottable q-error values for every algorithm."""
+
+        common_query_ids: set[Any] | None = None
+
+        for algorithm_name in algorithm_names:
+            algorithm_query_ids = set(
+                data.loc[data["algorithm_name"] == algorithm_name, "query_id"]
+                .dropna()
+                .tolist()
+            )
+            if common_query_ids is None:
+                common_query_ids = algorithm_query_ids
+            else:
+                common_query_ids &= algorithm_query_ids
+
+        return common_query_ids or set()
+
+    def _mark_empty_q_error_query_categories(
+        self,
+        axis: Any,
+        data: pd.DataFrame,
+        categories: list[str],
+    ) -> None:
+        """Mark empty category slots with a red x on the q-error baseline."""
+
+        category_counts = (
+            data["query_category_group"].value_counts()
+            if not data.empty
+            else pd.Series(dtype=int)
+        )
+
+        empty_positions = [
+            index
+            for index, category in enumerate(categories)
+            if int(category_counts.get(category, 0)) == 0
+        ]
+        if not empty_positions:
+            return
+
+        axis.scatter(
+            empty_positions,
+            [0.0] * len(empty_positions),
+            marker="x",
+            s=80,
+            linewidths=1.8,
+            color="#cc0000",
+            zorder=4,
+        )
+
+    def _build_query_category_count_labels(
+        self,
+        data: pd.DataFrame,
+        categories: list[str],
+    ) -> list[str]:
+        """Format category tick labels with shared-subset query counts."""
+
+        category_counts = (
+            data[["query_id", "query_category_group"]]
+            .drop_duplicates()
+            ["query_category_group"]
+            .value_counts()
+        )
+
+        return [
+            f"{category}\n($|q|={int(category_counts.get(category, 0))}$)"
+            for category in categories
+        ]

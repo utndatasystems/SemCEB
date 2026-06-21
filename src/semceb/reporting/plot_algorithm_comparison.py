@@ -4,6 +4,7 @@ import math
 from typing import Any
 
 import matplotlib.pyplot as plt
+from matplotlib import transforms
 from matplotlib.patches import Patch
 from matplotlib.ticker import FixedLocator, FuncFormatter, NullLocator
 import pandas as pd
@@ -26,8 +27,8 @@ class AlgorithmComparisonPaperPlotMixin:
     }
     LEFT_COLUMN_YLABEL_X = -0.28
     ALGORITHM_BAR_HATCH_PATTERNS = ("////", "\\\\\\\\", "xxxx", "....", "++", "oo")
-    COST_YLABEL = r"Cost per Query [US-\$]"
-    TIME_YLABEL = "Time per Query [s]"
+    COST_YLABEL = r"\shortstack{Cost [US-\$] \\ (per sub-plan)}"
+    TIME_YLABEL = r"Time [s]\\(per sub-plan)"
     MEMORY_CONSUMPTION_YLABEL = "Memory [Bytes]"
     SUPPORTED_QUERY_REFERENCE_ALGORITHM = "Semantic Histogram"
     SUPPORT_SCOPE_ALL = "All SemCEB Queries"
@@ -428,6 +429,12 @@ class AlgorithmComparisonPaperPlotMixin:
 
         axis.axhline(0, color="#666666", linewidth=0.9, linestyle="--", alpha=0.7, zorder=0)
         axis.grid(axis="y", alpha=0.6)
+        self._mark_missing_q_error_slots(
+            axis=axis,
+            data=data,
+            algorithms=algorithms,
+            compare_supported_subset=compare_supported_subset,
+        )
 
     def _plot_cost_subfigure(
         self,
@@ -513,12 +520,19 @@ class AlgorithmComparisonPaperPlotMixin:
             axis.set_ylabel(self.COST_YLABEL)
         else:
             axis.set_ylabel("")
+        axis.set_ylim(bottom=0)
         axis.yaxis.set_major_formatter(FuncFormatter(self._format_usd_tick))
         axis.xaxis.set_minor_locator(NullLocator())
         axis.yaxis.set_minor_locator(NullLocator())
         self._style_axis_frame(axis)
         self._style_shared_x_axis(axis, show_ticklabels=False)
         axis.grid(axis="y", alpha=0.6)
+        self._mark_missing_metric_slots_at_zero(
+            axis=axis,
+            data=cost_df,
+            algorithms=algorithms,
+            compare_supported_subset=compare_supported_subset,
+        )
 
     def _plot_time_subfigure(
         self,
@@ -605,11 +619,18 @@ class AlgorithmComparisonPaperPlotMixin:
             axis.set_ylabel(self.TIME_YLABEL)
         else:
             axis.set_ylabel("")
+        axis.set_ylim(bottom=0)
         axis.xaxis.set_minor_locator(NullLocator())
         axis.yaxis.set_minor_locator(NullLocator())
         self._style_axis_frame(axis)
         self._style_shared_x_axis(axis, show_ticklabels=False)
         axis.grid(axis="y", alpha=0.6)
+        self._mark_missing_metric_slots_at_zero(
+            axis=axis,
+            data=time_df,
+            algorithms=algorithms,
+            compare_supported_subset=compare_supported_subset,
+        )
 
     def _plot_memory_consumption_subfigure(
         self,
@@ -673,6 +694,12 @@ class AlgorithmComparisonPaperPlotMixin:
         self._style_axis_frame(axis)
         self._style_shared_x_axis(axis, show_ticklabels=True)
         axis.grid(axis="y", alpha=0.6)
+        self._mark_missing_metric_slots_at_zero(
+            axis=axis,
+            data=memory_df,
+            algorithms=algorithms,
+            compare_supported_subset=compare_supported_subset,
+        )
 
     def _prepare_boxplot_metric_dataframe(
         self,
@@ -841,6 +868,127 @@ class AlgorithmComparisonPaperPlotMixin:
             )
             for support_scope in self.SUPPORT_SCOPE_ORDER
         ]
+
+    def _mark_missing_q_error_slots(
+        self,
+        axis: Any,
+        data: pd.DataFrame,
+        algorithms: list[str],
+        compare_supported_subset: bool,
+    ) -> None:
+        """Mark algorithm slots without q-error observations using a red x."""
+
+        x_positions = self._get_missing_metric_slot_positions(
+            data=data,
+            algorithms=algorithms,
+            compare_supported_subset=compare_supported_subset,
+        )
+        if not x_positions:
+            return
+
+        axis.scatter(
+            x_positions,
+            [0.0] * len(x_positions),
+            marker="x",
+            s=55,
+            linewidths=1.8,
+            color="#cc0000",
+            zorder=4,
+        )
+
+    def _mark_missing_metric_slots_on_x_axis(
+        self,
+        axis: Any,
+        data: pd.DataFrame,
+        algorithms: list[str],
+        compare_supported_subset: bool,
+    ) -> None:
+        """Mark metric slots without observations using a red x near the x-axis."""
+
+        x_positions = self._get_missing_metric_slot_positions(
+            data=data,
+            algorithms=algorithms,
+            compare_supported_subset=compare_supported_subset,
+        )
+        if not x_positions:
+            return
+
+        axis.scatter(
+            x_positions,
+            [0.035] * len(x_positions),
+            marker="x",
+            s=55,
+            linewidths=1.8,
+            color="#cc0000",
+            transform=transforms.blended_transform_factory(
+                axis.transData,
+                axis.transAxes,
+            ),
+            clip_on=False,
+            zorder=4,
+        )
+
+    def _mark_missing_metric_slots_at_zero(
+        self,
+        axis: Any,
+        data: pd.DataFrame,
+        algorithms: list[str],
+        compare_supported_subset: bool,
+    ) -> None:
+        """Mark metric slots without observations using a red x at y=0."""
+
+        x_positions = self._get_missing_metric_slot_positions(
+            data=data,
+            algorithms=algorithms,
+            compare_supported_subset=compare_supported_subset,
+        )
+        if not x_positions:
+            return
+
+        axis.scatter(
+            x_positions,
+            [0.0] * len(x_positions),
+            marker="x",
+            s=55,
+            linewidths=1.8,
+            color="#cc0000",
+            clip_on=False,
+            zorder=4,
+        )
+
+    def _get_missing_metric_slot_positions(
+        self,
+        data: pd.DataFrame,
+        algorithms: list[str],
+        compare_supported_subset: bool,
+    ) -> list[float]:
+        """Return x positions for missing algorithm/support-scope metric slots."""
+
+        x_positions: list[float] = []
+
+        if compare_supported_subset:
+            box_width = 0.72
+            scope_count = len(self.SUPPORT_SCOPE_ORDER)
+            offsets = [
+                (-box_width / 2.0)
+                + ((scope_index + 0.5) * box_width / scope_count)
+                for scope_index in range(scope_count)
+            ]
+            for algorithm_index, algorithm_label in enumerate(algorithms):
+                for scope_index, support_scope in enumerate(self.SUPPORT_SCOPE_ORDER):
+                    has_data = not data[
+                        (data["algorithm_label"] == algorithm_label)
+                        & (data["support_scope"] == support_scope)
+                    ].empty
+                    if not has_data:
+                        x_positions.append(algorithm_index + offsets[scope_index])
+        else:
+            for algorithm_index, algorithm_label in enumerate(algorithms):
+                has_data = not data[data["algorithm_label"] == algorithm_label].empty
+                if not has_data:
+                    x_positions.append(float(algorithm_index))
+
+        return x_positions
 
     def _apply_bar_hatches(
         self,

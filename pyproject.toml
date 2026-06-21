@@ -36,6 +36,8 @@ tools = [
     "safetensors",
     "huggingface_hub",
     "sentencepiece",
+    "hdbscan",
+    "umap-learn",
 ]
 
 [project.scripts]

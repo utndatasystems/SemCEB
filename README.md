@@ -30,7 +30,7 @@ python -m pip install -e .
 <summary>macOS</summary>
 
 ```bash
-git clone https://github.com/utndatasystems/SemCEB.git
+git clone --recurse-submodules https://github.com/utndatasystems/SemCEB.git
 cd SemCEB
 
 python3 -m venv .venv
@@ -46,7 +46,7 @@ python -m pip install -e .
 <summary>Windows</summary>
 
 ```bash
-git clone https://github.com/utndatasystems/SemCEB.git
+git clone --recurse-submodules https://github.com/utndatasystems/SemCEB.git
 cd SemCEB
 
 python -m venv .venv

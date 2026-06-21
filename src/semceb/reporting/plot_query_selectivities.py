@@ -166,7 +166,7 @@ class QuerySelectivityPlotMixin:
         axis.set_ylim(bottom=0, top=1)
         axis.set_title(f"{query_type.capitalize()} Queries")
 
-        axis.set_xlabel("Selectivity")
+        axis.set_xlabel("Selectivity [log-scale]")
         axis.set_ylabel("CDF")
         axis.yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=0))
         axis.minorticks_on()

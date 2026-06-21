@@ -526,7 +526,7 @@ class CardEstShowcaseRunner:
 
         if join_step.kind == "product_review":
             return (
-                "The review says the product quality is good. Features: "
+                "The review praises a specific feature of the product. Features: "
                 f"{{{join_step.left_entity_alias}.features_json:left}}. "
                 "Description: "
                 f"{{{join_step.left_entity_alias}.description_json:left}}. "

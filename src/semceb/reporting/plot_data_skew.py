@@ -10,24 +10,28 @@ import warnings
 
 import duckdb
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
+from matplotlib.ticker import PercentFormatter
 import numpy as np
 import pandas as pd
-import seaborn as sns
 
 from semceb.reporting.plot_params import apply_plot_params
 from semceb.utils.console import console
 
 DEFAULT_K_VALUES = (1, 5, 10, 100)
-DATA_SKEW_CACHE_VERSION = 1
-DATA_SKEW_UMAP_COMPONENTS = 20
-DATA_SKEW_UMAP_NEIGHBORS = 15
-DATA_SKEW_HDBSCAN_MIN_SAMPLES = 5
-DATA_SKEW_MICRO_CLUSTER_FRACTION = 0.0005
+DATA_SKEW_CACHE_VERSION = 13
+DATA_SKEW_UMAP_COMPONENTS = 30
+DATA_SKEW_UMAP_NEIGHBORS = 8
+DATA_SKEW_HDBSCAN_MIN_CLUSTER_FRACTION = 0.0015
+DATA_SKEW_HDBSCAN_MIN_CLUSTER_SIZE = 8
+DATA_SKEW_HDBSCAN_MIN_SAMPLES = 3
+DATA_SKEW_HDBSCAN_CLUSTER_SELECTION_METHOD = "leaf"
+DATA_SKEW_CLUSTER_ASSIGNMENT_SAMPLE_SIZE = 15_000
+DATA_SKEW_MICRO_CLUSTER_FRACTION = 0.0003
 DATA_SKEW_MICRO_CLUSTER_MIN_SIZE = 5
 DATA_SKEW_MICRO_HDBSCAN_MIN_SAMPLES = 2
 DATA_SKEW_STABILITY_RUNS = 3
 DATA_SKEW_HALO_EPSILON = 0.15
+CLUSTER_MAP_RENDER_SAMPLE_SIZE = 10_000
 
 
 def _import_hdbscan() -> Any:
@@ -151,6 +155,36 @@ def _escape_latex_text(value: str) -> str:
         .replace("~", r"\textasciitilde{}")
         .replace("^", r"\textasciicircum{}")
     )
+
+
+def _draw_axis_border(axis: Any) -> None:
+    """Ensure all spines are visible for a boxed plot style."""
+
+    for spine in axis.spines.values():
+        spine.set_visible(True)
+        spine.set_linewidth(0.8)
+
+
+def _cluster_map_palette(n_colors: int, offset: int = 0) -> list[Any]:
+    """Return a broad categorical palette for cluster maps."""
+
+    if n_colors <= 0:
+        return []
+
+    colors: list[Any] = []
+    for colormap_name in ("tab20", "tab20b", "tab20c", "Set3", "Paired", "Dark2"):
+        colormap = plt.get_cmap(colormap_name)
+        if hasattr(colormap, "colors"):
+            colors.extend(colormap.colors)
+        else:
+            colors.extend(colormap(np.linspace(0, 1, colormap.N)))
+
+    needed_colors = offset + n_colors
+    if needed_colors > len(colors):
+        extra_count = needed_colors - len(colors)
+        colors.extend(plt.get_cmap("hsv")(np.linspace(0, 1, extra_count, endpoint=False)))
+
+    return colors[offset:needed_colors]
 
 
 def _sanitize_filename(name: str) -> str:
@@ -408,6 +442,15 @@ def _compute_cluster_sizes(labels: np.ndarray) -> np.ndarray:
     return np.sort(counts[counts > 0])[::-1]
 
 
+def _compute_primary_cluster_min_size(n_samples: int) -> int:
+    """Return a smaller HDBSCAN threshold for finer primary clusters."""
+
+    return max(
+        DATA_SKEW_HDBSCAN_MIN_CLUSTER_SIZE,
+        int(DATA_SKEW_HDBSCAN_MIN_CLUSTER_FRACTION * n_samples),
+    )
+
+
 def _compute_micro_cluster_min_size(n_samples: int) -> int:
     """Return the HDBSCAN threshold for second-pass tail clusters."""
 
@@ -415,6 +458,30 @@ def _compute_micro_cluster_min_size(n_samples: int) -> int:
         DATA_SKEW_MICRO_CLUSTER_MIN_SIZE,
         int(DATA_SKEW_MICRO_CLUSTER_FRACTION * n_samples),
     )
+
+
+def _sample_embeddings_for_data_skew_analysis(
+    embeddings: np.ndarray,
+    sampling_seed: int = 42,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Randomly subsample rows before expensive data-skew analysis."""
+
+    if len(embeddings) <= DATA_SKEW_CLUSTER_ASSIGNMENT_SAMPLE_SIZE:
+        sample_indices = np.arange(len(embeddings), dtype=np.int64)
+        return embeddings, sample_indices
+
+    with _log_step(
+        "Sample embeddings for data-skew analysis "
+        f"rows={len(embeddings):,} sample_size={DATA_SKEW_CLUSTER_ASSIGNMENT_SAMPLE_SIZE:,}"
+    ):
+        sample_indices = np.random.default_rng(sampling_seed).choice(
+            len(embeddings),
+            size=DATA_SKEW_CLUSTER_ASSIGNMENT_SAMPLE_SIZE,
+            replace=False,
+        )
+
+    sample_indices = np.sort(sample_indices.astype(np.int64, copy=False))
+    return embeddings[sample_indices], sample_indices
 
 
 def _resolve_noise_labels(
@@ -469,7 +536,7 @@ def _resolve_noise_labels(
                 min_cluster_size=micro_min_cluster_size,
                 min_samples=DATA_SKEW_MICRO_HDBSCAN_MIN_SAMPLES,
                 metric="euclidean",
-                cluster_selection_method="eom",
+                cluster_selection_method=DATA_SKEW_HDBSCAN_CLUSTER_SELECTION_METHOD,
             ).fit_predict(reduced_embeddings[remaining_noise_indices])
 
         micro_cluster_ids = sorted(label for label in set(micro_labels) if label >= 0)
@@ -533,7 +600,7 @@ def _compute_embedding_imbalance_report(
     entropy, _, _, _ = _import_scipy_stats()
     matrix = _validate_embedding_matrix(embeddings)
     n_samples = len(matrix)
-    min_cluster_size = max(10, int(0.01 * n_samples))
+    min_cluster_size = _compute_primary_cluster_min_size(n_samples)
 
     clustering_embedding = _compute_umap_embedding(
         matrix,
@@ -551,7 +618,7 @@ def _compute_embedding_imbalance_report(
             min_cluster_size=min_cluster_size,
             min_samples=DATA_SKEW_HDBSCAN_MIN_SAMPLES,
             metric="euclidean",
-            cluster_selection_method="eom",
+            cluster_selection_method=DATA_SKEW_HDBSCAN_CLUSTER_SELECTION_METHOD,
         ).fit_predict(clustering_embedding)
 
     n_primary_clusters = int(raw_labels.max()) + 1 if raw_labels.max() >= 0 else 0
@@ -609,7 +676,7 @@ def _compute_embedding_imbalance_report(
                 min_cluster_size=min_cluster_size,
                 min_samples=DATA_SKEW_HDBSCAN_MIN_SAMPLES,
                 metric="euclidean",
-                cluster_selection_method="eom",
+                cluster_selection_method=DATA_SKEW_HDBSCAN_CLUSTER_SELECTION_METHOD,
             ).fit_predict(seeded_embedding)
 
         seeded_labels, _, _, _ = _resolve_noise_labels(seeded_embedding, seeded_labels)
@@ -771,6 +838,35 @@ def _load_embedding_column(parquet_file: Path, column: str) -> tuple[np.ndarray,
     return matrix, dropped_nulls
 
 
+def _load_filtered_source_values(
+    parquet_file: Path,
+    source_column: str,
+    embedding_column: str,
+) -> list[Any]:
+    """Load source-column values for rows that keep a non-null embedding."""
+
+    with _log_step(
+        "Read source values aligned to embeddings "
+        f"source_column={source_column} embedding_column={embedding_column} "
+        f"file={parquet_file}"
+    ):
+        dataframe = duckdb.sql(
+            "SELECT "
+            f"{_sql_identifier(source_column)}, "
+            f"{_sql_identifier(embedding_column)} "
+            "FROM read_parquet("
+            f"{_sql_string_literal(str(parquet_file))})"
+        ).df()
+
+    source_values = dataframe[source_column].tolist()
+    embedding_values = dataframe[embedding_column].tolist()
+    return [
+        source_value
+        for source_value, embedding_value in zip(source_values, embedding_values)
+        if embedding_value is not None
+    ]
+
+
 def _create_umap_scatter_plot_figure(
     umap_projection: np.ndarray,
     point_colors_by_k: dict[int, np.ndarray],
@@ -783,7 +879,7 @@ def _create_umap_scatter_plot_figure(
     apply_plot_params(
         fig_height=2.6,
         scale=max(1.0, 0.85 * len(k_values)),
-        double_column=True,
+        double_column=False,
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -812,7 +908,7 @@ def _create_umap_scatter_plot_figure(
         axis.set_xlabel("UMAP 1")
         if index == 0:
             axis.set_ylabel("UMAP 2")
-        sns.despine(ax=axis)
+        _draw_axis_border(axis)
 
     assert scatter is not None
     colorbar = figure.colorbar(scatter, ax=axes, shrink=0.9)
@@ -834,7 +930,7 @@ def _create_sorted_knn_similarity_plot_figure(
     apply_plot_params(
         fig_height=2.4,
         scale=max(1.0, 0.85 * len(k_values)),
-        double_column=True,
+        double_column=False,
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -860,7 +956,7 @@ def _create_sorted_knn_similarity_plot_figure(
             axis.set_ylabel("Min kNN Similarity")
         axis.set_ylim(y_min, y_max)
         axis.grid(True, alpha=0.35)
-        sns.despine(ax=axis)
+        _draw_axis_border(axis)
 
     figure.suptitle(title)
     figure.tight_layout()
@@ -871,55 +967,69 @@ def _create_sorted_knn_similarity_plot_figure(
 def _create_imbalance_plot_figure(
     report: DataSkewReport,
     output_path: Path,
-    title: str,
 ) -> None:
     """Create the semantic imbalance figure."""
 
     apply_plot_params(
         fig_height=3.2,
-        scale=1.8,
-        double_column=True,
+        scale=1,
+        double_column=False,
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    figure, axes = plt.subplots(1, 3, figsize=(10.8, 3.5))
+    figure, axes = plt.subplots(1, 2, figsize=(7.2, 3.5))
     _create_cluster_map_plot(report, axes[0])
     _create_rank_size_plot(report, axes[1])
-    _create_lorenz_curve_plot(report, axes[2])
-    figure.suptitle(title)
     figure.tight_layout()
     figure.savefig(output_path, bbox_inches="tight", pad_inches=0)
     plt.close(figure)
 
 
 def _create_cluster_map_plot(report: DataSkewReport, axis: Any) -> None:
-    """Plot a UMAP cluster map with primary, micro, and singleton tiers."""
+    """Plot a UMAP cluster map with singleton classes omitted."""
 
     embedding_2d = report.embedding_2d
     labels = report.labels
     tiers = report.label_tiers
-
-    singleton_mask = tiers == 2
-    if singleton_mask.any():
-        axis.scatter(
-            embedding_2d[singleton_mask, 0],
-            embedding_2d[singleton_mask, 1],
-            c="#cccccc",
-            s=3,
-            alpha=0.35,
-            linewidths=0,
-            zorder=1,
+    render_indices = np.where(tiers != 2)[0]
+    if len(render_indices) > CLUSTER_MAP_RENDER_SAMPLE_SIZE:
+        render_indices = np.random.default_rng(42).choice(
+            render_indices,
+            size=CLUSTER_MAP_RENDER_SAMPLE_SIZE,
+            replace=False,
         )
+
+    render_embedding = embedding_2d[render_indices]
+    render_labels = labels[render_indices]
+
+    if len(render_indices) == 0:
+        axis.text(
+            0.5,
+            0.5,
+            "No non-singleton clusters",
+            ha="center",
+            va="center",
+            fontsize=8,
+            transform=axis.transAxes,
+        )
+        axis.set_title("Cluster Map", fontsize=10, fontweight="medium", pad=6)
+        axis.set_xlabel("")
+        axis.set_ylabel("")
+        axis.tick_params(bottom=False, left=False, labelbottom=False, labelleft=False)
+        _draw_axis_border(axis)
+        return
 
     micro_cluster_ids = sorted(set(labels[tiers == 1]))
     if micro_cluster_ids:
-        micro_palette = plt.cm.Set3(np.linspace(0, 1, max(len(micro_cluster_ids), 1)))
+        micro_palette = _cluster_map_palette(len(micro_cluster_ids), offset=60)
         for rank, cluster_id in enumerate(micro_cluster_ids):
-            cluster_mask = labels == cluster_id
+            cluster_mask = render_labels == cluster_id
+            if not cluster_mask.any():
+                continue
             axis.scatter(
-                embedding_2d[cluster_mask, 0],
-                embedding_2d[cluster_mask, 1],
-                c=[micro_palette[rank % 12]],
+                render_embedding[cluster_mask, 0],
+                render_embedding[cluster_mask, 1],
+                c=[micro_palette[rank]],
                 s=4,
                 alpha=0.55,
                 linewidths=0,
@@ -931,187 +1041,68 @@ def _create_cluster_map_plot(report: DataSkewReport, axis: Any) -> None:
         key=lambda cluster_id: int((labels == cluster_id).sum()),
         reverse=True,
     )
-    counts = {
-        cluster_id: int((labels == cluster_id).sum())
-        for cluster_id in primary_cluster_ids
-    }
-    palette = plt.cm.tab20(np.linspace(0, 1, max(len(primary_cluster_ids), 1)))
+    palette = _cluster_map_palette(len(primary_cluster_ids))
 
     for rank, cluster_id in enumerate(primary_cluster_ids):
-        cluster_mask = labels == cluster_id
-        color = palette[rank % 20]
+        cluster_mask = render_labels == cluster_id
+        if not cluster_mask.any():
+            continue
+        color = palette[rank]
         axis.scatter(
-            embedding_2d[cluster_mask, 0],
-            embedding_2d[cluster_mask, 1],
+            render_embedding[cluster_mask, 0],
+            render_embedding[cluster_mask, 1],
             c=[color],
             s=4,
             alpha=0.65,
             linewidths=0,
             zorder=2,
         )
-        centroid_x = float(embedding_2d[cluster_mask, 0].mean())
-        centroid_y = float(embedding_2d[cluster_mask, 1].mean())
-        axis.text(
-            centroid_x,
-            centroid_y,
-            str(counts[cluster_id]),
-            fontsize=6.5,
-            ha="center",
-            va="center",
-            color=color,
-            fontweight="bold",
-            zorder=3,
-        )
 
-    legend_handles: list[Line2D] = []
-    if singleton_mask.any():
-        legend_handles.append(
-            Line2D(
-                [0],
-                [0],
-                marker="o",
-                color="w",
-                markerfacecolor="#cccccc",
-                markersize=5,
-                label=f"singletons ({int(singleton_mask.sum()):,})",
-            )
-        )
-    if micro_cluster_ids:
-        legend_handles.append(
-            Line2D(
-                [0],
-                [0],
-                marker="o",
-                color="w",
-                markerfacecolor="#aaaaaa",
-                markersize=5,
-                label=f"micro-clusters ({len(micro_cluster_ids)})",
-            )
-        )
-    if legend_handles:
-        axis.legend(
-            legend_handles,
-            [handle.get_label() for handle in legend_handles],
-            fontsize=7,
-            framealpha=0.6,
-        )
-
-    axis.set_title("1 · Cluster Map", fontsize=10, fontweight="medium", pad=6)
-    axis.set_xlabel("UMAP 1", fontsize=8)
-    axis.set_ylabel("UMAP 2", fontsize=8)
-    axis.tick_params(labelsize=7)
-    sns.despine(ax=axis)
+    axis.set_title("Cluster Map", fontsize=10, fontweight="medium", pad=6)
+    axis.set_xlabel("")
+    axis.set_ylabel("")
+    axis.tick_params(bottom=False, left=False, labelbottom=False, labelleft=False)
+    _draw_axis_border(axis)
 
 
 def _create_rank_size_plot(report: DataSkewReport, axis: Any) -> None:
-    """Plot the cluster rank-size curve with a Zipf fit."""
+    """Plot the cluster rank-size curve."""
 
-    _, _, linregress, _ = _import_scipy_stats()
-    sizes = report.cluster_sizes
+    sizes = report.cluster_sizes[report.cluster_sizes > 1]
+    relative_sizes = sizes / report.n_samples if report.n_samples > 0 else sizes
     ranks = np.arange(1, len(sizes) + 1)
 
-    singleton_tail = int((sizes == 1).sum())
-    if singleton_tail > 0:
-        axis.axvspan(
-            len(sizes) - singleton_tail + 0.5,
-            len(sizes) + 0.5,
-            alpha=0.08,
-            color="#888888",
-            zorder=0,
-            label=f"singletons ({singleton_tail})",
+    if len(sizes) == 0:
+        axis.text(
+            0.5,
+            0.5,
+            "No non-singleton clusters",
+            ha="center",
+            va="center",
+            transform=axis.transAxes,
         )
-
-    axis.scatter(ranks, sizes, s=24, color="#1859FF", zorder=3, label="cluster sizes")
-    if len(sizes) >= 3:
-        log_ranks = np.log(ranks)
-        log_sizes = np.log(sizes.astype(np.float64))
-        slope, intercept, *_ = linregress(log_ranks, log_sizes)
-        fit_y = np.exp(intercept + slope * log_ranks)
-        axis.plot(
-            ranks,
-            fit_y,
-            "--",
-            color="#D85A30",
-            linewidth=1.4,
-            label=rf"Zipf fit $\alpha={report.zipf_alpha:.2f}$",
-            zorder=4,
-        )
-
-    axis.set_xscale("log")
-    axis.set_yscale("log")
-    axis.set_xlabel("Rank (1 = Largest Cluster)", fontsize=8)
-    axis.set_ylabel("Cluster Size", fontsize=8)
-    axis.set_title("2 · Rank-Size", fontsize=10, fontweight="medium", pad=6)
-    axis.legend(fontsize=7.2)
-    axis.grid(True, which="both", alpha=0.2, linewidth=0.5)
-    axis.tick_params(labelsize=7)
-    sns.despine(ax=axis)
-
-
-def _create_lorenz_curve_plot(report: DataSkewReport, axis: Any) -> None:
-    """Plot the Lorenz curve of cluster sizes."""
-
-    cluster_sizes = np.sort(report.cluster_sizes)
-    cumulative_sizes = np.concatenate([[0.0], np.cumsum(cluster_sizes) / cluster_sizes.sum()])
-    cumulative_groups = np.linspace(0.0, 1.0, len(cluster_sizes) + 1)
-
-    tail_clusters = report.n_singletons + report.n_micro_clusters
-    if tail_clusters > 0 and len(cluster_sizes) > 0:
-        axis.axvspan(
-            0,
-            tail_clusters / len(cluster_sizes),
-            alpha=0.08,
-            color="#888888",
-            zorder=0,
-            label=f"micro + singletons ({tail_clusters})",
-        )
+        axis.set_xlabel("Rank (1 = Largest Cluster)")
+        axis.set_ylabel(r"Relative Cluster Size (\%)")
+        axis.yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=1))
+        axis.set_title("Cluster Sizes")
+        _draw_axis_border(axis)
+        return
 
     axis.plot(
-        [0, 1],
-        [0, 1],
-        "--",
-        color="#888888",
-        linewidth=1.1,
-        label="perfect equality",
-    )
-    axis.plot(
-        cumulative_groups,
-        cumulative_sizes,
-        color="#534AB7",
-        linewidth=2.2,
+        ranks,
+        relative_sizes,
+        "-",
+        color="#1859FF",
+        linewidth=1.7,
         zorder=3,
-        label="Lorenz curve",
-    )
-    axis.fill_between(
-        cumulative_groups,
-        cumulative_sizes,
-        cumulative_groups,
-        alpha=0.13,
-        color="#534AB7",
-        zorder=2,
     )
 
-    gini_label = rf"$G={report.gini:.3f}$"
-    if report.gini_std > 0:
-        gini_label += rf"\n$\pm{report.gini_std:.3f}$"
-    axis.text(
-        0.70,
-        0.13,
-        gini_label,
-        fontsize=8.2,
-        color="#534AB7",
-        transform=axis.transAxes,
-    )
-
-    axis.set_xlim(0, 1)
-    axis.set_ylim(0, 1)
-    axis.set_xlabel("Fraction of Clusters", fontsize=8)
-    axis.set_ylabel("Fraction of Embeddings", fontsize=8)
-    axis.set_title("3 · Lorenz Curve", fontsize=10, fontweight="medium", pad=6)
-    axis.legend(fontsize=7.2, loc="upper left")
-    axis.set_aspect("equal")
-    axis.tick_params(labelsize=7)
-    sns.despine(ax=axis)
+    axis.set_xlabel("Rank (1 = Largest Cluster)")
+    axis.set_ylabel(r"Relative Cluster Size (\%)")
+    axis.yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=2))
+    axis.set_title("Rank-Size")
+    axis.grid(True, which="both", alpha=0.2, linewidth=0.5)
+    _draw_axis_border(axis)
 
 
 class DataSkewPlotMixin:
@@ -1276,10 +1267,33 @@ class DataSkewPlotMixin:
         _create_imbalance_plot_figure(
             report=cached["imbalance_report"],
             output_path=imbalance_path,
-            title=f"{title} semantic skew",
         )
         console.print(
             f"[green]✓[/green] Saved data skew imbalance plot to [bold]{imbalance_path}[/bold]"
+        )
+
+        source_values = _load_filtered_source_values(
+            parquet_file=embeddings_path,
+            source_column=source_column,
+            embedding_column=embedding_column,
+        )
+        clustered_source_values = np.asarray(source_values, dtype=object)[
+            cached["cluster_sample_indices"]
+        ]
+        cluster_labels = cached["imbalance_report"].labels
+        cluster_counts = np.bincount(cluster_labels[cluster_labels >= 0])
+        if cluster_counts.size == 0:
+            raise ValueError("Cannot export largest-class values without any clusters.")
+
+        largest_cluster_id = int(np.flatnonzero(cluster_counts == cluster_counts.max())[0])
+        largest_class_mask = cluster_labels == largest_cluster_id
+        largest_class_values = pd.DataFrame(
+            {source_column: clustered_source_values[largest_class_mask]}
+        )
+        largest_class_path = output_dir / f"{dataset_stem}__{safe_column}__largest_class.csv"
+        largest_class_values.to_csv(largest_class_path, index=False)
+        console.print(
+            f"[green]✓[/green] Saved largest-class values to [bold]{largest_class_path}[/bold]"
         )
 
         result = {
@@ -1288,6 +1302,7 @@ class DataSkewPlotMixin:
             "source_column": source_column,
             "embedding_column": embedding_column,
             "num_rows": cached["num_rows"],
+            "analysis_rows": cached["analysis_rows"],
             "embedding_dim": cached["embedding_dim"],
             "dropped_null_embeddings": cached["dropped_null_embeddings"],
             "scatter_plot_path": str(scatter_path),
@@ -1386,11 +1401,17 @@ class DataSkewPlotMixin:
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
 
         embeddings, dropped_nulls = _load_embedding_column(parquet_file, column)
+        analysis_embeddings, analysis_sample_indices = (
+            _sample_embeddings_for_data_skew_analysis(embeddings)
+        )
         with _log_step(f"Compute kNN density column={column}"):
-            knn_results = _compute_knn_similarity_coefficient(embeddings, k_values=k_values)
+            knn_results = _compute_knn_similarity_coefficient(
+                analysis_embeddings,
+                k_values=k_values,
+            )
 
         with _log_step(f"Compute PCA cache projection column={column}"):
-            pca_projection = self._compute_pca_embedding(embeddings)
+            pca_projection = self._compute_pca_embedding(analysis_embeddings)
 
         with _log_step(
             "UMAP fit_transform cache visualization "
@@ -1402,14 +1423,20 @@ class DataSkewPlotMixin:
                 random_state=42,
             ).fit_transform(pca_projection)
 
-        with _log_step(f"Compute semantic imbalance report column={column}"):
-            imbalance_report = _compute_embedding_imbalance_report(embeddings)
+        with _log_step(
+            "Compute semantic imbalance report "
+            f"column={column} rows={len(analysis_embeddings):,}"
+        ):
+            imbalance_report = _compute_embedding_imbalance_report(
+                analysis_embeddings
+            )
 
         with _log_step(f"Write compressed NumPy cache arrays output={arrays_path}"):
             np.savez_compressed(
                 arrays_path,
                 pca_projection=pca_projection.astype(np.float32),
                 umap_projection=umap_projection.astype(np.float32),
+                cluster_sample_indices=analysis_sample_indices.astype(np.int64),
                 labels=imbalance_report.labels.astype(np.int64),
                 label_tiers=imbalance_report.label_tiers.astype(np.int8),
                 cluster_sizes=imbalance_report.cluster_sizes.astype(np.int64),
@@ -1424,8 +1451,10 @@ class DataSkewPlotMixin:
             "column": column,
             "k_values": list(k_values),
             "num_rows": int(embeddings.shape[0]),
+            "analysis_rows": int(analysis_embeddings.shape[0]),
             "embedding_dim": int(embeddings.shape[1]),
             "dropped_null_embeddings": int(dropped_nulls),
+            "cluster_assignment_rows": int(analysis_embeddings.shape[0]),
             "data_skew_cache_version": DATA_SKEW_CACHE_VERSION,
             "knn_density": knn_results["summary"],
             "imbalance": {
@@ -1467,6 +1496,9 @@ class DataSkewPlotMixin:
         }
 
         imbalance = metadata["imbalance"]
+        analysis_rows = int(
+            metadata.get("analysis_rows", metadata["cluster_assignment_rows"])
+        )
         cluster_sizes = arrays["cluster_sizes"]
         probabilities = cluster_sizes / cluster_sizes.sum()
         shannon_entropy = float(
@@ -1475,14 +1507,14 @@ class DataSkewPlotMixin:
         normalized_entropy = float(
             imbalance.get(
                 "normalized_entropy",
-                shannon_entropy / np.log2(int(metadata["num_rows"]))
-                if int(metadata["num_rows"]) > 1
+                shannon_entropy / np.log2(analysis_rows)
+                if analysis_rows > 1
                 else 0.0,
             )
         )
 
         imbalance_report = DataSkewReport(
-            n_samples=int(metadata["num_rows"]),
+            n_samples=analysis_rows,
             n_clusters=int(imbalance["n_clusters"]),
             n_primary_clusters=int(imbalance["n_primary_clusters"]),
             n_micro_clusters=int(imbalance["n_micro_clusters"]),
@@ -1504,8 +1536,11 @@ class DataSkewPlotMixin:
 
         return {
             "num_rows": int(metadata["num_rows"]),
+            "analysis_rows": analysis_rows,
             "embedding_dim": int(metadata["embedding_dim"]),
             "dropped_null_embeddings": int(metadata["dropped_null_embeddings"]),
+            "cluster_assignment_rows": analysis_rows,
+            "cluster_sample_indices": arrays["cluster_sample_indices"],
             "k_values": k_values,
             "knn_density": {
                 int(k): metric_values

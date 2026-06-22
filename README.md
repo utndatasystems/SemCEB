@@ -1,3 +1,5 @@
+[![Python format check](https://github.com/utndatasystems/SemCEB/actions/workflows/python-format.yml/badge.svg)](https://github.com/utndatasystems/SemCEB/actions/workflows/python-format.yml)
+
 # SemCEB
 
 **A Cardinality Estimation Benchmark for Semantic Operators**

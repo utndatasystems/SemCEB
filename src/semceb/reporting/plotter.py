@@ -97,7 +97,7 @@ class ResultsPlotter(
             self._save_query_category_counts_csv(results)
             self._save_query_type_counts(results)
 
-        self._plot_showcase_cost_histogram()
+        self._plot_showcase_cost_ranks()
 
     def _load_results(self) -> list[dict[str, Any]]:
         """Load raw benchmark results from JSONL."""

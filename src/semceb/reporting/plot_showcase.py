@@ -13,8 +13,8 @@ from semceb.utils.console import console
 class ShowcasePlotMixin:
     """Helpers for plotting showcase execution results."""
 
-    def _plot_showcase_cost_histogram(self) -> None:
-        """Plot a histogram of showcase plan costs from cached JSONL results."""
+    def _plot_showcase_cost_ranks(self) -> None:
+        """Plot showcase plan costs ordered by rank from cached JSONL results."""
 
         showcase_results_path = Path(self.showcase_results_path)
 
@@ -41,33 +41,47 @@ class ShowcasePlotMixin:
 
         apply_plot_params(
             fig_height=2.4,
-            scale=0.8,
+            scale=1.0,
             double_column=False,
         )
 
         fig, axis = plt.subplots()
-        bin_count = self._determine_showcase_histogram_bin_count(costs)
+        ranked_costs = sorted(costs)
+        ranks = list(range(1, len(ranked_costs) + 1))
 
-        axis.hist(
-            costs,
-            bins=bin_count,
+        axis.plot(
+            ranks,
+            ranked_costs,
             color="#D67D00",
-            edgecolor="#8A4F00",
-            linewidth=0.8,
-            alpha=0.9,
+            linewidth=1.5,
+            zorder=2,
         )
 
+        min_cost = min(costs)
         max_cost = max(costs)
-        right_limit = max_cost * 1.05 if max_cost > 0 else 0.01
+        bottom_limit = min_cost / 1.1 if min_cost > 0 else 0.001
+        top_limit = max_cost * 1.1 if max_cost > 0 else 0.01
+        rank_count = len(ranked_costs)
+        x_left, x_right = (1, rank_count) if rank_count > 1 else (0.5, 1.5)
 
-        axis.set_xlim(left=0, right=right_limit)
-        axis.set_xlabel("Total Cost (USD)")
-        axis.set_ylabel("Number of Plans")
-        axis.set_title("Showcase Plan Cost Distribution")
-        axis.yaxis.set_major_locator(mticker.MaxNLocator(integer=True))
-        axis.xaxis.set_major_locator(mticker.MaxNLocator(nbins=5))
+        axis.set_xlim(left=x_left, right=x_right)
+        axis.set_ylim(bottom=bottom_limit, top=top_limit)
+        axis.set_yscale("log")
+        axis.set_xlabel("Plan Rank (1 = Cheapest)")
+        axis.set_ylabel("Cost (USD)")
+        axis.set_title("Plan Cost by Rank")
+        axis.xaxis.set_major_locator(mticker.MaxNLocator(nbins=5, integer=True))
+        axis.yaxis.set_major_locator(
+            mticker.LogLocator(base=10, subs=(1.0, 2.0, 5.0))
+        )
+        axis.yaxis.set_major_formatter(
+            mticker.FuncFormatter(lambda value, _: f"{value:g}")
+        )
+        axis.yaxis.set_minor_locator(
+            mticker.LogLocator(base=10, subs=(3.0, 4.0, 6.0, 7.0, 8.0, 9.0))
+        )
+        axis.yaxis.set_minor_formatter(mticker.NullFormatter())
         axis.xaxis.set_minor_locator(mticker.AutoMinorLocator())
-        axis.yaxis.set_minor_locator(mticker.AutoMinorLocator())
         axis.tick_params(
             axis="both",
             which="major",
@@ -100,27 +114,14 @@ class ShowcasePlotMixin:
 
         fig.tight_layout()
 
-        pdf_path = self.plot_dir / "showcase_cost_histogram.pdf"
-        fig.savefig(pdf_path, bbox_inches="tight", pad_inches=0)
+        pdf_path = self.plot_dir / "showcase_cost_rank.pdf"
+        fig.savefig(pdf_path, bbox_inches="tight", pad_inches=0.02)
         console.print(
-            "[green]✓[/green] Saved showcase cost histogram to "
+            "[green]✓[/green] Saved showcase cost rank plot to "
             f"[bold]{pdf_path}[/bold]"
         )
 
         plt.close(fig)
-
-    def _determine_showcase_histogram_bin_count(self, costs: list[float]) -> int:
-        """Choose a fine-grained histogram bin count for showcase plan costs."""
-
-        if not costs:
-            return 1
-
-        unique_cost_count = len({round(cost, 12) for cost in costs})
-
-        if unique_cost_count <= 1:
-            return 1
-
-        return min(100, max(20, unique_cost_count))
 
     def _load_showcase_plan_results(
         self,

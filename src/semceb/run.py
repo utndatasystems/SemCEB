@@ -1,4 +1,5 @@
 import sys
+
 try:
     import tomllib
 except ModuleNotFoundError:
@@ -31,7 +32,9 @@ def run_benchmark(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
     runner = BenchmarkRunner(
         algorithms=config["algorithms"],
         default_ground_truth_model_name=config["general"]["ground_truth"]["model_name"],
-        default_ground_truth_system_prompt=config["general"]["ground_truth"]["system_prompt"],
+        default_ground_truth_system_prompt=config["general"]["ground_truth"][
+            "system_prompt"
+        ],
         scale_factor=config["general"]["data"].get("scale_factor"),
         join_scale_factor=config["general"]["data"].get("join_scale_factor"),
         categories=config["general"]["data"].get("categories"),
@@ -59,6 +62,7 @@ def run_showcase(config: dict[str, Any], kwargs: dict[str, Any]) -> None:
     )
     runner.run(enumerate_only=bool(kwargs.get("enumerate_only")))
 
+
 def print_section(title: str, style: str = "bold cyan") -> None:
     """Print a formatted CLI section header."""
     console.print()
@@ -72,12 +76,12 @@ def print_done() -> None:
     console.rule("[bold green]Done[/bold green]")
     console.print()
 
+
 def print_help() -> None:
     """Print a short overview of the available SemCEB CLI commands."""
     print_section("SemCEB Help")
 
-    console.print(
-        """Usage:
+    console.print("""Usage:
   semceb <command>
 
 Commands:
@@ -90,10 +94,10 @@ Examples:
   semceb plot
   semceb showcase
   semceb showcase --enumerate-only
-  semceb plot --semantic-skew"""
-    )
+  semceb plot --semantic-skew""")
 
     print_done()
+
 
 def parse_args(argv: list[str] | None = None) -> tuple[str, dict[str, Any]]:
     """
@@ -167,8 +171,9 @@ def main() -> None:
     mode, kwargs = parse_args()
 
     print_section(f"Active mode: {mode}")
-    
+
     from dotenv import load_dotenv
+
     load_dotenv()
 
     config = load_config("config.toml")

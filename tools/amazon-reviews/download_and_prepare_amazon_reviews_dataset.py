@@ -23,7 +23,6 @@ from urllib.request import urlopen
 
 import duckdb
 
-
 DATASET_ID = "McAuley-Lab/Amazon-Reviews-2023"
 HF_DATASET_BASE = f"https://huggingface.co/datasets/{DATASET_ID}/"
 HF_RESOLVE_BASE = urljoin(HF_DATASET_BASE, "resolve/main/")
@@ -33,6 +32,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 MODE_RAW = "raw"
 MODE_RAW_5CORE = "raw_5core"
 MODES_REQUIRING_5CORE = {MODE_RAW_5CORE}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Set up Amazon Reviews 2023 data")
@@ -139,22 +139,19 @@ def _image_path_from_url(url: str, images_dir: Path) -> Path | None:
 def collect_distinct_product_image_urls(
     con: duckdb.DuckDBPyConnection,
 ) -> tuple[bool, list[str]]:
-    table_exists = con.execute(
-        """
+    table_exists = con.execute("""
         SELECT EXISTS (
             SELECT 1
             FROM information_schema.tables
             WHERE table_schema = 'main'
               AND table_name = 'products_filtered'
         )
-        """
-    ).fetchone()[0]
+        """).fetchone()[0]
 
     if not table_exists:
         return False, []
 
-    con.execute(
-        """
+    con.execute("""
         CREATE OR REPLACE TEMP TABLE product_image_urls AS
         SELECT DISTINCT image_url
         FROM (
@@ -164,8 +161,7 @@ def collect_distinct_product_image_urls(
             WHERE json_extract_string(e.value, '$.variant') = 'MAIN'
         )
         WHERE image_url IS NOT NULL
-        """
-    )
+        """)
     return True, [
         row[0]
         for row in con.execute(
@@ -183,7 +179,9 @@ def download_images_from_products_filtered(
         print("[info] skipping image download: products_filtered table not found.")
         return
     if not urls:
-        print("[info] skipping image download: no image URLs found in products_filtered.")
+        print(
+            "[info] skipping image download: no image URLs found in products_filtered."
+        )
         return
 
     existing_urls: list[tuple[str, Path]] = []
@@ -335,7 +333,9 @@ def analyze_categories(
         [top_n],
     ).fetchall()
 
-    for i, (category, review_bytes, meta_bytes, total_bytes) in enumerate(top_rows, start=1):
+    for i, (category, review_bytes, meta_bytes, total_bytes) in enumerate(
+        top_rows, start=1
+    ):
         print(
             f"  {i:>2}. {category:<30} "
             f"review={human_bytes(review_bytes):>10} "
@@ -363,10 +363,7 @@ def analyze_categories(
         for i, (category, size_bytes) in enumerate(smallest_5core_rows, start=1):
             print(f"  {i:>2}. {category:<30} rating_only={human_bytes(size_bytes):>10}")
 
-    missing = [
-        row[0]
-        for row in con.execute(
-            """
+    missing = [row[0] for row in con.execute("""
             WITH raw_cats AS (
                 SELECT regexp_extract(path, 'raw/review_categories/(.*)\\.jsonl$', 1) AS category
                 FROM hf_tree
@@ -382,9 +379,7 @@ def analyze_categories(
             LEFT JOIN core5_cats USING (category)
             WHERE core5_cats.category IS NULL
             ORDER BY raw_cats.category ASC
-            """
-        ).fetchall()
-    ]
+            """).fetchall()]
 
     print("\n[analysis] categories missing in 5-core")
     if missing:
@@ -393,35 +388,29 @@ def analyze_categories(
         print("  none")
 
     print("\n[analysis] 5-core suitability note")
-    print("  5-core files are rating-only interactions (user_id, parent_asin, rating, timestamp).")
+    print(
+        "  5-core files are rating-only interactions (user_id, parent_asin, rating, timestamp)."
+    )
     print("  They do not include review text, and 6 categories are absent in 5-core.")
-    print("  Use mode=raw_5core to keep review text while restricting to the 5-core interaction set.")
+    print(
+        "  Use mode=raw_5core to keep review text while restricting to the 5-core interaction set."
+    )
 
 
 def get_all_raw_categories(con: duckdb.DuckDBPyConnection) -> set[str]:
-    return {
-        row[0]
-        for row in con.execute(
-            """
+    return {row[0] for row in con.execute("""
             SELECT regexp_extract(path, 'raw/review_categories/(.*)\\.jsonl$', 1) AS category
             FROM hf_tree
             WHERE type='file' AND path LIKE 'raw/review_categories/%.jsonl'
-            """
-        ).fetchall()
-    }
+            """).fetchall()}
 
 
 def get_all_5core_categories(con: duckdb.DuckDBPyConnection) -> set[str]:
-    return {
-        row[0]
-        for row in con.execute(
-            """
+    return {row[0] for row in con.execute("""
             SELECT regexp_extract(path, 'benchmark/5core/rating_only/(.*)\\.csv$', 1) AS category
             FROM hf_tree
             WHERE type='file' AND path LIKE 'benchmark/5core/rating_only/%.csv'
-            """
-        ).fetchall()
-    }
+            """).fetchall()}
 
 
 def choose_category(
@@ -434,7 +423,9 @@ def choose_category(
 
     if requested not in raw_categories:
         valid = ", ".join(sorted(raw_categories))
-        raise ValueError(f"Unknown category '{requested}'. Available raw categories: {valid}")
+        raise ValueError(
+            f"Unknown category '{requested}'. Available raw categories: {valid}"
+        )
 
     if mode in MODES_REQUIRING_5CORE and requested not in core5_categories:
         missing = ", ".join(sorted(raw_categories - core5_categories))
@@ -551,8 +542,7 @@ def create_products_table(
         """,
         [str(meta_jsonl_path)],
     )
-    con.execute(
-        """
+    con.execute("""
         CREATE OR REPLACE TABLE products (
             parent_asin VARCHAR,
             main_category VARCHAR,
@@ -572,8 +562,7 @@ def create_products_table(
             subtitle VARCHAR,
             author VARCHAR
         )
-        """
-    )
+        """)
     con.execute("INSERT INTO products BY NAME SELECT * FROM products_stage")
     con.execute("DROP TABLE IF EXISTS products_stage")
 
@@ -615,8 +604,7 @@ def create_raw_review_tables(
         """,
         [str(review_jsonl_path)],
     )
-    con.execute(
-        """
+    con.execute("""
         CREATE OR REPLACE TABLE reviews (
             user_id VARCHAR,
             asin VARCHAR,
@@ -629,8 +617,7 @@ def create_raw_review_tables(
             verified_purchase BOOLEAN,
             images_json JSON
         )
-        """
-    )
+        """)
     con.execute("INSERT INTO reviews BY NAME SELECT * FROM reviews_stage")
     con.execute("DROP TABLE IF EXISTS reviews_stage")
 
@@ -654,8 +641,7 @@ def create_raw_5core_filtered_tables(
         [str(core5_csv_path)],
     )
 
-    con.execute(
-        """
+    con.execute("""
         CREATE OR REPLACE TABLE products_filtered (
             parent_asin VARCHAR,
             main_category VARCHAR,
@@ -675,11 +661,9 @@ def create_raw_5core_filtered_tables(
             subtitle VARCHAR,
             author VARCHAR
         )
-        """
-    )
+        """)
 
-    con.execute(
-        """
+    con.execute("""
         INSERT INTO products_filtered BY NAME
         SELECT p.*
         FROM products p
@@ -687,11 +671,9 @@ def create_raw_5core_filtered_tables(
             SELECT DISTINCT parent_asin
             FROM interactions_5core
         ) keep USING (parent_asin)
-        """
-    )
+        """)
 
-    con.execute(
-        """
+    con.execute("""
         CREATE OR REPLACE TABLE reviews_filtered (
             user_id VARCHAR,
             asin VARCHAR,
@@ -704,11 +686,9 @@ def create_raw_5core_filtered_tables(
             verified_purchase BOOLEAN,
             images_json JSON
         )
-        """
-    )
+        """)
 
-    con.execute(
-        """
+    con.execute("""
         INSERT INTO reviews_filtered BY NAME
         SELECT r.*
         FROM reviews r
@@ -719,8 +699,7 @@ def create_raw_5core_filtered_tables(
            AND r.timestamp_ms = i.timestamp_ms
         INNER JOIN products_filtered p
             ON p.parent_asin = r.parent_asin
-        """
-    )
+        """)
 
 
 def export_tables(
@@ -751,11 +730,19 @@ def export_tables(
     if mode == MODE_RAW:
         products_path_sql = sql_string_literal(str(output_dir / "products.parquet"))
         reviews_path_sql = sql_string_literal(str(output_dir / "reviews.parquet"))
-        con.execute(f"COPY products TO {products_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)")
-        con.execute(f"COPY reviews TO {reviews_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)")
+        con.execute(
+            f"COPY products TO {products_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)"
+        )
+        con.execute(
+            f"COPY reviews TO {reviews_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)"
+        )
     else:
-        products_filtered_path_sql = sql_string_literal(str(output_dir / "products_filtered.parquet"))
-        filtered_path_sql = sql_string_literal(str(output_dir / "reviews_filtered.parquet"))
+        products_filtered_path_sql = sql_string_literal(
+            str(output_dir / "products_filtered.parquet")
+        )
+        filtered_path_sql = sql_string_literal(
+            str(output_dir / "reviews_filtered.parquet")
+        )
         con.execute(
             f"COPY products_filtered TO {products_filtered_path_sql} (FORMAT PARQUET, COMPRESSION ZSTD)",
         )
@@ -771,8 +758,7 @@ def write_summary_json(
     mode: str,
 ) -> None:
     if mode == MODE_RAW:
-        counts = con.execute(
-            """
+        counts = con.execute("""
             SELECT
                 COUNT(*) AS review_rows,
                 COUNT(DISTINCT r.user_id) AS users,
@@ -780,8 +766,7 @@ def write_summary_json(
                 SUM(CASE WHEN p.parent_asin IS NOT NULL THEN 1 ELSE 0 END) AS reviews_with_metadata
             FROM reviews r
             LEFT JOIN products p USING (parent_asin)
-            """
-        ).fetchone()
+            """).fetchone()
         payload = {
             "category": category,
             "mode": mode,
@@ -791,8 +776,7 @@ def write_summary_json(
             "reviews_with_metadata": counts[3],
         }
     else:
-        counts = con.execute(
-            """
+        counts = con.execute("""
             SELECT
                 (SELECT COUNT(*) FROM interactions_5core) AS interaction_rows_5core,
                 (SELECT COUNT(*) FROM reviews) AS raw_review_rows,
@@ -804,8 +788,7 @@ def write_summary_json(
                     FROM reviews_filtered r
                     LEFT JOIN products_filtered p USING (parent_asin)
                 ) AS reviews_with_metadata
-            """
-        ).fetchone()
+            """).fetchone()
         reduction_pct = 0.0
         if counts[1]:
             reduction_pct = (1 - (counts[2] / counts[1])) * 100.0
@@ -833,7 +816,9 @@ def run_setup(
 ) -> None:
     print(f"\n[setup] preparing category={category}, mode={mode}")
     if mode == MODE_RAW_5CORE:
-        print("[info] raw_5core mode keeps review text but filters rows to the 5-core interaction subset.")
+        print(
+            "[info] raw_5core mode keeps review text but filters rows to the 5-core interaction subset."
+        )
 
     paths = download_inputs(
         base_dir=base_dir,

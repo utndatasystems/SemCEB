@@ -6,7 +6,6 @@ import re
 
 from semceb.queries.template_parser import QueryTemplate, QueryTemplateParser
 
-
 QUERY_SPEC_RESERVED_KEYS = {
     "id",
     "type",
@@ -16,6 +15,7 @@ QUERY_SPEC_RESERVED_KEYS = {
     "filter_parsed",
     "embeddings",
 }
+
 
 @dataclass(frozen=True)
 class DatasetSpecification:
@@ -80,7 +80,7 @@ class QuerySpecification:
     in the origianl order, which allows processing and re-assembling."""
     embeddings: dict[str, list[float]]
     """Embedding representations of the filter predicate with different models (keys of the dictionary)."""
-    
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "QuerySpecification":
         """Construct a QuerySpecification from a dictionary loaded from JSON."""
@@ -102,7 +102,9 @@ class QuerySpecification:
             id=data["id"],
             type=data["type"],
             category=data["category"],
-            datasets=[DatasetSpecification.from_str(dataset) for dataset in data["datasets"]],
+            datasets=[
+                DatasetSpecification.from_str(dataset) for dataset in data["datasets"]
+            ],
             filter=raw_filter,
             embeddings=raw_embeddings,
             filter_parsed=QueryTemplateParser.parse(raw_filter),

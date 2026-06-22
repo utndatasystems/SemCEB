@@ -4,6 +4,7 @@ from enum import Enum
 
 class QueryTemplatePartType(Enum):
     """Types of parts present in a parsed query template."""
+
     TEXT = "text"
     COLUMN_REF = "column_ref"
 
@@ -11,6 +12,7 @@ class QueryTemplatePartType(Enum):
 @dataclass(frozen=True)
 class ColumnRef:
     """Represents a referenced column and optional dataset alias in a query template."""
+
     column_name: str
     dataset_ref: str | None = None
 
@@ -61,6 +63,7 @@ class ColumnRef:
 @dataclass(frozen=True)
 class QueryTemplatePart:
     """A single parsed part of a query template, either text or a column reference."""
+
     type: QueryTemplatePartType
     value: str | ColumnRef
 
@@ -79,6 +82,7 @@ class QueryTemplatePart:
 @dataclass(frozen=True)
 class QueryTemplate:
     """Parsed representation of a query filter template."""
+
     raw: str
     parts: list[QueryTemplatePart]
 
@@ -118,9 +122,7 @@ class QueryTemplateParser:
                     raise ValueError("Found '}' without matching '{'.")
 
                 parts.append(
-                    QueryTemplateParser._create_column_ref_part(
-                        "".join(current_column)
-                    )
+                    QueryTemplateParser._create_column_ref_part("".join(current_column))
                 )
 
                 current_column = None

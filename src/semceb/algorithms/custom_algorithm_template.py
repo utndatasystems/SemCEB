@@ -4,7 +4,10 @@ import pandas as pd
 
 from semceb.algorithms.interface import AlgorithmInterface
 from semceb.queries.query_specification import QuerySpecification
-from semceb.algorithms.cardinality_estimate import CardinalityEstimate, CardinalityEstimateKind
+from semceb.algorithms.cardinality_estimate import (
+    CardinalityEstimate,
+    CardinalityEstimateKind,
+)
 
 
 class CustomAlgorithmTemplate(AlgorithmInterface):
@@ -21,11 +24,7 @@ class CustomAlgorithmTemplate(AlgorithmInterface):
         self.version = version
 
         self.memory_consumption = -1
-        self.cost_stats = {
-            "usd": -1,
-            "llm_calls": -1,
-            "tokens": -1
-            }
+        self.cost_stats = {"usd": -1, "llm_calls": -1, "tokens": -1}
 
     def get_memory_consumption(self) -> int:
         """
@@ -45,7 +44,9 @@ class CustomAlgorithmTemplate(AlgorithmInterface):
         """Reset internal algorithm cost statistics to default values."""
         ...
 
-    def preparation(self, data_dfs: dict[str, pd.DataFrame], algorithm_kwargs: dict) -> None:
+    def preparation(
+        self, data_dfs: dict[str, pd.DataFrame], algorithm_kwargs: dict
+    ) -> None:
         """Prepare the algorithm before execution.
 
         This method should collect and store all information required for selectivity estimation.
@@ -65,7 +66,13 @@ class CustomAlgorithmTemplate(AlgorithmInterface):
         """
         ...
         import random
-        return random.choice([
-            CardinalityEstimate(kind=CardinalityEstimateKind.INT, value=1),
-            CardinalityEstimate(kind=CardinalityEstimateKind.UNSUPPORTED, reason="This is a placeholder estimate indicating that the algorithm does not support this query type."),
-        ])
+
+        return random.choice(
+            [
+                CardinalityEstimate(kind=CardinalityEstimateKind.INT, value=1),
+                CardinalityEstimate(
+                    kind=CardinalityEstimateKind.UNSUPPORTED,
+                    reason="This is a placeholder estimate indicating that the algorithm does not support this query type.",
+                ),
+            ]
+        )

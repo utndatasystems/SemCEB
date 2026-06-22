@@ -17,6 +17,7 @@ from semceb.llm_backends.lotus_backend import LotusBackend
 from semceb.queries.query_specification import QuerySpecification
 from semceb.algorithms.cardinality_estimate import CardinalityEstimateKind
 
+
 class BenchmarkRunner:
     """Run benchmark queries and collect algorithm evaluation results."""
 
@@ -46,7 +47,7 @@ class BenchmarkRunner:
             tuple[frozenset[str], int | None],
             dict[str, pd.DataFrame],
         ] = {}
-        
+
         self.queries_specs = self._load_queries_specs(self.query_filepath)
 
         self._handle_cloud_data()
@@ -72,13 +73,12 @@ class BenchmarkRunner:
     def _query_matches_selection(self, query_spec: QuerySpecification) -> bool:
         """Return whether a query passes configured category and type filters."""
 
-        category_matches = (
-            not self.query_categories
-            or any(category.lower() in self.query_categories for category in query_spec.category)
+        category_matches = not self.query_categories or any(
+            category.lower() in self.query_categories
+            for category in query_spec.category
         )
         type_matches = (
-            not self.query_types
-            or query_spec.type.lower() in self.query_types
+            not self.query_types or query_spec.type.lower() in self.query_types
         )
 
         return category_matches and type_matches
@@ -95,7 +95,6 @@ class BenchmarkRunner:
                 "[yellow]Required benchmark data is missing, and the download was skipped.[/yellow]"
             )
             raise SystemExit(1)
-
 
     def _load_algorithm_from_file(
         self, algorithm_config: dict[str, Any]
@@ -127,7 +126,7 @@ class BenchmarkRunner:
                 f"Algorithm class '{class_name}' must match "
                 f"{AlgorithmInterface.__module__}.{AlgorithmInterface.__name__}."
             )
-        
+
         if algorithm_class.__abstractmethods__:
             raise TypeError(
                 f"Algorithm class '{class_name}' is still abstract. "
@@ -149,8 +148,7 @@ class BenchmarkRunner:
         self._confirm_join_benchmark_run_if_required(query_groups)
 
         total_runs = sum(
-            len(self.algorithms) * len(group["query_specs"])
-            for group in query_groups
+            len(self.algorithms) * len(group["query_specs"]) for group in query_groups
         )
 
         with create_benchmark_progress() as progress:
@@ -244,14 +242,17 @@ class BenchmarkRunner:
                 scale_factor=query_group["scale_factor"],
             )
 
-    def _get_ground_truth_params(self, algorithm_config: dict[str, Any]) -> tuple[str, str]:
+    def _get_ground_truth_params(
+        self, algorithm_config: dict[str, Any]
+    ) -> tuple[str, str]:
         """Resolve the ground-truth model name and system prompt for an algorithm."""
 
         ground_truth = algorithm_config.get("ground_truth", {})
 
         return (
             ground_truth.get("model_name") or self.default_ground_truth_model_name,
-            ground_truth.get("system_prompt") or self.default_ground_truth_system_prompt,
+            ground_truth.get("system_prompt")
+            or self.default_ground_truth_system_prompt,
         )
 
     def _run_algorithm_for_query_group(
@@ -267,8 +268,10 @@ class BenchmarkRunner:
         """Run one algorithm on a group of queries."""
 
         algorithm = self._load_algorithm_from_file(algorithm_config)
-        ground_truth_model_name, ground_truth_system_prompt = self._get_ground_truth_params(
-            algorithm_config,
+        ground_truth_model_name, ground_truth_system_prompt = (
+            self._get_ground_truth_params(
+                algorithm_config,
+            )
         )
         algorithm_kwargs = algorithm_config.get("algorithm_kwargs", {})
         algorithm.preparation(data_dfs, algorithm_kwargs)
@@ -357,9 +360,11 @@ class BenchmarkRunner:
                 q_error=q_error,
                 time_ms=time_ms,
             )
-            
+
         elif cardinality_estimation.kind == CardinalityEstimateKind.UNSUPPORTED:
-            console.print("[yellow]Algorithm returned unsupported estimate. Skipping q-error and selectivity calculations.[/yellow]")
+            console.print(
+                "[yellow]Algorithm returned unsupported estimate. Skipping q-error and selectivity calculations.[/yellow]"
+            )
 
         progress.advance(task)
 
@@ -416,8 +421,7 @@ class BenchmarkRunner:
         """Ask the user to confirm running join benchmarks after showing input sizes."""
 
         row_counts = {
-            table_ref: len(data_df)
-            for table_ref, data_df in data_dfs.items()
+            table_ref: len(data_df) for table_ref, data_df in data_dfs.items()
         }
 
         largest_table_ref, largest_row_count = max(
@@ -432,7 +436,9 @@ class BenchmarkRunner:
         console.print("[bold yellow]Join benchmark input size[/bold yellow]")
 
         for table_ref, row_count in row_counts.items():
-            console.print(f"  [cyan]{table_ref}[/cyan]: [bold]{row_count:,}[/bold] rows")
+            console.print(
+                f"  [cyan]{table_ref}[/cyan]: [bold]{row_count:,}[/bold] rows"
+            )
 
         console.print(
             "  [magenta]Biggest possible pairwise join combination[/magenta]: "
@@ -458,7 +464,7 @@ class BenchmarkRunner:
         if not should_continue:
             console.print("[yellow]Benchmark aborted by user.[/yellow]")
             raise SystemExit(0)
-    
+
     def _get_cardinality_ground_truth(
         self,
         model_name: str,
@@ -507,21 +513,26 @@ class BenchmarkRunner:
             # Return a negative q-error for underestimation to distinguish it from overestimation in the results.
             return -(safe_cardinality_ground_truth / safe_cardinality_estimation)
         return safe_cardinality_estimation / safe_cardinality_ground_truth
-    
-    def _calculate_selectivity(self, cardinality_estimation: int, query_spec: QuerySpecification, data_dfs: dict[str, pd.DataFrame]) -> float:
+
+    def _calculate_selectivity(
+        self,
+        cardinality_estimation: int,
+        query_spec: QuerySpecification,
+        data_dfs: dict[str, pd.DataFrame],
+    ) -> float:
         """Calculate selectivity based on cardinality estimation and number of input rows."""
-        if len(query_spec.datasets) == 1: # Filter query
+        if len(query_spec.datasets) == 1:  # Filter query
             table_ref = query_spec.datasets[0].table_ref
             input_rows = data_dfs[table_ref].shape[0]
-        
-        elif len(query_spec.datasets) > 1: # Join query
+
+        elif len(query_spec.datasets) > 1:  # Join query
             input_rows = 1
             for dataset in query_spec.datasets:
                 table_ref = dataset.table_ref
                 input_rows *= data_dfs[table_ref].shape[0]
         else:
             raise ValueError("Used dataset of query can not be empty!")
-        
+
         selectivity = cardinality_estimation / input_rows
         return selectivity
 

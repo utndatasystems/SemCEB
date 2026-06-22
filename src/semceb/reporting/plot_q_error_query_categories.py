@@ -117,9 +117,7 @@ class QErrorQueryCategoriesPlotMixin:
             )
             return
 
-        comparison_df = filter_df[
-            filter_df["query_id"].isin(common_query_ids)
-        ].copy()
+        comparison_df = filter_df[filter_df["query_id"].isin(common_query_ids)].copy()
         categories = self._get_query_category_plot_order(
             comparison_df["query_category_group"].drop_duplicates().tolist()
         )
@@ -151,8 +149,7 @@ class QErrorQueryCategoriesPlotMixin:
                 categories=categories,
                 show_ylabel=True,
                 show_xticklabels=(
-                    index
-                    == len(self.Q_ERROR_QUERY_CATEGORY_COMPARISON_ALGORITHMS) - 1
+                    index == len(self.Q_ERROR_QUERY_CATEGORY_COMPARISON_ALGORITHMS) - 1
                 ),
                 mark_empty_categories=True,
                 custom_xticklabels=category_labels,
@@ -194,9 +191,7 @@ class QErrorQueryCategoriesPlotMixin:
             errors="coerce",
         )
         analysis_df = analysis_df.dropna(subset=["query_type", "q_error"]).copy()
-        analysis_df = analysis_df[
-            analysis_df["q_error"].apply(math.isfinite)
-        ].copy()
+        analysis_df = analysis_df[analysis_df["q_error"].apply(math.isfinite)].copy()
 
         if analysis_df.empty:
             return analysis_df
@@ -327,7 +322,9 @@ class QErrorQueryCategoriesPlotMixin:
         if custom_xticklabels is not None:
             axis.set_xticks(range(len(custom_xticklabels)))
             axis.set_xticklabels(custom_xticklabels)
-        axis.axhline(0, color="#666666", linewidth=0.9, linestyle="--", alpha=0.7, zorder=0)
+        axis.axhline(
+            0, color="#666666", linewidth=0.9, linestyle="--", alpha=0.7, zorder=0
+        )
         axis.grid(axis="y", alpha=0.6)
         axis.grid(axis="x", visible=False)
         if mark_empty_categories:
@@ -369,7 +366,9 @@ class QErrorQueryCategoriesPlotMixin:
         )
         axis.tick_params(axis="y", which="minor", length=2.5, width=0.7)
         self._style_shared_x_axis(axis, show_ticklabels=False)
-        axis.axhline(0, color="#666666", linewidth=0.9, linestyle="--", alpha=0.7, zorder=0)
+        axis.axhline(
+            0, color="#666666", linewidth=0.9, linestyle="--", alpha=0.7, zorder=0
+        )
         axis.grid(axis="y", alpha=0.6)
         axis.grid(axis="x", visible=False)
 
@@ -524,8 +523,7 @@ class QErrorQueryCategoriesPlotMixin:
 
         category_counts = (
             data[["query_id", "query_category_group"]]
-            .drop_duplicates()
-            ["query_category_group"]
+            .drop_duplicates()["query_category_group"]
             .value_counts()
         )
 

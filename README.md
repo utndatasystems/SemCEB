@@ -1,4 +1,4 @@
-[![Python format check](https://github.com/utndatasystems/SemCEB/actions/workflows/python-format.yml/badge.svg)](https://github.com/utndatasystems/SemCEB/actions/workflows/python-format.yml)
+[![Python format check](https://github.com/utndatasystems/SemCEB/actions/workflows/python-format.yml/badge.svg?branch=main)](https://github.com/utndatasystems/SemCEB/actions/workflows/python-format.yml)
 
 # SemCEB
 

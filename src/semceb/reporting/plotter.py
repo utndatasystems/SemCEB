@@ -55,7 +55,6 @@ class ResultsPlotter(
         # the 2 algorithms appear on the left and the remaining space stays empty.
         self.minimum_visible_algorithm_slots = 8
 
-
     def plot(self, include_semantic_skew: bool = False) -> None:
         """Create benchmark run plots and summary tables."""
         self.plot_dir.mkdir(parents=True, exist_ok=True)
@@ -195,21 +194,15 @@ class ResultsPlotter(
             valid_df.groupby("algorithm_name")
             .agg(
                 query_count=("query_id", "count"),
-
                 q_error_avg=("q_error", "mean"),
                 q_error_min=("q_error", "min"),
                 q_error_max=("q_error", "max"),
-
                 time_ms_avg=("time_ms", "mean"),
                 time_ms_min=("time_ms", "min"),
                 time_ms_max=("time_ms", "max"),
-
                 cost_usd_total=("cost_usd", "sum"),
-
                 llm_calls_total=("llm_calls", "sum"),
-
                 tokens_total=("tokens", "sum"),
-
                 memory_consumption_total=("memory_consumption", "sum"),
             )
             .reset_index()
@@ -314,7 +307,7 @@ class ResultsPlotter(
 
     def _plot_algorithm_comparison(self, df: pd.DataFrame) -> None:
         """Plot one metric as total bars while preserving empty algorithm slots."""
-        
+
         apply_plot_params(
             fig_height=5.5,
             scale=2.0,
@@ -473,7 +466,7 @@ class ResultsPlotter(
         ylabel: str,
         algorithms: list[str],
         palette: dict[str, Any],
-        algorithm_styles: dict[str, dict[str, Any]]
+        algorithm_styles: dict[str, dict[str, Any]],
     ) -> None:
         """Plot one metric as a boxplot while preserving empty algorithm slots."""
 
@@ -535,11 +528,7 @@ class ResultsPlotter(
     ) -> None:
         """Plot one resource metric as total bars while preserving empty algorithm slots."""
 
-        totals = (
-            plot_df.groupby("algorithm_name")[column]
-            .sum()
-            .reindex(algorithms)
-        )
+        totals = plot_df.groupby("algorithm_name")[column].sum().reindex(algorithms)
 
         x_positions = list(range(len(algorithms)))
 
@@ -719,7 +708,7 @@ class ResultsPlotter(
             return "n/a"
 
         return f"{numeric_value:.{decimals}f}"
-    
+
     def _format_optional_int(self, value: Any) -> str:
         """Format optional integer values safely for tables."""
 
@@ -727,7 +716,7 @@ class ResultsPlotter(
             return "n/a"
 
         return str(int(value))
-    
+
     def _save_per_query_report(self, df: pd.DataFrame) -> None:
         """Save a per-query HTML report with absolute values and normalized bars."""
 
@@ -761,7 +750,9 @@ class ResultsPlotter(
         ]
 
         for query_id, query_df in report_df.groupby("query_id", sort=True):
-            query_df = query_df.set_index("algorithm_name").reindex(algorithms).reset_index()
+            query_df = (
+                query_df.set_index("algorithm_name").reindex(algorithms).reset_index()
+            )
             html_parts.extend(
                 self._build_per_query_report_section(
                     query_id=query_id,
@@ -1106,8 +1097,7 @@ class ResultsPlotter(
     ) -> list[str]:
         """Build the metadata block HTML for one query in the per-query report."""
         datasets_html = ", ".join(
-            self._escape_html(dataset)
-            for dataset in query_datasets
+            self._escape_html(dataset) for dataset in query_datasets
         )
 
         return [
@@ -1339,8 +1329,7 @@ class ResultsPlotter(
                     if column_ref.dataset_ref is not None
                 }
                 column_ref_counts_by_alias = {
-                    dataset.alias: 0
-                    for dataset in query_spec.datasets
+                    dataset.alias: 0 for dataset in query_spec.datasets
                 }
                 for column_ref in column_refs:
                     if column_ref.dataset_ref is None:
@@ -1354,9 +1343,8 @@ class ResultsPlotter(
                         )
                     column_ref_counts_by_alias[column_ref.dataset_ref] += 1
 
-                is_single_column_join = (
-                    referenced_aliases == dataset_aliases
-                    and all(count == 1 for count in column_ref_counts_by_alias.values())
+                is_single_column_join = referenced_aliases == dataset_aliases and all(
+                    count == 1 for count in column_ref_counts_by_alias.values()
                 )
                 predicate_type = (
                     "Single-Column Predicates"

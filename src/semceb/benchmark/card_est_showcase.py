@@ -208,7 +208,9 @@ class CardEstShowcaseRunner:
         alias: str,
     ) -> pd.DataFrame:
         """Return a copy whose column names are prefixed with the given alias."""
-        return df.rename(columns={column: f"{alias}.{column}" for column in df.columns}).copy()
+        return df.rename(
+            columns={column: f"{alias}.{column}" for column in df.columns}
+        ).copy()
 
     def _generate_plans(self) -> list[ShowcasePlan]:
         """Enumerate all filter-order permutations combined with distinct join orders."""
@@ -243,7 +245,9 @@ class CardEstShowcaseRunner:
 
         return plans
 
-    def _build_join_plans(self) -> tuple[tuple[ShowcaseJoinStep, ShowcaseJoinStep], ...]:
+    def _build_join_plans(
+        self,
+    ) -> tuple[tuple[ShowcaseJoinStep, ShowcaseJoinStep], ...]:
         """Return the distinct binary join orders for the showcase query."""
         return (
             (
@@ -337,7 +341,9 @@ class CardEstShowcaseRunner:
     def _execute_plan(self, plan: ShowcasePlan) -> dict[str, Any]:
         """Execute one plan and collect per-step filter/join cardinality stats."""
         if self.backend is None:
-            raise RuntimeError("LOTUS backend must be initialized before plan execution.")
+            raise RuntimeError(
+                "LOTUS backend must be initialized before plan execution."
+            )
 
         if hasattr(self.backend.lm, "reset_stats"):
             self.backend.lm.reset_stats()
@@ -463,9 +469,7 @@ class CardEstShowcaseRunner:
                 relation_name=relation_name,
                 instruction=filter_step.instruction,
             ),
-            progress_bar_desc=(
-                f"Plan filter {relation_name}.{filter_step.name}"
-            ),
+            progress_bar_desc=(f"Plan filter {relation_name}.{filter_step.name}"),
         )
 
         return filtered_df.rename(columns=restore_columns)
@@ -478,8 +482,7 @@ class CardEstShowcaseRunner:
         """Create a single-relation filter view with unqualified LOTUS column names."""
         prefix = f"{relation_name}."
         renamed_columns = {
-            column_name: column_name.removeprefix(prefix)
-            for column_name in df.columns
+            column_name: column_name.removeprefix(prefix) for column_name in df.columns
         }
         restore_columns = {
             stripped_name: original_name
@@ -725,7 +728,9 @@ class CardEstShowcaseRunner:
     def _print_plan_configuration(self, plan: ShowcasePlan, total_plans: int) -> None:
         """Print one plan configuration before it is executed."""
         console.print()
-        console.rule(f"[bold cyan]Showcase plan {plan.plan_id}/{total_plans}[/bold cyan]")
+        console.rule(
+            f"[bold cyan]Showcase plan {plan.plan_id}/{total_plans}[/bold cyan]"
+        )
         console.print(
             "Filter order p1: "
             + " -> ".join(filter_step.name for filter_step in plan.filter_orders["p1"])

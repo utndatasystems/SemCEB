@@ -55,10 +55,7 @@ class StringLengthDistributionPlotMixin:
     """Helpers for plotting string-length distributions for embedded text columns."""
 
     AMAZON_REVIEWS_DATASET_DIR = (
-        Path(__file__).resolve().parents[3]
-        / "data"
-        / "datasets"
-        / "amazon-reviews"
+        Path(__file__).resolve().parents[3] / "data" / "datasets" / "amazon-reviews"
     )
 
     def _plot_string_length_distributions(self) -> None:
@@ -288,10 +285,7 @@ class StringLengthDistributionPlotMixin:
 
         fig.tight_layout()
 
-        pdf_path = (
-            self.plot_dir
-            / f"{dataset_name}__{column_name}_text_length_dist.pdf"
-        )
+        pdf_path = self.plot_dir / f"{dataset_name}__{column_name}_text_length_dist.pdf"
 
         fig.savefig(pdf_path, bbox_inches="tight", pad_inches=0)
         console.print(

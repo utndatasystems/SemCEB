@@ -71,9 +71,7 @@ class ShowcasePlotMixin:
         axis.set_ylabel("Cost (USD)")
         axis.set_title("Plan Cost by Rank")
         axis.xaxis.set_major_locator(mticker.MaxNLocator(nbins=5, integer=True))
-        axis.yaxis.set_major_locator(
-            mticker.LogLocator(base=10, subs=(1.0, 2.0, 5.0))
-        )
+        axis.yaxis.set_major_locator(mticker.LogLocator(base=10, subs=(1.0, 2.0, 5.0)))
         axis.yaxis.set_major_formatter(
             mticker.FuncFormatter(lambda value, _: f"{value:g}")
         )
@@ -189,9 +187,7 @@ class ShowcasePlotMixin:
 
         cheapest_cost = min(entry["cost"] for entry in showcase_plan_results)
         cheapest_entries = [
-            entry
-            for entry in showcase_plan_results
-            if entry["cost"] == cheapest_cost
+            entry for entry in showcase_plan_results if entry["cost"] == cheapest_cost
         ]
 
         console.print(

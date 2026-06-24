@@ -143,3 +143,19 @@ The benchmark is configured in `config.toml`.
 Use this file to select which algorithms should run and to adjust benchmark or algorithm-specific settings. To exclude an algorithm from a run, comment out or remove its corresponding `[[algorithms]]` blocks.
 
 The `scale_factor` setting defines how many rows are loaded from the main dataset table. Related tables are filtered to match the selected rows. Rows are shuffled deterministically before selection.
+
+## Citation
+
+If you use this work, please cite the corresponding paper:
+
+```
+@article{zimmerer2026semceb,
+      title={{SemCEB}: A Cardinality Estimation Benchmark for Semantic Operators}, 
+      author={Andreas Zimmerer and Claudius Kühn and Yang Li and Mihail Stoian and Renata Borovica-Gajic and Andreas Kipf},
+      year={2026},
+      eprint={2606.23081},
+      archivePrefix={arXiv},
+      primaryClass={cs.DB},
+      url={https://arxiv.org/abs/2606.23081}, 
+}
+```

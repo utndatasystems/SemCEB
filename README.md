@@ -1,6 +1,6 @@
-# SemCEB
+# SemCEB: A Cardinality Estimation Benchmark for Semantic Operators
 
-**A Cardinality Estimation Benchmark for Semantic Operators**
+[![arXiv](https://img.shields.io/badge/arXiv-2606.23081-b31b1b.svg)](https://arxiv.org/abs/2606.23081)
 
 SemCEB provides a benchmark pipeline for running cardinality estimation algorithms and plotting the results.
 
@@ -147,6 +147,8 @@ The `scale_factor` setting defines how many rows are loaded from the main datase
 ## Citation
 
 If you use this work, please cite the corresponding paper:
+
+arXiv: <https://arxiv.org/abs/2606.23081>
 
 ```
 @article{zimmerer2026semceb,

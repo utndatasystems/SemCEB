@@ -170,7 +170,9 @@ class QuerySelectivityPlotMixin:
         axis.set_ylabel("CDF")
         axis.yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=0))
         axis.minorticks_on()
-        axis.xaxis.set_minor_locator(LogLocator(base=10.0, subs=range(2, 10), numticks=100))
+        axis.xaxis.set_minor_locator(
+            LogLocator(base=10.0, subs=range(2, 10), numticks=100)
+        )
         axis.xaxis.set_minor_formatter(NullFormatter())
         axis.tick_params(
             axis="both",
@@ -210,12 +212,8 @@ class QuerySelectivityPlotMixin:
 
         fig.tight_layout()
 
-        pdf_path = (
-            self.plot_dir
-            / (
-                "query_selectivity_cdf_"
-                f"{cache_path.stem}_{query_type}.pdf"
-            )
+        pdf_path = self.plot_dir / (
+            "query_selectivity_cdf_" f"{cache_path.stem}_{query_type}.pdf"
         )
 
         fig.savefig(pdf_path, bbox_inches="tight", pad_inches=0)
@@ -235,8 +233,7 @@ class QuerySelectivityPlotMixin:
         nonpositive_floor = 0.0001
 
         plot_selectivities = [
-            value if value > 0 else nonpositive_floor
-            for value in selectivities
+            value if value > 0 else nonpositive_floor for value in selectivities
         ]
 
         if all(value > 0 for value in selectivities):

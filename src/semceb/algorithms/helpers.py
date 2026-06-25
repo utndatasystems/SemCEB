@@ -6,8 +6,7 @@ import pandas as pd
 def get_dict_memory_usage(data: dict) -> int:
     """Estimate memory usage of a flat dictionary including keys and values."""
     return sys.getsizeof(data) + sum(
-        sys.getsizeof(key) + sys.getsizeof(value)
-        for key, value in data.items()
+        sys.getsizeof(key) + sys.getsizeof(value) for key, value in data.items()
     )
 
 

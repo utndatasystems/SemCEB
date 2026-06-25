@@ -40,7 +40,7 @@ class AlgorithmComparisonPaperPlotMixin:
     }
 
     ALGORITHM_LABELS: dict[str, str] = {
-        #"Custom Algorithm Template": "Template",
+        # "Custom Algorithm Template": "Template",
         "Extrapolation Sampling 1%": "Sample 1\\%",
         "Extrapolation Sampling 5%": "Sample 5\\%",
         "Extrapolation Sampling 10%": "Sample 10\\%",
@@ -227,7 +227,9 @@ class AlgorithmComparisonPaperPlotMixin:
         analysis_df["algorithm_label"] = analysis_df["algorithm_name"].map(
             self.ALGORITHM_LABELS
         )
-        algorithm_labels = [self.ALGORITHM_LABELS[name] for name in available_algorithms]
+        algorithm_labels = [
+            self.ALGORITHM_LABELS[name] for name in available_algorithms
+        ]
         analysis_df["algorithm_label"] = pd.Categorical(
             analysis_df["algorithm_label"],
             categories=algorithm_labels,
@@ -248,7 +250,8 @@ class AlgorithmComparisonPaperPlotMixin:
 
         supported_query_ids = set(
             analysis_df.loc[
-                analysis_df["algorithm_name"] == self.SUPPORTED_QUERY_REFERENCE_ALGORITHM,
+                analysis_df["algorithm_name"]
+                == self.SUPPORTED_QUERY_REFERENCE_ALGORITHM,
                 "query_id",
             ].tolist()
         )
@@ -383,9 +386,7 @@ class AlgorithmComparisonPaperPlotMixin:
                 {
                     "hue": "support_scope",
                     "hue_order": list(self.SUPPORT_SCOPE_ORDER),
-                    "palette": {
-                        scope: "#ffffff" for scope in self.SUPPORT_SCOPE_ORDER
-                    },
+                    "palette": {scope: "#ffffff" for scope in self.SUPPORT_SCOPE_ORDER},
                     "dodge": True,
                 }
             )
@@ -427,7 +428,9 @@ class AlgorithmComparisonPaperPlotMixin:
         axis.tick_params(axis="y", which="minor", length=2.5, width=0.7)
         self._style_shared_x_axis(axis, show_ticklabels=False)
 
-        axis.axhline(0, color="#666666", linewidth=0.9, linestyle="--", alpha=0.7, zorder=0)
+        axis.axhline(
+            0, color="#666666", linewidth=0.9, linestyle="--", alpha=0.7, zorder=0
+        )
         axis.grid(axis="y", alpha=0.6)
         self._mark_missing_q_error_slots(
             axis=axis,
@@ -496,9 +499,7 @@ class AlgorithmComparisonPaperPlotMixin:
                 {
                     "hue": "support_scope",
                     "hue_order": list(self.SUPPORT_SCOPE_ORDER),
-                    "palette": {
-                        scope: "#ffffff" for scope in self.SUPPORT_SCOPE_ORDER
-                    },
+                    "palette": {scope: "#ffffff" for scope in self.SUPPORT_SCOPE_ORDER},
                     "dodge": True,
                 }
             )
@@ -595,9 +596,7 @@ class AlgorithmComparisonPaperPlotMixin:
                 {
                     "hue": "support_scope",
                     "hue_order": list(self.SUPPORT_SCOPE_ORDER),
-                    "palette": {
-                        scope: "#ffffff" for scope in self.SUPPORT_SCOPE_ORDER
-                    },
+                    "palette": {scope: "#ffffff" for scope in self.SUPPORT_SCOPE_ORDER},
                     "dodge": True,
                 }
             )
@@ -665,9 +664,7 @@ class AlgorithmComparisonPaperPlotMixin:
                 {
                     "hue": "support_scope",
                     "hue_order": list(self.SUPPORT_SCOPE_ORDER),
-                    "palette": {
-                        scope: "#ffffff" for scope in self.SUPPORT_SCOPE_ORDER
-                    },
+                    "palette": {scope: "#ffffff" for scope in self.SUPPORT_SCOPE_ORDER},
                 }
             )
         else:
@@ -970,8 +967,7 @@ class AlgorithmComparisonPaperPlotMixin:
             box_width = 0.72
             scope_count = len(self.SUPPORT_SCOPE_ORDER)
             offsets = [
-                (-box_width / 2.0)
-                + ((scope_index + 0.5) * box_width / scope_count)
+                (-box_width / 2.0) + ((scope_index + 0.5) * box_width / scope_count)
                 for scope_index in range(scope_count)
             ]
             for algorithm_index, algorithm_label in enumerate(algorithms):
@@ -999,7 +995,9 @@ class AlgorithmComparisonPaperPlotMixin:
         """Apply a stable per-algorithm hatch pattern to a bar plot."""
 
         hatch_map = {
-            algorithm: self.ALGORITHM_BAR_HATCH_PATTERNS[index % len(self.ALGORITHM_BAR_HATCH_PATTERNS)]
+            algorithm: self.ALGORITHM_BAR_HATCH_PATTERNS[
+                index % len(self.ALGORITHM_BAR_HATCH_PATTERNS)
+            ]
             for index, algorithm in enumerate(all_algorithms)
         }
 
@@ -1071,10 +1069,7 @@ class AlgorithmComparisonPaperPlotMixin:
             [self._transform_q_error_for_plot(value) for value in major_tick_values]
         )
         axis.set_yticklabels(
-            [
-                self._format_scientific_tick(value)
-                for value in major_tick_values
-            ]
+            [self._format_scientific_tick(value) for value in major_tick_values]
         )
 
     def _get_q_error_plot_limit(
@@ -1087,7 +1082,9 @@ class AlgorithmComparisonPaperPlotMixin:
         if fixed_plot_limit is not None:
             return fixed_plot_limit
 
-        max_abs_value = max(abs(value) for value in q_error_values if math.isfinite(value))
+        max_abs_value = max(
+            abs(value) for value in q_error_values if math.isfinite(value)
+        )
         return max(1, math.ceil(math.log10(max_abs_value)) + 1)
 
     def _get_q_error_major_tick_values(self, plot_limit: int) -> list[float]:
@@ -1107,13 +1104,7 @@ class AlgorithmComparisonPaperPlotMixin:
 
         tick_values = [10**exponent for exponent in exponents]
 
-        return sorted(
-            {
-                -value for value in tick_values
-            }
-            | {1.0}
-            | set(tick_values)
-        )
+        return sorted({-value for value in tick_values} | {1.0} | set(tick_values))
 
     def _get_q_error_minor_tick_positions(
         self,
@@ -1169,8 +1160,7 @@ class AlgorithmComparisonPaperPlotMixin:
         """Set a sparse set of major ticks for the memory subplot."""
 
         positive_values = [
-            value for value in memory_values
-            if math.isfinite(value) and value > 0
+            value for value in memory_values if math.isfinite(value) and value > 0
         ]
         if not positive_values:
             axis.set_yticks([0])

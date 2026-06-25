@@ -2,7 +2,11 @@ from abc import ABC, abstractmethod
 
 import pandas as pd
 from semceb.queries.query_specification import QuerySpecification
-from semceb.algorithms.cardinality_estimate import CardinalityEstimate, CardinalityEstimateKind
+from semceb.algorithms.cardinality_estimate import (
+    CardinalityEstimate,
+    CardinalityEstimateKind,
+)
+
 
 class AlgorithmInterface(ABC):
     """Abstract interface for algorithms."""
@@ -29,7 +33,9 @@ class AlgorithmInterface(ABC):
         pass
 
     @abstractmethod
-    def preparation(self, data_dfs: dict[str, pd.DataFrame], algorithm_kwargs: dict) -> None:
+    def preparation(
+        self, data_dfs: dict[str, pd.DataFrame], algorithm_kwargs: dict
+    ) -> None:
         """Prepare the algorithm before execution.
 
         This method should collect and store all information required for selectivity estimation.

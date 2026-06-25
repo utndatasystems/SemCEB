@@ -20,7 +20,6 @@ from semceb.queries.query_specification import QuerySpecification
 from semceb.queries.template_parser import QueryTemplatePartType
 from semceb.utils.console import console
 
-
 CACHE_SCHEMA_VERSION = 3
 ANSWER_PREFIX = "Answer: "
 SUPPORTED_SOURCE_COLUMNS = (
@@ -401,6 +400,7 @@ class LocalHFTextKVBackend:
         self._binary_token_ids = (int(zero_ids[0]), int(one_ids[0]))
         return self._binary_token_ids
 
+
 class TextPreloadedKVThresholdEstimator:
     def __init__(
         self,
@@ -467,7 +467,8 @@ class TextPreloadedKVThresholdEstimator:
                 for entry in artifact["row_prefix_caches"]
             ]
             self.cache_bytes = sum(
-                _cache_size_bytes(cache.past_key_values) + _tensor_size_bytes(cache.prefix_input_ids)
+                _cache_size_bytes(cache.past_key_values)
+                + _tensor_size_bytes(cache.prefix_input_ids)
                 for cache in self.row_prefix_caches
             )
             return
@@ -486,7 +487,8 @@ class TextPreloadedKVThresholdEstimator:
             self.row_prefix_caches.append(self.backend.build_prefix_cache(prefix_text))
 
         self.cache_bytes = sum(
-            _cache_size_bytes(cache.past_key_values) + _tensor_size_bytes(cache.prefix_input_ids)
+            _cache_size_bytes(cache.past_key_values)
+            + _tensor_size_bytes(cache.prefix_input_ids)
             for cache in self.row_prefix_caches
         )
         self._persist_cache_artifact(n_components=n_components)
@@ -518,9 +520,9 @@ class TextPreloadedKVThresholdEstimator:
             positive_responses += sum(1 for result in responses if result == "1")
 
         selectivity = positive_responses / len(self.row_prefix_caches)
-        similarities = (
-            self.image_embeddings @ predicate_embedding.unsqueeze(1)
-        ).view(-1)
+        similarities = (self.image_embeddings @ predicate_embedding.unsqueeze(1)).view(
+            -1
+        )
         threshold = self.threshold_from_selectivity(
             similarities=similarities,
             selectivity=selectivity,
@@ -884,7 +886,9 @@ class SemanticHistogram(AlgorithmInterface):
     def _import_upstream_estimators(self) -> None:
         self._ensure_upstream_path()
         module = importlib.import_module("mmce.estimators.base_threshold_estimator")
-        self._threshold_based_cls = getattr(module, "ThresholdBasedCardinalityEstimator")
+        self._threshold_based_cls = getattr(
+            module, "ThresholdBasedCardinalityEstimator"
+        )
         self._full_estimator_cls = getattr(module, "FullEstimator")
 
     @staticmethod
@@ -933,11 +937,15 @@ class SemanticHistogram(AlgorithmInterface):
         if self._backend is None:
             raise RuntimeError("SemanticHistogram backend is not initialized.")
         if self._threshold_based_cls is None or self._full_estimator_cls is None:
-            raise RuntimeError("SemanticHistogram upstream estimator classes are unavailable.")
+            raise RuntimeError(
+                "SemanticHistogram upstream estimator classes are unavailable."
+            )
         if self.num_kv_caches is None:
             raise RuntimeError("SemanticHistogram num_kv_caches is not configured.")
         if self.kv_eval_batch_size is None:
-            raise RuntimeError("SemanticHistogram kv_eval_batch_size is not configured.")
+            raise RuntimeError(
+                "SemanticHistogram kv_eval_batch_size is not configured."
+            )
         if self.hf_model_name is None:
             raise RuntimeError("SemanticHistogram HF model name is not configured.")
 
@@ -954,7 +962,9 @@ class SemanticHistogram(AlgorithmInterface):
             cache_dir=self.cache_dir,
             hf_model_name=self.hf_model_name,
             num_kv_caches=effective_num_kv_caches,
-            eval_batch_size=max(1, min(self.kv_eval_batch_size, effective_num_kv_caches)),
+            eval_batch_size=max(
+                1, min(self.kv_eval_batch_size, effective_num_kv_caches)
+            ),
             seed=self.seed,
         )
         estimator = self._threshold_based_cls(

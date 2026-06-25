@@ -4,8 +4,9 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-
-SOURCE_DIR = Path("tools") / "amazon-reviews" / "processed" / "Arts_Crafts_and_Sewing__raw_5core"
+SOURCE_DIR = (
+    Path("tools") / "amazon-reviews" / "processed" / "Arts_Crafts_and_Sewing__raw_5core"
+)
 TARGET_DIR = Path("data") / "datasets" / "amazon-reviews"
 
 REQUIRED_FILES = [
@@ -20,7 +21,9 @@ REQUIRED_DIRS = [
 
 def copy_file(source: Path, target: Path) -> None:
     if not source.exists():
-        raise FileNotFoundError(f"Missing required file: '{source}'.\nSee README.md for instructions to prepare the dataset.")
+        raise FileNotFoundError(
+            f"Missing required file: '{source}'.\nSee README.md for instructions to prepare the dataset."
+        )
 
     target.parent.mkdir(parents=True, exist_ok=True)
 
@@ -33,7 +36,9 @@ def copy_file(source: Path, target: Path) -> None:
 
 def copy_dir(source: Path, target: Path) -> None:
     if not source.exists() or not source.is_dir():
-        raise FileNotFoundError(f"Missing required directory: '{source}'.\nSee README.md for instructions to prepare the dataset.")
+        raise FileNotFoundError(
+            f"Missing required directory: '{source}'.\nSee README.md for instructions to prepare the dataset."
+        )
 
     if target.exists():
         shutil.rmtree(target)

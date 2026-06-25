@@ -182,7 +182,9 @@ def _cluster_map_palette(n_colors: int, offset: int = 0) -> list[Any]:
     needed_colors = offset + n_colors
     if needed_colors > len(colors):
         extra_count = needed_colors - len(colors)
-        colors.extend(plt.get_cmap("hsv")(np.linspace(0, 1, extra_count, endpoint=False)))
+        colors.extend(
+            plt.get_cmap("hsv")(np.linspace(0, 1, extra_count, endpoint=False))
+        )
 
     return colors[offset:needed_colors]
 
@@ -191,9 +193,7 @@ def _sanitize_filename(name: str) -> str:
     """Convert a column name into a filesystem-safe filename stem."""
 
     return "".join(
-        character
-        if character.isalnum() or character in {"-", "_"}
-        else "_"
+        character if character.isalnum() or character in {"-", "_"} else "_"
         for character in name
     )
 
@@ -214,13 +214,10 @@ def _is_embedding_type(column_type: str) -> bool:
     """Return whether a DuckDB type stores float embedding arrays."""
 
     normalized_type = column_type.upper().strip()
-    return (
-        normalized_type.endswith("[]")
-        and (
-            normalized_type.startswith("FLOAT")
-            or normalized_type.startswith("REAL")
-            or normalized_type.startswith("DOUBLE")
-        )
+    return normalized_type.endswith("[]") and (
+        normalized_type.startswith("FLOAT")
+        or normalized_type.startswith("REAL")
+        or normalized_type.startswith("DOUBLE")
     )
 
 
@@ -261,7 +258,9 @@ def _gini(values: np.ndarray) -> float:
     adjusted_values = values.astype(np.float64, copy=True)
     finite_mask = np.isfinite(adjusted_values)
     if not finite_mask.all():
-        _log_array_issue("Non-finite values passed to gini; dropping them", adjusted_values)
+        _log_array_issue(
+            "Non-finite values passed to gini; dropping them", adjusted_values
+        )
         adjusted_values = adjusted_values[finite_mask]
 
     if adjusted_values.size == 0:
@@ -272,7 +271,9 @@ def _gini(values: np.ndarray) -> float:
         adjusted_values = adjusted_values - min_value
         finite_mask = np.isfinite(adjusted_values)
         if not finite_mask.all():
-            _log_array_issue("Non-finite values after gini shift; dropping them", adjusted_values)
+            _log_array_issue(
+                "Non-finite values after gini shift; dropping them", adjusted_values
+            )
             adjusted_values = adjusted_values[finite_mask]
 
     if adjusted_values.size == 0:
@@ -344,7 +345,9 @@ def _validate_embedding_matrix(embeddings: np.ndarray) -> np.ndarray:
         raise ValueError(f"Expected a 2D array, got shape {matrix.shape}.")
 
     if not np.isfinite(matrix).all():
-        warnings.warn("NaN or Inf detected in embeddings; replacing with 0.", stacklevel=2)
+        warnings.warn(
+            "NaN or Inf detected in embeddings; replacing with 0.", stacklevel=2
+        )
         matrix = np.nan_to_num(matrix, nan=0.0, posinf=0.0, neginf=0.0)
 
     zero_variance_dims = matrix.var(axis=0) == 0
@@ -507,7 +510,9 @@ def _resolve_noise_labels(
             "Resolve HDBSCAN halos "
             f"clustered={len(clustered_indices):,} noise={len(noise_indices):,}"
         ):
-            clustered_embeddings = _prepare_faiss_matrix(reduced_embeddings[clustered_indices])
+            clustered_embeddings = _prepare_faiss_matrix(
+                reduced_embeddings[clustered_indices]
+            )
             noise_embeddings = _prepare_faiss_matrix(reduced_embeddings[noise_indices])
             index = faiss.IndexFlatL2(clustered_embeddings.shape[1])
             index.add(clustered_embeddings)
@@ -542,7 +547,9 @@ def _resolve_noise_labels(
         micro_cluster_ids = sorted(label for label in set(micro_labels) if label >= 0)
         n_micro_clusters = len(micro_cluster_ids)
         if n_micro_clusters > 0:
-            next_cluster_id = int(resolved_labels.max()) + 1 if len(resolved_labels) > 0 else 0
+            next_cluster_id = (
+                int(resolved_labels.max()) + 1 if len(resolved_labels) > 0 else 0
+            )
             for local_label in micro_cluster_ids:
                 micro_mask = micro_labels == local_label
                 target_indices = remaining_noise_indices[micro_mask]
@@ -697,7 +704,9 @@ def _compute_knn_similarity_coefficient(
     faiss = _import_faiss()
     _, kurtosis, _, skew = _import_scipy_stats()
     if embeddings.ndim != 2:
-        raise ValueError(f"Expected a 2D embedding matrix, got shape {embeddings.shape}.")
+        raise ValueError(
+            f"Expected a 2D embedding matrix, got shape {embeddings.shape}."
+        )
 
     n_rows, n_dims = embeddings.shape
     if n_rows < 2:
@@ -710,7 +719,9 @@ def _compute_knn_similarity_coefficient(
             f"k={max_k} is invalid for {n_rows} embeddings; it must be smaller than the number of rows."
         )
 
-    with _log_step(f"Validate embedding matrix before FAISS kNN shape={_format_shape(embeddings)}"):
+    with _log_step(
+        f"Validate embedding matrix before FAISS kNN shape={_format_shape(embeddings)}"
+    ):
         validated_embeddings = _validate_embedding_matrix(embeddings)
         n_rows, n_dims = validated_embeddings.shape
 
@@ -772,7 +783,9 @@ def _compute_knn_similarity_coefficient(
             | (neighbor_distances > 1.0001)
         )
         if invalid_neighbor_mask.any():
-            _log_array_issue("Invalid exact fallback neighbor distances", neighbor_distances)
+            _log_array_issue(
+                "Invalid exact fallback neighbor distances", neighbor_distances
+            )
             raise ValueError(
                 "FAISS kNN returned invalid neighbor distances even after exact fallback."
             )
@@ -827,7 +840,9 @@ def _load_embedding_column(parquet_file: Path, column: str) -> tuple[np.ndarray,
             f"Column '{column}' contains no non-null embeddings after filtering."
         )
 
-    with _log_step(f"Convert embeddings to NumPy column={column} rows={len(filtered_embeddings):,}"):
+    with _log_step(
+        f"Convert embeddings to NumPy column={column} rows={len(filtered_embeddings):,}"
+    ):
         matrix = np.asarray(filtered_embeddings, dtype=np.float64)
 
     if matrix.ndim != 2:
@@ -1109,10 +1124,7 @@ class DataSkewPlotMixin:
     """Helpers for plotting semantic data-skew diagnostics for embedding columns."""
 
     AMAZON_REVIEWS_PROCESSED_DIR = (
-        Path(__file__).resolve().parents[1]
-        / "data"
-        / "amazon-reviews"
-        / "processed"
+        Path(__file__).resolve().parents[1] / "data" / "amazon-reviews" / "processed"
     )
     AMAZON_REVIEWS_CACHE_DIR = (
         Path(__file__).resolve().parents[1]
@@ -1285,12 +1297,16 @@ class DataSkewPlotMixin:
         if cluster_counts.size == 0:
             raise ValueError("Cannot export largest-class values without any clusters.")
 
-        largest_cluster_id = int(np.flatnonzero(cluster_counts == cluster_counts.max())[0])
+        largest_cluster_id = int(
+            np.flatnonzero(cluster_counts == cluster_counts.max())[0]
+        )
         largest_class_mask = cluster_labels == largest_cluster_id
         largest_class_values = pd.DataFrame(
             {source_column: clustered_source_values[largest_class_mask]}
         )
-        largest_class_path = output_dir / f"{dataset_stem}__{safe_column}__largest_class.csv"
+        largest_class_path = (
+            output_dir / f"{dataset_stem}__{safe_column}__largest_class.csv"
+        )
         largest_class_values.to_csv(largest_class_path, index=False)
         console.print(
             f"[green]✓[/green] Saved largest-class values to [bold]{largest_class_path}[/bold]"
@@ -1370,7 +1386,9 @@ class DataSkewPlotMixin:
     ) -> dict[str, Any]:
         """Load a current skew-analysis cache or build it on demand."""
 
-        metadata_path, arrays_path = self._get_data_skew_cache_paths(parquet_file, column)
+        metadata_path, arrays_path = self._get_data_skew_cache_paths(
+            parquet_file, column
+        )
         if self._is_data_skew_cache_current(metadata_path, arrays_path):
             console.log(
                 f"Data skew cache hit column={column} metadata={metadata_path} arrays={arrays_path}"
@@ -1397,7 +1415,9 @@ class DataSkewPlotMixin:
         """Compute expensive skew-analysis artifacts once and write them to cache."""
 
         umap = _import_umap()
-        metadata_path, arrays_path = self._get_data_skew_cache_paths(parquet_file, column)
+        metadata_path, arrays_path = self._get_data_skew_cache_paths(
+            parquet_file, column
+        )
         metadata_path.parent.mkdir(parents=True, exist_ok=True)
 
         embeddings, dropped_nulls = _load_embedding_column(parquet_file, column)
@@ -1427,9 +1447,7 @@ class DataSkewPlotMixin:
             "Compute semantic imbalance report "
             f"column={column} rows={len(analysis_embeddings):,}"
         ):
-            imbalance_report = _compute_embedding_imbalance_report(
-                analysis_embeddings
-            )
+            imbalance_report = _compute_embedding_imbalance_report(analysis_embeddings)
 
         with _log_step(f"Write compressed NumPy cache arrays output={arrays_path}"):
             np.savez_compressed(
@@ -1441,7 +1459,9 @@ class DataSkewPlotMixin:
                 label_tiers=imbalance_report.label_tiers.astype(np.int8),
                 cluster_sizes=imbalance_report.cluster_sizes.astype(np.int64),
                 **{
-                    f"pointwise_min_similarity_k{k}": knn_results["pointwise_min_similarity"][k].astype(np.float32)
+                    f"pointwise_min_similarity_k{k}": knn_results[
+                        "pointwise_min_similarity"
+                    ][k].astype(np.float32)
                     for k in k_values
                 },
             )
@@ -1485,14 +1505,15 @@ class DataSkewPlotMixin:
         """Load cached arrays and metadata for one parquet-column pair."""
 
         entropy, _, _, _ = _import_scipy_stats()
-        metadata_path, arrays_path = self._get_data_skew_cache_paths(parquet_file, column)
+        metadata_path, arrays_path = self._get_data_skew_cache_paths(
+            parquet_file, column
+        )
 
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         arrays = np.load(arrays_path)
         k_values = tuple(int(k) for k in metadata["k_values"])
         pointwise_min_similarity = {
-            k: arrays[f"pointwise_min_similarity_k{k}"]
-            for k in k_values
+            k: arrays[f"pointwise_min_similarity_k{k}"] for k in k_values
         }
 
         imbalance = metadata["imbalance"]
@@ -1507,9 +1528,7 @@ class DataSkewPlotMixin:
         normalized_entropy = float(
             imbalance.get(
                 "normalized_entropy",
-                shannon_entropy / np.log2(analysis_rows)
-                if analysis_rows > 1
-                else 0.0,
+                shannon_entropy / np.log2(analysis_rows) if analysis_rows > 1 else 0.0,
             )
         )
 
@@ -1556,7 +1575,9 @@ class DataSkewPlotMixin:
         """Compute the cached PCA representation used before UMAP."""
 
         PCA = _import_pca()
-        with _log_step(f"Normalize embeddings before PCA shape={_format_shape(embeddings)}"):
+        with _log_step(
+            f"Normalize embeddings before PCA shape={_format_shape(embeddings)}"
+        ):
             normalized_embeddings = _normalize_embeddings(embeddings)
 
         n_rows, n_dims = normalized_embeddings.shape

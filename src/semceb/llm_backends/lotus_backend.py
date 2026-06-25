@@ -13,7 +13,7 @@ from semceb.queries.query_specification import QuerySpecification
 from semceb.queries.template_parser import ColumnRef
 
 
-class LotusBackend():
+class LotusBackend:
     """LOTUS backend for ground-truth cardinality estimation and caching."""
 
     DATASETS_IMAGE_COLUMNS = {"main_image_local"}
@@ -84,12 +84,7 @@ class LotusBackend():
 
     def _safe_cache_name(self, model_name: str) -> str:
         """Return a filesystem-safe name for the model cache file."""
-        return (
-            model_name
-            .replace("/", "__")
-            .replace(":", "_")
-            .replace(" ", "_")
-        )
+        return model_name.replace("/", "__").replace(":", "_").replace(" ", "_")
 
     def _safe_scale_factor_name(self, scale_factor: int | None) -> str:
         """Return a filesystem-safe name for the scale-factor cache file suffix."""
@@ -121,15 +116,17 @@ class LotusBackend():
             "model_name": self.name,
             "system_prompt": self.system_prompt,
             "query_type": query_type,
-            "datasets": ", ".join([f"{dataset_spec.alias}:{dataset_spec.table_ref}" for dataset_spec in datasets]),
+            "datasets": ", ".join(
+                [
+                    f"{dataset_spec.alias}:{dataset_spec.table_ref}"
+                    for dataset_spec in datasets
+                ]
+            ),
             "scale_factor": self.scale_factor,
             "query": query_str,
         }
 
-        return " | ".join(
-            f"{key}='{value}'"
-            for key, value in key_data.items()
-        )
+        return " | ".join(f"{key}='{value}'" for key, value in key_data.items())
 
     def _load_cache(self) -> dict:
         """Load cardinality cache from disk."""
@@ -156,7 +153,9 @@ class LotusBackend():
 
         tmp_path.replace(self.cache_path)
 
-    def _save_query_result(self, query_spec: QuerySpecification, result_df: pd.DataFrame) -> None:
+    def _save_query_result(
+        self, query_spec: QuerySpecification, result_df: pd.DataFrame
+    ) -> None:
         """Persist the full ground-truth match set for a query to Parquet."""
 
         self.query_results_dir.mkdir(parents=True, exist_ok=True)
@@ -170,7 +169,8 @@ class LotusBackend():
         columns_to_drop = [
             column_name
             for column_name in result_df.columns
-            if column_name == "main_image_local" or column_name.endswith(".main_image_local")
+            if column_name == "main_image_local"
+            or column_name.endswith(".main_image_local")
         ]
         persisted_df = result_df.drop(columns=columns_to_drop, errors="ignore")
         persisted_df.to_parquet(tmp_path, index=False)
@@ -222,7 +222,9 @@ class LotusBackend():
 
         return int(value["cardinality"])
 
-    def _set_cached_cardinality(self, cache_key: str, cardinality: int, selectivity: float) -> None:
+    def _set_cached_cardinality(
+        self, cache_key: str, cardinality: int, selectivity: float
+    ) -> None:
         """Store cardinality in the cache."""
         self.cache[cache_key] = {
             "cardinality": int(cardinality),
@@ -305,9 +307,7 @@ class LotusBackend():
                 continue
 
             dataset_root = (
-                Path("data")
-                / "datasets"
-                / dataset_spec.table_ref.split("/")[0]
+                Path("data") / "datasets" / dataset_spec.table_ref.split("/")[0]
             )
             image_root = dataset_root / "images"
 
@@ -333,7 +333,7 @@ class LotusBackend():
         cached = self._get_cached_cardinality(cache_key)
         if cached is not None:
             return cached
-        
+
         [df] = self._load_referenced_image_columns(
             query_spec=query_spec,
             dataframes=[df],
@@ -346,10 +346,14 @@ class LotusBackend():
 
         self._save_query_result(query_spec, result_df)
 
-        self._set_cached_cardinality(cache_key, cardinality, selectivity=cardinality / df.shape[0])
-        return cardinality  
+        self._set_cached_cardinality(
+            cache_key, cardinality, selectivity=cardinality / df.shape[0]
+        )
+        return cardinality
 
-    def _format_filtering_query(self, query_spec: QuerySpecification, df: pd.DataFrame) -> str:
+    def _format_filtering_query(
+        self, query_spec: QuerySpecification, df: pd.DataFrame
+    ) -> str:
         """Format LOTUS query string for filtering."""
         self._validate_filtering_query(query_spec, df)
 
@@ -361,21 +365,29 @@ class LotusBackend():
             if part.type == QueryTemplatePartType.COLUMN_REF:
                 query_str += f"{{{part.value.column_name}}}"
         return query_str
-    
-    def _validate_filtering_query(self, query_spec: QuerySpecification, df: pd.DataFrame) -> None:
+
+    def _validate_filtering_query(
+        self, query_spec: QuerySpecification, df: pd.DataFrame
+    ) -> None:
         """Validate that the filter query is well-formed for a single dataset."""
 
         if len(query_spec.datasets) != 1:
             raise ValueError("Filtering query must contain exactly one dataset.")
 
-        columns_refs = [part.value for part in query_spec.filter_parsed.parts if part.type == QueryTemplatePartType.COLUMN_REF]
-        
+        columns_refs = [
+            part.value
+            for part in query_spec.filter_parsed.parts
+            if part.type == QueryTemplatePartType.COLUMN_REF
+        ]
+
         if not columns_refs:
             raise ValueError("Filtering query requires at least one column reference.")
 
         for column_ref in columns_refs:
             if column_ref.column_name not in df.columns:
-                raise ValueError(f"Column '{column_ref.column_name}' does not exist in data.")
+                raise ValueError(
+                    f"Column '{column_ref.column_name}' does not exist in data."
+                )
 
     def joining_query(
         self,
@@ -387,7 +399,7 @@ class LotusBackend():
     ) -> int:
         """Run a semantic join query and return the number of matching rows."""
         query_str = self._format_joining_query(query_spec, data_left_df, data_right_df)
-        
+
         cache_key = self._make_cache_key(
             query_type="join",
             query_spec=query_spec,
@@ -397,7 +409,7 @@ class LotusBackend():
         cached = self._get_cached_cardinality(cache_key)
         if cached is not None:
             return cached
-        
+
         data_left_df, data_right_df = self._load_referenced_image_columns(
             query_spec=query_spec,
             dataframes=[data_left_df, data_right_df],
@@ -418,9 +430,13 @@ class LotusBackend():
 
         self._save_query_result(query_spec, result_df)
 
-        self._set_cached_cardinality(cache_key, cardinality, selectivity=cardinality / (data_left_df.shape[0] * data_right_df.shape[0]))
+        self._set_cached_cardinality(
+            cache_key,
+            cardinality,
+            selectivity=cardinality / (data_left_df.shape[0] * data_right_df.shape[0]),
+        )
         return cardinality
-    
+
     def _format_joining_query(
         self,
         query_spec: QuerySpecification,
@@ -450,16 +466,15 @@ class LotusBackend():
             if part.type == QueryTemplatePartType.TEXT:
                 query_parts.append(part.value)
             elif part.type == QueryTemplatePartType.COLUMN_REF:
-                query_parts.append(
-                    self._format_lotus_join_column(part, dataset_side)
-                )
+                query_parts.append(self._format_lotus_join_column(part, dataset_side))
             else:
                 raise ValueError(f"Unknown query template part type: {part.type}")
 
         return "".join(query_parts)
-    
 
-    def _format_lotus_join_column(self, column_ref: ColumnRef, dataset_side: dict[str, str]) -> str:
+    def _format_lotus_join_column(
+        self, column_ref: ColumnRef, dataset_side: dict[str, str]
+    ) -> str:
         """Format a Lotus join column reference using the dataset side mapping."""
 
         if column_ref.value.dataset_ref not in dataset_side:
@@ -507,7 +522,9 @@ class LotusBackend():
                         f"'{dataset_name}'. Available columns are: {list(df.columns)}."
                     )
 
-    def _get_columns_by_dataset(self, query_spec: QuerySpecification) -> list[tuple[str, list[str]]]:
+    def _get_columns_by_dataset(
+        self, query_spec: QuerySpecification
+    ) -> list[tuple[str, list[str]]]:
         """Return column references grouped by dataset name.
 
         The returned list follows the order of query_spec.datasets.
@@ -536,8 +553,7 @@ class LotusBackend():
         """
 
         columns_by_dataset: dict[str, list[str]] = {
-            dataset_spec.alias: []
-            for dataset_spec in query_spec.datasets
+            dataset_spec.alias: [] for dataset_spec in query_spec.datasets
         }
 
         for part in query_spec.filter_parsed.parts:

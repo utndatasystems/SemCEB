@@ -9,7 +9,10 @@ from semceb.algorithms.helpers import get_dict_memory_usage, get_sample_memory_u
 from semceb.algorithms.interface import AlgorithmInterface
 from semceb.queries.query_specification import QuerySpecification
 from semceb.queries.template_parser import QueryTemplatePartType
-from semceb.algorithms.cardinality_estimate import CardinalityEstimate, CardinalityEstimateKind
+from semceb.algorithms.cardinality_estimate import (
+    CardinalityEstimate,
+    CardinalityEstimateKind,
+)
 
 
 class ExtrapolatedSampling(AlgorithmInterface):
@@ -41,18 +44,16 @@ class ExtrapolatedSampling(AlgorithmInterface):
 
     def reset_cost_stats(self) -> None:
         """Reset tracked algorithm cost."""
-        self.cost_stats = {
-            "usd": 0,
-            "llm_calls": 0,
-            "tokens": 0
-            }
+        self.cost_stats = {"usd": 0, "llm_calls": 0, "tokens": 0}
 
         if self.model is not None:
             self.model.reset_stats()
             # Prepare lotus for next run to determine costs
             lotus.settings.configure(lm=self.model)
 
-    def preparation(self, data_dfs: dict[str, pd.DataFrame], algorithm_kwargs: dict) -> None:
+    def preparation(
+        self, data_dfs: dict[str, pd.DataFrame], algorithm_kwargs: dict
+    ) -> None:
         """Prepare the algorithm before execution.
 
         This method should collect and store all information required for selectivity estimation.
@@ -62,10 +63,7 @@ class ExtrapolatedSampling(AlgorithmInterface):
         and column name(s) needed to perform the selectivity estimate.
         """
 
-        self.data_rows = {
-            name: df.shape[0]
-            for name, df in data_dfs.items()
-        }
+        self.data_rows = {name: df.shape[0] for name, df in data_dfs.items()}
 
         sampling_frac = algorithm_kwargs.get("sampling_frac", -1)
         self._validate_sampling_frac(sampling_frac)
@@ -180,9 +178,7 @@ class ExtrapolatedSampling(AlgorithmInterface):
                 continue
 
             dataset_root = (
-                Path("data")
-                / "datasets"
-                / dataset_spec.table_ref.split("/")[0]
+                Path("data") / "datasets" / dataset_spec.table_ref.split("/")[0]
             )
             image_root = dataset_root / "images"
 
@@ -238,7 +234,7 @@ class ExtrapolatedSampling(AlgorithmInterface):
         elif len(query_spec.datasets) > 1:
             estimation = max(1, self._estimate_join_cardinality(query_spec))
             return CardinalityEstimate(CardinalityEstimateKind.INT, value=estimation)
-        
+
         raise ValueError("Query must contain at least one dataset.")
 
     def _estimate_filter_cardinality(self, query_spec: QuerySpecification) -> int:
@@ -427,15 +423,13 @@ class ExtrapolatedSampling(AlgorithmInterface):
         llm_cost_stats = self._get_costs(data)
         self._add_cost(llm_cost_stats)
 
-
     def _get_costs(self, data: pd.DataFrame) -> dict:
         """Return virtual (= without caching) cost stats for the last Lotus run."""
-        return  {
+        return {
             "usd": self.model.stats.virtual_usage.total_cost,
-            "llm_calls": data.shape[0], # Calculation possible because no cascade
-            "tokens": self.model.stats.virtual_usage.total_tokens
+            "llm_calls": data.shape[0],  # Calculation possible because no cascade
+            "tokens": self.model.stats.virtual_usage.total_tokens,
         }
-
 
     def _add_cost(self, cost_stats: dict) -> None:
         """Accumulate cost statistics from one semantic operation."""

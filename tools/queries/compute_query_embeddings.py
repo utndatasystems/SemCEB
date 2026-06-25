@@ -9,7 +9,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 DEFAULT_JSONL_PATH = Path("benchmark_queries/queries.jsonl")
 EMBEDDING_MODELS = [
     "google/siglip2-base-patch16-224",
@@ -85,13 +84,14 @@ def load_text_model_bundle(model_name: str, device: str):
     return tokenizer, model, torch
 
 
-
 def get_safe_max_length(tokenizer, model) -> int | None:
     tokenizer_limit = getattr(tokenizer, "model_max_length", None)
 
     config_limit = None
     if hasattr(model.config, "text_config"):
-        config_limit = getattr(model.config.text_config, "max_position_embeddings", None)
+        config_limit = getattr(
+            model.config.text_config, "max_position_embeddings", None
+        )
     if config_limit is None:
         config_limit = getattr(model.config, "max_position_embeddings", None)
 
@@ -147,6 +147,7 @@ def compute_batch_embeddings(
         embeddings = torch_module.nn.functional.normalize(embeddings, p=2, dim=1)
 
     return embeddings.detach().cpu().to(torch_module.float32).tolist()
+
 
 def read_jsonl(path: Path) -> list[dict]:
     rows: list[dict] = []
@@ -281,7 +282,9 @@ def main() -> int:
     jsonl_path = Path(args.jsonl_path).expanduser().resolve()
 
     if not jsonl_path.exists():
-        print(f"[error] JSONL file does not exist: {jsonl_path}. Is the given path correct (default: assumes this script is run from the project root)?")
+        print(
+            f"[error] JSONL file does not exist: {jsonl_path}. Is the given path correct (default: assumes this script is run from the project root)?"
+        )
         return 1
 
     device = resolve_device()

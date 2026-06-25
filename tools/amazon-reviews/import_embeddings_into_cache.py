@@ -75,8 +75,7 @@ def open_embedding_cache(data_dir: Path) -> sqlite3.Connection:
     cache_conn.execute("PRAGMA journal_mode=WAL")
     cache_conn.execute("PRAGMA synchronous=NORMAL")
     cache_conn.execute("PRAGMA temp_store=MEMORY")
-    cache_conn.execute(
-        """
+    cache_conn.execute("""
         CREATE TABLE IF NOT EXISTS embedding_cache (
             cache_key TEXT PRIMARY KEY,
             table_name TEXT NOT NULL,
@@ -86,8 +85,7 @@ def open_embedding_cache(data_dir: Path) -> sqlite3.Connection:
             embedding BLOB NOT NULL,
             input_is_truncated INTEGER NOT NULL
         )
-        """
-    )
+        """)
     cache_conn.execute(
         "CREATE INDEX IF NOT EXISTS embedding_cache_column_idx "
         "ON embedding_cache(embedding_column_name)"
@@ -122,7 +120,9 @@ def truncation_column_name(embedding_column: str) -> str:
     return f"{embedding_column}_input_is_truncated"
 
 
-def cache_key_for_embedding(table_name: str, embedding_column_name: str, key_value: object) -> str:
+def cache_key_for_embedding(
+    table_name: str, embedding_column_name: str, key_value: object
+) -> str:
     return f"{table_name}|{embedding_column_name}|{key_value}"
 
 
@@ -162,7 +162,9 @@ def upsert_embedding_rows(
                     key_column_name,
                     key_value,
                     embedding_column,
-                    sqlite3.Binary(pickle.dumps(vector, protocol=pickle.HIGHEST_PROTOCOL)),
+                    sqlite3.Binary(
+                        pickle.dumps(vector, protocol=pickle.HIGHEST_PROTOCOL)
+                    ),
                     int(truncated),
                 )
             )
@@ -217,7 +219,9 @@ def import_products_embeddings(
         if not rows:
             break
 
-        embedded_batch: dict[str, list[object]] = {column: [] for column in column_names}
+        embedded_batch: dict[str, list[object]] = {
+            column: [] for column in column_names
+        }
         for row in rows:
             for column, value in zip(column_names, row, strict=True):
                 embedded_batch[column].append(value)
@@ -256,7 +260,9 @@ def import_reviews_embeddings(
         if not rows:
             break
 
-        embedded_batch: dict[str, list[object]] = {column: [] for column in review_embedding_cols}
+        embedded_batch: dict[str, list[object]] = {
+            column: [] for column in review_embedding_cols
+        }
         for row in rows:
             for column, value in zip(review_embedding_cols, row, strict=True):
                 embedded_batch[column].append(value)
@@ -313,8 +319,12 @@ def main() -> int:
         f"[ok] imported {products_imported} product embedding rows and "
         f"{reviews_imported} review embedding rows into {embedding_cache_path(data_dir)}"
     )
-    print(f"[info] embedding columns detected in products: {', '.join(product_embedding_cols)}")
-    print(f"[info] embedding columns detected in reviews: {', '.join(review_embedding_cols)}")
+    print(
+        f"[info] embedding columns detected in products: {', '.join(product_embedding_cols)}"
+    )
+    print(
+        f"[info] embedding columns detected in reviews: {', '.join(review_embedding_cols)}"
+    )
     print(
         "[info] cache rows overwrite on cache_key conflict; "
         "missing truncation columns default to false"

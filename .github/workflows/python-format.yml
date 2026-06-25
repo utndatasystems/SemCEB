@@ -1,4 +1,4 @@
-name: Python format check
+name: Python formatting
 
 on:
   pull_request:

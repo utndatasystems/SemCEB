@@ -2,6 +2,9 @@
 
 [![arXiv](https://img.shields.io/badge/arXiv-2606.23081-b31b1b.svg)](https://arxiv.org/abs/2606.23081)
 [![Python format check](https://github.com/utndatasystems/SemCEB/actions/workflows/python-format.yml/badge.svg?branch=main)](https://github.com/utndatasystems/SemCEB/actions/workflows/python-format.yml)
+[![Python 3.10](https://github.com/utndatasystems/SemCEB/actions/workflows/python-version-check-3-10.yml/badge.svg?branch=main)](https://github.com/utndatasystems/SemCEB/actions/workflows/python-version-check-3-10.yml)
+[![Python 3.11](https://github.com/utndatasystems/SemCEB/actions/workflows/python-version-check-3-11.yml/badge.svg?branch=main)](https://github.com/utndatasystems/SemCEB/actions/workflows/python-version-check-3-11.yml)
+[![Python 3.12](https://github.com/utndatasystems/SemCEB/actions/workflows/python-version-check-3-12.yml/badge.svg?branch=main)](https://github.com/utndatasystems/SemCEB/actions/workflows/python-version-check-3-12.yml)
 
 
 SemCEB provides a benchmark pipeline for running cardinality estimation algorithms and plotting the results.

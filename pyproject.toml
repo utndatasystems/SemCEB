@@ -9,7 +9,7 @@ description = "A benchmark pipeline for running cardinality estimation algorithm
 readme = "README.md"
 authors = [
     { name = "Claudius Kühn", email = "claudius.kuehn@utn.de" },
-    { name = "Andreas Zimmer", email = "andreas.zimmer@utn.de" },
+    { name = "Andreas Zimmerer", email = "andreas.zimmerer@utn.de" },
 ]
 license = { file = "LICENSE" }
 requires-python = ">=3.10, <3.13"

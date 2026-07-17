@@ -7,7 +7,19 @@
 [![Python 3.12](https://github.com/utndatasystems/SemCEB/actions/workflows/python-version-check-3-12.yml/badge.svg?branch=main)](https://github.com/utndatasystems/SemCEB/actions/workflows/python-version-check-3-12.yml)
 
 
-SemCEB provides a benchmark pipeline for running cardinality estimation algorithms and plotting the results.
+SemCEB provides a benchmarking pipeline for evaluating cardinality estimation algorithms for semantic operators, specifically `AI_FILTER` and `AI_JOIN`, and for visualizing their results.
+
+The benchmark includes 102 hand-curated queries spanning a wide range of selectivities and levels of difficulty. These queries cover single- and multi-column predicates, equality conditions, negations, spatial and temporal predicates, and more.
+
+Each query intentionally contains exactly one semantic predicate and no relational predicates. This design isolates the core challenge of producing fast, inexpensive, and accurate cardinality estimates for semantic operators.
+
+The dataset includes both (semi-structured) textual data and images, along with precomputed data and query embeddings.
+
+Algorithms may consist of two phases:
+
+1. **Setup phase:** The algorithm receives access to the complete dataset and may compute any required statistics or auxiliary data structures.
+2. **Estimation phase:** The algorithm receives a single predicate and is expected to estimate the cardinality of the predicate’s output on the base table.
+
 
 ## Installation
 

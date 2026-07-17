@@ -149,6 +149,20 @@ Use this file to select which algorithms should run and to adjust benchmark or a
 
 The `scale_factor` setting defines how many rows are loaded from the main dataset table. Related tables are filtered to match the selected rows. Rows are shuffled deterministically before selection.
 
+
+## Contributions
+
+We warmly welcome contributions. If you do not receive timely feedback on your pull request (GitHub notifications can easily get lost) please feel free to contact us by email.
+
+We particularly encourage contributions in the following areas:
+
+1. **New cardinality estimation algorithms for semantic operators.**
+   If you develop and benchmark a new approach using SemCEB, please consider contributing it to this repository so that others in the research community can build on your work. If you prefer to maintain your implementation separately, you can also add it as a Git submodule and provide a small integration layer.
+
+2. **Ground-truth computations for additional models and scale factors.**
+
+
+
 ## Citation
 
 If you use this work, please cite the corresponding paper:

@@ -10,7 +10,7 @@ data/datasets/*
 .env*
 
 data/
-results/raw/query_results/
+#results/raw/query_results/
 
 *.egg-info/
 

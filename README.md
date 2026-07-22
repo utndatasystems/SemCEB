@@ -81,8 +81,7 @@ semceb
 ```
 
 **Note:**   
-The provided `config.toml` is configured to use an OpenAI model for LLM-based semantic operators. Therefore, an OpenAI API key is required when running the benchmark with the configuration included in this repository.   
-Create a local `.env` file from `.env.example` and configure the required `OPENAI_API_KEY` value there. If you configure or implement other LLM providers, add the corresponding API keys or credentials to the same `.env` file.
+The provided `config.toml` uses an OpenAI model for LLM-based semantic operators by default. After copying `.env.example` to `.env`, configure either `OPENAI_API_KEY` for direct OpenAI access or both `LITELLM_ENDPOINT` and `LITELLM_API_KEY` to use a LiteLLM proxy. If you configure or implement another LLM provider, add the required credentials to the same `.env` file.
 
 
 ## Modes

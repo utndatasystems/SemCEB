@@ -1,4 +1,5 @@
 import sys
+import numpy as np
 import pandas as pd
 import os
 from dotenv import load_dotenv
@@ -26,6 +27,7 @@ class ExtrapolatedSampling(AlgorithmInterface):
         """Initialize the sampling algorithm and prepare cost tracking."""
         self.name = name
         self.version = version
+        self.seed = 42
 
         self.model = None
         self.reset_cost_stats()
@@ -162,17 +164,23 @@ class ExtrapolatedSampling(AlgorithmInterface):
         data_dfs: dict[str, pd.DataFrame],
         sampling_frac: float,
     ) -> dict[str, pd.DataFrame]:
-        """Create a random sample of each dataset at the requested fraction."""
+        """Create deterministic samples nested across sampling fractions."""
         data_sample: dict[str, pd.DataFrame] = {}
 
         for name, df in data_dfs.items():
-            sample_df = df.sample(frac=sampling_frac, random_state=42)
-            if sample_df.empty:
-                raise ValueError(
-                    f"Sample of dataframe '{name}' is empty. Increase sampling_frac or provide more data."
-                )
+            sample_size = max(
+                1,
+                min(
+                    len(df),
+                    int(round(len(df) * sampling_frac)),
+                ),
+            )
 
-            data_sample[name] = sample_df
+            rng = np.random.default_rng(self.seed)
+            row_order = rng.permutation(len(df))
+            selected_positions = row_order[:sample_size]
+
+            data_sample[name] = df.iloc[selected_positions].copy()
 
         return data_sample
 

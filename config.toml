@@ -122,7 +122,6 @@ system_prompt = "The user will provide a claim and some relevant context.\nYour 
 sampling_frac = 0.2
 
 
-
 [[algorithms]]
 name = "Semantic Histogram"
 version = "1.0.0"
@@ -139,3 +138,102 @@ cache_dir = "results/cache/semantic_histogram"
 seed = 42
 max_new_tokens = 1
 
+
+[[algorithms]]
+name = "Unify Importance Sampling 1%"
+version = "1.0.0"
+filename = "unify_importance_sampling.py"
+class = "UnifyImportanceSampling"
+
+[algorithms.ground_truth]
+model_name = "gpt-5.4-nano"
+system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
+
+[algorithms.algorithm_kwargs]
+model_name = "gpt-5.4-nano"
+system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
+embedding_model_key = "Qwen/Qwen3-Embedding-0.6B"
+sampling_frac = 0.01
+# Four equal-width cosine-distance strata over [0, 2].
+num_bins = 4
+distance_decay_temperature = 1.0
+
+
+[[algorithms]]
+name = "Unify Importance Sampling 5%"
+version = "1.0.0"
+filename = "unify_importance_sampling.py"
+class = "UnifyImportanceSampling"
+
+[algorithms.ground_truth]
+model_name = "gpt-5.4-nano"
+system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
+
+[algorithms.algorithm_kwargs]
+model_name = "gpt-5.4-nano"
+system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
+embedding_model_key = "Qwen/Qwen3-Embedding-0.6B"
+sampling_frac = 0.05
+# Four equal-width cosine-distance strata over [0, 2].
+num_bins = 4
+distance_decay_temperature = 1.0
+
+
+[[algorithms]]
+name = "Unify Importance Sampling 10%"
+version = "1.0.0"
+filename = "unify_importance_sampling.py"
+class = "UnifyImportanceSampling"
+
+[algorithms.ground_truth]
+model_name = "gpt-5.4-nano"
+system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
+
+[algorithms.algorithm_kwargs]
+model_name = "gpt-5.4-nano"
+system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
+embedding_model_key = "Qwen/Qwen3-Embedding-0.6B"
+sampling_frac = 0.10
+# Four equal-width cosine-distance strata over [0, 2].
+num_bins = 4
+distance_decay_temperature = 1.0
+
+
+[[algorithms]]
+name = "Unify Importance Sampling 15%"
+version = "1.0.0"
+filename = "unify_importance_sampling.py"
+class = "UnifyImportanceSampling"
+
+[algorithms.ground_truth]
+model_name = "gpt-5.4-nano"
+system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
+
+[algorithms.algorithm_kwargs]
+model_name = "gpt-5.4-nano"
+system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
+embedding_model_key = "Qwen/Qwen3-Embedding-0.6B"
+sampling_frac = 0.15
+# Four equal-width cosine-distance strata over [0, 2].
+num_bins = 4
+distance_decay_temperature = 1.0
+
+
+[[algorithms]]
+name = "Unify Importance Sampling 20%"
+version = "1.0.0"
+filename = "unify_importance_sampling.py"
+class = "UnifyImportanceSampling"
+
+[algorithms.ground_truth]
+model_name = "gpt-5.4-nano"
+system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
+
+[algorithms.algorithm_kwargs]
+model_name = "gpt-5.4-nano"
+system_prompt = "The user will provide a claim and some relevant context.\nYour job is to determine whether the claim is true for the given context.\nUse the following format to provide your answer:\nAnswer: <Your answer here. The answer should be either True or False>"
+embedding_model_key = "Qwen/Qwen3-Embedding-0.6B"
+sampling_frac = 0.2
+# Four equal-width cosine-distance strata over [0, 2].
+num_bins = 4
+distance_decay_temperature = 1.0

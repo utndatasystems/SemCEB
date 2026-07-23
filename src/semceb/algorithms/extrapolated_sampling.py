@@ -112,7 +112,7 @@ class ExtrapolatedSampling(AlgorithmInterface):
         from lotus.models.lm import LM
 
         load_dotenv()
-        
+
         litellm_endpoint = os.getenv("LITELLM_ENDPOINT")
         litellm_api_key = os.getenv("LITELLM_API_KEY")
         openai_api_key = os.getenv("OPENAI_API_KEY")

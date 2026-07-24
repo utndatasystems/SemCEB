@@ -18,6 +18,10 @@ class LotusBackend:
 
     DATASETS_IMAGE_COLUMNS = {"main_image_local"}
     LOTUS_CACHE_MAX_SIZE = 10_000_000
+    PRODUCTS_TABLE_REF = "amazon-reviews/products_filtered_with_embeddings"
+    REVIEWS_TABLE_REF = "amazon-reviews/reviews_filtered_with_embeddings"
+    PRODUCT_ID_COLUMNS = ("parent_asin",)
+    REVIEW_ID_COLUMNS = ("asin", "user_id", "parent_asin", "timestamp_ms")
 
     def __init__(
         self,
@@ -156,7 +160,7 @@ class LotusBackend:
     def _save_query_result(
         self, query_spec: QuerySpecification, result_df: pd.DataFrame
     ) -> None:
-        """Persist the full ground-truth match set for a query to Parquet."""
+        """Persist the compact ground-truth match set for a query to Parquet."""
 
         self.query_results_dir.mkdir(parents=True, exist_ok=True)
 
@@ -166,15 +170,108 @@ class LotusBackend:
         )
 
         tmp_path = result_path.with_suffix(".parquet.tmp")
-        columns_to_drop = [
-            column_name
-            for column_name in result_df.columns
-            if column_name == "main_image_local"
-            or column_name.endswith(".main_image_local")
-        ]
-        persisted_df = result_df.drop(columns=columns_to_drop, errors="ignore")
+        persisted_df = self._compact_query_result_df(query_spec, result_df)
         persisted_df.to_parquet(tmp_path, index=False)
         tmp_path.replace(result_path)
+
+    def _compact_query_result_df(
+        self,
+        query_spec: QuerySpecification,
+        result_df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Return a dataframe containing only query-result ID columns."""
+
+        compact_columns = self._compact_result_columns_for_query(
+            query_spec=query_spec,
+            result_columns=list(result_df.columns),
+        )
+        return result_df.loc[:, compact_columns]
+
+    def _compact_result_columns_for_query(
+        self,
+        query_spec: QuerySpecification,
+        result_columns: list[str],
+    ) -> list[str]:
+        """Return the compact ID columns that should be persisted for a result."""
+
+        if len(query_spec.datasets) == 1:
+            dataset_spec = query_spec.datasets[0]
+            id_columns = self._id_columns_for_table_ref(dataset_spec.table_ref)
+            return self._resolve_filter_result_id_columns(
+                id_columns=id_columns,
+                dataset_alias=dataset_spec.alias,
+                result_columns=result_columns,
+            )
+
+        if len(query_spec.datasets) == 2:
+            compact_columns: list[str] = []
+
+            for dataset_spec in query_spec.datasets:
+                for id_column in self._id_columns_for_table_ref(dataset_spec.table_ref):
+                    compact_columns.append(
+                        self._require_result_column(
+                            column_name=f"{dataset_spec.alias}.{id_column}",
+                            result_columns=result_columns,
+                            query_id=query_spec.id,
+                        )
+                    )
+
+            return compact_columns
+
+        raise ValueError(
+            f"Query {query_spec.id} uses {len(query_spec.datasets)} datasets; "
+            "only filters and two-table joins are supported."
+        )
+
+    def _id_columns_for_table_ref(self, table_ref: str) -> tuple[str, ...]:
+        if table_ref == self.PRODUCTS_TABLE_REF:
+            return self.PRODUCT_ID_COLUMNS
+
+        if table_ref == self.REVIEWS_TABLE_REF:
+            return self.REVIEW_ID_COLUMNS
+
+        raise ValueError(
+            f"Unsupported dataset table reference for compact query results: {table_ref!r}"
+        )
+
+    def _resolve_filter_result_id_columns(
+        self,
+        id_columns: tuple[str, ...],
+        dataset_alias: str,
+        result_columns: list[str],
+    ) -> list[str]:
+        compact_columns: list[str] = []
+
+        for id_column in id_columns:
+            if id_column in result_columns:
+                compact_columns.append(id_column)
+                continue
+
+            aliased_column = f"{dataset_alias}.{id_column}"
+            if aliased_column in result_columns:
+                compact_columns.append(aliased_column)
+                continue
+
+            raise ValueError(
+                f"Missing ID column {id_column!r} for compact filter result. "
+                f"Available columns are: {result_columns}."
+            )
+
+        return compact_columns
+
+    def _require_result_column(
+        self,
+        column_name: str,
+        result_columns: list[str],
+        query_id: int,
+    ) -> str:
+        if column_name in result_columns:
+            return column_name
+
+        raise ValueError(
+            f"Missing ID column {column_name!r} for compact query result q{query_id}. "
+            f"Available columns are: {result_columns}."
+        )
 
     def _prefix_join_output_columns(
         self,

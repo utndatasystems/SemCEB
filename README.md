@@ -182,13 +182,12 @@ If you use this work, please cite the corresponding paper:
 arXiv: <https://arxiv.org/abs/2606.23081>
 
 ```
-@article{zimmerer2026semceb,
-      title={{SemCEB}: A Cardinality Estimation Benchmark for Semantic Operators}, 
-      author={Andreas Zimmerer and Claudius Kühn and Yang Li and Mihail Stoian and Renata Borovica-Gajic and Andreas Kipf},
-      year={2026},
-      eprint={2606.23081},
-      archivePrefix={arXiv},
-      primaryClass={cs.DB},
-      url={https://arxiv.org/abs/2606.23081}, 
+@inproceedings{zimmerer2026semceb,
+  title = {{SemCEB}: A Cardinality Estimation Benchmark for Semantic Operators},
+  author = {Zimmerer, Andreas and Kühn, Claudius and Li, Yang and Stoian, Mihail and Borovica-Gajic, Renata and Kipf, Andreas},
+  year = {2026},
+  maintitle = {Proceedings of the {VLDB} Endowment},
+  booktitle = {2nd Workshop on Novel Optimizations for Visionary {AI} Systems ({NOVAS})},
+  publisher = {{VLDB} Endowment},
 }
 ```

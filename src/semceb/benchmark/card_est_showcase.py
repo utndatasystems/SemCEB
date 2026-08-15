@@ -93,10 +93,6 @@ class CardEstShowcaseRunner:
                 instruction="Review is written in english: {r.review_text}",
             ),
             ShowcaseFilter(
-                name="complaint",
-                instruction="Review is a complaint: {r.review_text}",
-            ),
-            ShowcaseFilter(
                 name="mentions_shipping",
                 instruction="Review mentions shipping: {r.review_text}",
             ),
@@ -533,8 +529,7 @@ class CardEstShowcaseRunner:
 
         if join_step.kind == "product_review":
             return (
-                "The review says the product quality is good, but the instructions "
-                "or listing are hard to understand for actual use. Features: "
+                "The review praises a specific feature of the product. Features: "
                 f"{{{join_step.left_entity_alias}.features_json:left}}. "
                 "Description: "
                 f"{{{join_step.left_entity_alias}.description_json:left}}. "
@@ -770,3 +765,4 @@ class CardEstShowcaseRunner:
                 f"{join_stat['left_relation']} x {join_stat['right_relation']}: "
                 f"{join_stat['input_pairs']:,} pairs -> {join_stat['output_rows']:,}"
             )
+

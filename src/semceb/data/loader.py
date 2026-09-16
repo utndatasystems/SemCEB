@@ -12,7 +12,9 @@ class DataLoader:
         """Initialize the dataset loader with the local dataset root path."""
         self.folderpath_datasets_data = Path("data") / "datasets"
 
-    def load(self, datasets: list[str], scale_factor: int | None = None) -> dict[str, pd.DataFrame]:
+    def load(
+        self, datasets: list[str], scale_factor: int | None = None
+    ) -> dict[str, pd.DataFrame]:
         """
         Load datasets into pandas DataFrames.
 
@@ -46,25 +48,92 @@ class DataLoader:
     ) -> dict[str, pd.DataFrame]:
         """Load Amazon Reviews dataset tables."""
 
-        products_df = self._load_dataset(dataset="amazon-reviews/products_filtered_with_embeddings")
-        reviews_df = self._load_dataset(dataset="amazon-reviews/reviews_filtered_with_embeddings")
+        products_dataset = "amazon-reviews/products_filtered_with_embeddings"
+        reviews_dataset = "amazon-reviews/reviews_filtered_with_embeddings"
 
-        products_df = self._shuffle_products(products_df)
-        products_df = self._apply_scale_factor(products_df, scale_factor)
+        products_parquet = self.folderpath_datasets_data / f"{products_dataset}.parquet"
+        reviews_parquet = self.folderpath_datasets_data / f"{reviews_dataset}.parquet"
 
-        reviews_df = self._filter_reviews_for_products(
-            reviews_df=reviews_df,
+        products_df = self._load_sampled_products_from_parquet(
+            parquet_path=products_parquet,
+            scale_factor=scale_factor,
+        )
+        reviews_df = self._load_filtered_reviews_from_parquet(
+            parquet_path=reviews_parquet,
             products_df=products_df,
         )
 
-        datasets_df["amazon-reviews/products_filtered_with_embeddings"] = products_df
-        datasets_df["amazon-reviews/reviews_filtered_with_embeddings"] = reviews_df
+        datasets_df[products_dataset] = products_df
+        datasets_df[reviews_dataset] = reviews_df
 
         return datasets_df
 
+    def _load_sampled_products_from_parquet(
+        self,
+        parquet_path: Path,
+        scale_factor: int | None,
+    ) -> pd.DataFrame:
+        """Select product rows before loading their embedding-heavy columns."""
+
+        with duckdb.connect() as con:
+            product_rows = con.execute(
+                """
+                SELECT file_row_number
+                FROM read_parquet(?, file_row_number=true)
+                ORDER BY file_row_number
+                """,
+                [str(parquet_path)],
+            ).df()
+
+        product_rows = self._shuffle_products(product_rows)
+        product_rows = self._apply_scale_factor(product_rows, scale_factor)
+        product_rows["sample_order"] = range(len(product_rows))
+
+        with duckdb.connect() as con:
+            con.register("selected_product_rows", product_rows)
+            products_df = con.execute(
+                """
+                SELECT p.* EXCLUDE (file_row_number)
+                FROM read_parquet(?, file_row_number=true) AS p
+                JOIN selected_product_rows AS s
+                  ON p.file_row_number = s.file_row_number
+                ORDER BY s.sample_order
+                """,
+                [str(parquet_path)],
+            ).df()
+
+        return products_df.reset_index(drop=True)
+
+    def _load_filtered_reviews_from_parquet(
+        self,
+        parquet_path: Path,
+        products_df: pd.DataFrame,
+    ) -> pd.DataFrame:
+        """Filter reviews in DuckDB before converting them to pandas."""
+
+        selected_asins = pd.DataFrame(
+            {"asin": products_df["parent_asin"].dropna().unique()}
+        )
+
+        with duckdb.connect() as con:
+            con.register("selected_asins", selected_asins)
+            reviews_df = con.execute(
+                """
+                SELECT r.* EXCLUDE (file_row_number)
+                FROM read_parquet(?, file_row_number=true) AS r
+                WHERE r.asin IN (SELECT asin FROM selected_asins)
+                ORDER BY r.file_row_number
+                """,
+                [str(parquet_path)],
+            ).df()
+
+        return reviews_df.reset_index(drop=True)
+
     def _shuffle_products(self, products_df: pd.DataFrame) -> pd.DataFrame:
         """Randomly shuffle product records in a stable way for sampling."""
-        return products_df.sample(frac=1.0, replace=False, random_state=42).reset_index(drop=True)
+        return products_df.sample(frac=1.0, replace=False, random_state=42).reset_index(
+            drop=True
+        )
 
     def _apply_scale_factor(
         self,
@@ -102,37 +171,3 @@ class DataLoader:
                 "Aborted because no scale_factor was provided and the user declined "
                 "to load the full dataset."
             )
-
-    def _filter_reviews_for_products(
-        self,
-        reviews_df: pd.DataFrame,
-        products_df: pd.DataFrame,
-    ) -> pd.DataFrame:
-        """Filter review rows to include only reviews for selected products."""
-        selected_parent_asins = products_df["parent_asin"].dropna().unique()
-
-        return reviews_df[
-            reviews_df["asin"].isin(selected_parent_asins)
-        ].reset_index(drop=True)
-
-    def _load_dataset(self, dataset: str) -> pd.DataFrame:
-        """Load raw dataset file as a pandas DataFrame."""
-
-        csv_path = self.folderpath_datasets_data / f"{dataset}.csv"
-        parquet_path = self.folderpath_datasets_data / f"{dataset}.parquet"
-
-        if csv_path.exists():
-            df = pd.read_csv(csv_path)
-        elif parquet_path.exists():
-            with duckdb.connect() as con:
-                df = con.execute(
-                    "SELECT * FROM read_parquet(?)",
-                    [str(parquet_path)],
-                ).df()
-        else:
-            raise FileNotFoundError(
-                f"Could not find dataset '{dataset}' as CSV or Parquet in "
-                f"{self.folderpath_datasets_data}."
-            )
-
-        return df

@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib import transforms
 from matplotlib.patches import Patch
 from matplotlib.ticker import FixedLocator, FuncFormatter, NullLocator
+import numpy as np
 import pandas as pd
 import seaborn as sns
 
@@ -45,6 +46,8 @@ class AlgorithmComparisonPaperPlotMixin:
         "Extrapolation Sampling 5%": "Sample 5\\%",
         "Extrapolation Sampling 10%": "Sample 10\\%",
         "Extrapolation Sampling 20%": "Sample 20\\%",
+        "Unify Importance Sampling 1%": "Unify 1\\%",
+        "Unify Importance Sampling 5%": "Unify 5\\%",
         "Semantic Histogram": "SemHist",
     }
 
@@ -61,6 +64,10 @@ class AlgorithmComparisonPaperPlotMixin:
             fig_height=4.0,
             scale=1.8,
             double_column=False,
+        )
+
+        has_reference_algorithm = self.SUPPORTED_QUERY_REFERENCE_ALGORITHM in set(
+            df["algorithm_name"].dropna()
         )
 
         analysis_df = self._prepare_analysis_dataframe(df)
@@ -96,7 +103,7 @@ class AlgorithmComparisonPaperPlotMixin:
             algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=True,
-            compare_supported_subset=True,
+            compare_supported_subset=has_reference_algorithm,
             fixed_plot_limit=3,
         )
         self._plot_q_error_subfigure(
@@ -115,7 +122,7 @@ class AlgorithmComparisonPaperPlotMixin:
             algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=True,
-            compare_supported_subset=True,
+            compare_supported_subset=has_reference_algorithm,
         )
         self._plot_cost_subfigure(
             axis=axes[1, 1],
@@ -131,7 +138,7 @@ class AlgorithmComparisonPaperPlotMixin:
             algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=True,
-            compare_supported_subset=True,
+            compare_supported_subset=has_reference_algorithm,
         )
         self._plot_time_subfigure(
             axis=axes[2, 1],
@@ -147,7 +154,7 @@ class AlgorithmComparisonPaperPlotMixin:
             algorithms=algorithm_labels,
             palette=palette,
             show_ylabel=True,
-            compare_supported_subset=True,
+            compare_supported_subset=has_reference_algorithm,
         )
         self._plot_memory_consumption_subfigure(
             axis=axes[3, 1],
@@ -158,17 +165,20 @@ class AlgorithmComparisonPaperPlotMixin:
             compare_supported_subset=False,
         )
 
-        fig.legend(
-            handles=self._build_support_scope_legend_handles(),
-            labels=list(self.SUPPORT_SCOPE_ORDER),
-            loc="upper center",
-            bbox_to_anchor=(0.5, 0.995),
-            ncol=2,
-            frameon=False,
-            columnspacing=1.4,
-            handletextpad=0.5,
-        )
-        fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.97))
+        if has_reference_algorithm:
+            fig.legend(
+                handles=self._build_support_scope_legend_handles(),
+                labels=list(self.SUPPORT_SCOPE_ORDER),
+                loc="upper center",
+                bbox_to_anchor=(0.5, 0.995),
+                ncol=2,
+                frameon=False,
+                columnspacing=1.4,
+                handletextpad=0.5,
+            )
+            fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.97))
+        else:
+            fig.tight_layout()
         self._align_left_column_ylabels(axes[:, 0])
         if not filter_q_error_data.empty:
             self._add_q_error_direction_labels(fig=fig, axis=axes[0, 0])
@@ -204,6 +214,17 @@ class AlgorithmComparisonPaperPlotMixin:
         analysis_df = analysis_df[
             analysis_df["algorithm_name"].isin(available_algorithms)
         ].copy()
+
+        if analysis_df.empty:
+            configured_names = sorted(
+                str(name) for name in available_algorithm_names if pd.notna(name)
+            )
+            raise ValueError(
+                "None of the benchmark algorithms are configured for this plot. "
+                f"Available result algorithms: {configured_names}. "
+                f"Configured plot algorithms: {list(self.ALGORITHM_LABELS)}."
+            )
+
         analysis_df["query_type"] = analysis_df["datasets"].apply(
             self._classify_query_type
         )
@@ -245,30 +266,44 @@ class AlgorithmComparisonPaperPlotMixin:
 
         return analysis_df
 
-    def _get_supported_query_ids(self, analysis_df: pd.DataFrame) -> set[Any]:
-        """Return the query IDs covered by the reference algorithm."""
+    def _get_supported_query_ids(
+        self,
+        analysis_df: pd.DataFrame,
+    ) -> set[Any] | None:
+        """Return reference-supported query IDs when the reference is present."""
 
-        supported_query_ids = set(
-            analysis_df.loc[
-                analysis_df["algorithm_name"]
-                == self.SUPPORTED_QUERY_REFERENCE_ALGORITHM,
-                "query_id",
-            ].tolist()
-        )
+        reference_rows = analysis_df[
+            analysis_df["algorithm_name"] == self.SUPPORTED_QUERY_REFERENCE_ALGORITHM
+        ]
 
-        if not supported_query_ids:
-            raise ValueError(
-                f"No queries found for reference algorithm {self.SUPPORTED_QUERY_REFERENCE_ALGORITHM!r}."
+        if reference_rows.empty:
+            console.print(
+                "[bold yellow]Warning:[/bold yellow] "
+                f"Reference algorithm "
+                f"{self.SUPPORTED_QUERY_REFERENCE_ALGORITHM!r} "
+                "is not present. Plotting available algorithms without "
+                "the reference-supported subset."
             )
+            return None
 
-        return supported_query_ids
+        return set(reference_rows["query_id"].tolist())
 
     def _expand_analysis_dataframe_by_support_scope(
         self,
         analysis_df: pd.DataFrame,
-        supported_query_ids: set[Any],
+        supported_query_ids: set[Any] | None,
     ) -> pd.DataFrame:
-        """Duplicate rows to compare all queries against the reference-supported subset."""
+        """Add all-query and optional reference-supported plotting scopes."""
+
+        if supported_query_ids is None:
+            all_queries_df = analysis_df.copy()
+            all_queries_df["support_scope"] = self.SUPPORT_SCOPE_ALL
+            all_queries_df["support_scope"] = pd.Categorical(
+                all_queries_df["support_scope"],
+                categories=list(self.SUPPORT_SCOPE_ORDER),
+                ordered=True,
+            )
+            return all_queries_df
 
         all_queries_df = analysis_df[
             analysis_df["algorithm_name"] != self.SUPPORTED_QUERY_REFERENCE_ALGORITHM
@@ -296,7 +331,9 @@ class AlgorithmComparisonPaperPlotMixin:
         """Return only rows with finite q-error values and transformed plotting coordinates."""
 
         q_error_df = analysis_df.dropna(subset=["q_error"]).copy()
-        q_error_df = q_error_df[q_error_df["q_error"].apply(math.isfinite)]
+        q_error_df = q_error_df.loc[
+            np.isfinite(q_error_df["q_error"].to_numpy(dtype=float))
+        ].copy()
         q_error_df["q_error_plot"] = q_error_df["q_error"].apply(
             self._transform_q_error_for_plot
         )
@@ -706,12 +743,20 @@ class AlgorithmComparisonPaperPlotMixin:
     ) -> pd.DataFrame:
         """Prepare one per-query metric for boxplot rendering."""
 
+        if metric_column not in data.columns:
+            return pd.DataFrame(columns=data.columns)
+
         valid_metric_df = data.dropna(subset=[metric_column]).copy()
-        valid_metric_df = valid_metric_df[
-            valid_metric_df[metric_column].apply(math.isfinite)
-        ]
-        if require_non_negative:
-            valid_metric_df = valid_metric_df[valid_metric_df[metric_column] >= 0]
+        if valid_metric_df.empty:
+            return valid_metric_df
+
+        finite_mask = np.isfinite(valid_metric_df[metric_column].to_numpy(dtype=float))
+        valid_metric_df = valid_metric_df.loc[finite_mask].copy()
+
+        if require_non_negative and not valid_metric_df.empty:
+            valid_metric_df = valid_metric_df.loc[
+                valid_metric_df[metric_column] >= 0
+            ].copy()
 
         return valid_metric_df
 
@@ -727,10 +772,18 @@ class AlgorithmComparisonPaperPlotMixin:
                 columns=["algorithm_label", "support_scope", "memory_consumption"]
             )
 
+        if "memory_consumption" not in data.columns:
+            return pd.DataFrame(
+                columns=["algorithm_label", "support_scope", "memory_consumption"]
+            )
+
         valid_memory_df = data.dropna(subset=["memory_consumption"]).copy()
-        valid_memory_df = valid_memory_df[
-            valid_memory_df["memory_consumption"].apply(math.isfinite)
-        ]
+        if not valid_memory_df.empty:
+            finite_mask = np.isfinite(
+                valid_memory_df["memory_consumption"].to_numpy(dtype=float)
+            )
+            valid_memory_df = valid_memory_df.loc[finite_mask].copy()
+
         if valid_memory_df.empty:
             return pd.DataFrame(
                 columns=["algorithm_label", "support_scope", "memory_consumption"]

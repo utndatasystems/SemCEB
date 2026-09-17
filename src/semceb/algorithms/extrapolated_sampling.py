@@ -1,5 +1,8 @@
 import sys
+import numpy as np
 import pandas as pd
+import os
+from dotenv import load_dotenv
 
 from pathlib import Path
 import lotus.settings
@@ -24,6 +27,7 @@ class ExtrapolatedSampling(AlgorithmInterface):
         """Initialize the sampling algorithm and prepare cost tracking."""
         self.name = name
         self.version = version
+        self.seed = 42
 
         self.model = None
         self.reset_cost_stats()
@@ -98,9 +102,36 @@ class ExtrapolatedSampling(AlgorithmInterface):
             raise ValueError("model_name must be a valid name of a model.")
 
     def _initialize_model(self, model_name: str, system_prompt: str | None) -> None:
-        """Initialize and configure the Lotus LM backend used by the algorithm."""
+        """Initialize LOTUS using LiteLLM proxy credentials when configured.
+
+        Precedence:
+        1. LITELLM_ENDPOINT + LITELLM_API_KEY
+        2. OPENAI_API_KEY through the default OpenAI/LiteLLM behavior
+        """
         from lotus.cache import CacheConfig, CacheFactory, CacheType
         from lotus.models.lm import LM
+
+        load_dotenv()
+
+        litellm_endpoint = os.getenv("LITELLM_ENDPOINT")
+        litellm_api_key = os.getenv("LITELLM_API_KEY")
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+
+        # Detect an incomplete LiteLLM proxy configuration.
+        if bool(litellm_endpoint) != bool(litellm_api_key):
+            raise ValueError(
+                "LiteLLM proxy configuration is incomplete. "
+                "Set both LITELLM_ENDPOINT and LITELLM_API_KEY, "
+                "or remove both to use OPENAI_API_KEY."
+            )
+
+        # If no proxy is configured, OpenAI credentials must be available.
+        if not litellm_endpoint and not openai_api_key:
+            raise ValueError(
+                "No API credentials found. Set either:\n"
+                "- LITELLM_ENDPOINT and LITELLM_API_KEY, or\n"
+                "- OPENAI_API_KEY."
+            )
 
         cache_config = CacheConfig(
             cache_type=CacheType.IN_MEMORY,
@@ -108,12 +139,19 @@ class ExtrapolatedSampling(AlgorithmInterface):
         )
         cache = CacheFactory.create_cache(cache_config)
 
-        self.model = LM(
-            model=model_name,
-            rate_limit=None,
-            max_batch_size=64,
-            cache=cache,
-        )
+        lm_kwargs = {
+            "model": model_name,
+            "rate_limit": None,
+            "max_batch_size": 64,
+            "cache": cache,
+        }
+
+        # Only pass these arguments when a LiteLLM proxy is configured.
+        if litellm_endpoint and litellm_api_key:
+            lm_kwargs["api_base"] = litellm_endpoint
+            lm_kwargs["api_key"] = litellm_api_key
+
+        self.model = LM(**lm_kwargs)
         self.model.system_prompt = system_prompt
 
         lotus.settings.configure(
@@ -126,17 +164,23 @@ class ExtrapolatedSampling(AlgorithmInterface):
         data_dfs: dict[str, pd.DataFrame],
         sampling_frac: float,
     ) -> dict[str, pd.DataFrame]:
-        """Create a random sample of each dataset at the requested fraction."""
+        """Create deterministic samples nested across sampling fractions."""
         data_sample: dict[str, pd.DataFrame] = {}
 
         for name, df in data_dfs.items():
-            sample_df = df.sample(frac=sampling_frac, random_state=42)
-            if sample_df.empty:
-                raise ValueError(
-                    f"Sample of dataframe '{name}' is empty. Increase sampling_frac or provide more data."
-                )
+            sample_size = max(
+                1,
+                min(
+                    len(df),
+                    int(round(len(df) * sampling_frac)),
+                ),
+            )
 
-            data_sample[name] = sample_df
+            rng = np.random.default_rng(self.seed)
+            row_order = rng.permutation(len(df))
+            selected_positions = row_order[:sample_size]
+
+            data_sample[name] = df.iloc[selected_positions].copy()
 
         return data_sample
 
